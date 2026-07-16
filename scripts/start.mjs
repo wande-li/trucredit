@@ -16,7 +16,7 @@ if (rawHost) {
     process.env.HOST = parsed.hostname;
   } catch {
     if (cleaned.includes("://")) {
-      const hostname = cleaned.replace(/^https?:\/\//, "").split("/")[0]!.split(":")[0]!;
+      const hostname = (cleaned.replace(/^https?:\/\//, "").split("/")[0] || "").split(":")[0] || cleaned;
       process.env.HOST = hostname;
     } else {
       process.env.HOST = cleaned;

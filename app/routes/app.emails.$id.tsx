@@ -19,7 +19,8 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getTemplateById, updateTemplate, deleteTemplate, TEMPLATE_TYPE_LABELS, fillTemplate } from "~/services/email.server";
+import { getTemplateById, updateTemplate, deleteTemplate } from "~/services/email.server";
+import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
 

@@ -4,19 +4,11 @@ import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import type { TemplateType } from "@prisma/client";
 import { PAGINATION } from "~/lib/constants";
+import { fillTemplate, type TplDef, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 
-interface TplDef { subject: string; body: string; }
+export { fillTemplate, type TplDef, TEMPLATE_TYPE_LABELS };
+
 type TplKey = "BEFORE_DUE" | "ON_DUE" | "OVERDUE_7" | "OVERDUE_14" | "OVERDUE_30" | "OVERDUE_60" | "OVERDUE_90" | "PAYMENT_RECEIVED";
-
-// Template filling engine — direct copy from CollectFlow
-export function fillTemplate(tpl: TplDef, vars: Record<string, string>): TplDef {
-  let { subject, body } = tpl;
-  for (const [k, v] of Object.entries(vars)) {
-    subject = subject.replaceAll(`{{${k}}}`, v);
-    body = body.replaceAll(`{{${k}}}`, v);
-  }
-  return { subject, body };
-}
 
 // 8 default email templates — adapted from CollectFlow for TruCredit
 export const DEFAULT_TEMPLATES: Record<TplKey, TplDef> = {
@@ -90,19 +82,7 @@ function templateTypeToKey(t: TemplateType): TplKey {
 
 // ═══════════════════ Email Template CRUD ═══════════════════
 
-/** Human-readable labels for template types */
-export const TEMPLATE_TYPE_LABELS: Record<string, string> = {
-  REMINDER_BEFORE_DUE: "Reminder — Before Due",
-  REMINDER_ON_DUE: "Reminder — On Due",
-  COLLECTION_GENTLE: "Collection — Gentle (7d)",
-  COLLECTION_FIRM: "Collection — Firm (14d)",
-  COLLECTION_URGENT: "Collection — Urgent (30d)",
-  COLLECTION_FINAL: "Collection — Final (60d)",
-  PAYMENT_RECEIVED: "Payment Received",
-  CREDIT_APPROVED: "Credit Approved",
-  CREDIT_FROZEN: "Credit Frozen",
-  CUSTOM: "Custom",
-};
+
 
 /** List all email templates for a shop, paginated */
 export async function listTemplates(shopId: string, params?: { page?: number; pageSize?: number }) {

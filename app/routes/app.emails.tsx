@@ -20,8 +20,9 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { listTemplates, createTemplate, deleteTemplate, TEMPLATE_TYPE_LABELS, ensureDefaultTemplates } from "~/services/email.server";
+import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
 import { PAGINATION } from "~/lib/constants";
+import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
 
 // ═══════════════════ Loader ═══════════════════

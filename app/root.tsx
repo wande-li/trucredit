@@ -1,14 +1,26 @@
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
   useRouteError,
 } from "@remix-run/react";
+import { AppProvider } from "@shopify/shopify-app-remix/react";
+import { authenticate } from "./shopify.server";
 import { RouteError } from "./services/error-boundary.shared";
 
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  await authenticate.admin(request);
+  return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
+};
+
 export default function App() {
+  const { apiKey } = useLoaderData<typeof loader>();
+
   return (
     <html>
       <head>
@@ -23,7 +35,9 @@ export default function App() {
         <Links />
       </head>
       <body>
-        <Outlet />
+        <AppProvider isEmbeddedApp apiKey={apiKey}>
+          <Outlet />
+        </AppProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

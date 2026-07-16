@@ -1,9 +1,7 @@
 // TruCredit — app routes layout
-// This layout wraps all /app/* pages with Polaris AppProvider + Nav
+// This layout wraps all /app/* pages with Polaris Nav
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
-import { Outlet, useLoaderData, useLocation } from "@remix-run/react";
-import { AppProvider } from "@shopify/shopify-app-remix/react";
+import { Outlet, useLocation } from "@remix-run/react";
 import { Navigation } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 
@@ -13,16 +11,14 @@ export const headers: HeadersFunction = () => ({
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  return json({ apiKey: process.env.SHOPIFY_API_KEY! });
+  return null;
 };
 
 export default function AppLayout() {
-  const { apiKey } = useLoaderData<typeof loader>();
   const location = useLocation();
 
   return (
-    <AppProvider isEmbeddedApp apiKey={apiKey}>
-      <Navigation location={location.pathname}>
+    <Navigation location={location.pathname}>
         <Navigation.Section
           items={[
             {
@@ -74,6 +70,5 @@ export default function AppLayout() {
         />
       </Navigation>
       <Outlet />
-    </AppProvider>
   );
 }

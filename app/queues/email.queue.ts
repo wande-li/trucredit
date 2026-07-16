@@ -12,7 +12,7 @@ const defaultJobOptions = {
   backoff: { type: "exponential" as const, delay: 5000 },
 };
 
-export const emailQueue = new Queue(`${PREFIX}:email`, {
+export const emailQueue = new Queue(`${PREFIX}-email`, {
   connection: { url: REDIS_URL },
   defaultJobOptions,
 });

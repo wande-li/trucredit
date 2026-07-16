@@ -3,7 +3,7 @@
 
 client_id = "7818c09580b775eb921dd9941b477b2d"
 name = "TruCredit"
-application_url = "http://127.0.0.1:3460"
+application_url = "https://trucredit-app-production.up.railway.app"
 embedded = true
 handle = "trucredit"
 
@@ -35,6 +35,6 @@ optional_scopes = [ ]
 
 [auth]
 redirect_urls = [
-  "https://trucredit.up.railway.app/auth/callback",
+  "https://trucredit-app-production.up.railway.app/auth/callback",
   "http://127.0.0.1:3460/auth/callback"
 ]

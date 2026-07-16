@@ -1,0 +1,27 @@
+{
+  "include": ["env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "build", "tests", "*.test.ts", "*.test.tsx"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true,
+    "removeComments": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./app/*"]
+    },
+    "types": ["node"]
+  }
+}

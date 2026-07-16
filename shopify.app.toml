@@ -1,0 +1,40 @@
+# TruCredit — B2B Credit & Collections for Shopify
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "7818c09580b775eb921dd9941b477b2d"
+name = "TruCredit"
+application_url = "http://127.0.0.1:3460"
+embedded = true
+handle = "trucredit"
+
+[build]
+automatically_update_urls_on_dev = false
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks"
+  topics = [
+    "app/uninstalled",
+    "orders/paid",
+    "orders/create",
+    "orders/updated",
+    "orders/cancelled",
+    "customers/update",
+    "companies/create",
+    "companies/update",
+    "app_subscriptions/update"
+  ]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+[access_scopes]
+scopes = "read_orders,write_orders,read_customers,write_customers,read_draft_orders,write_draft_orders,read_products,write_products,read_companies,read_metafields,write_metafields,read_payment_terms,write_payment_terms"
+use_legacy_install_flow = false
+optional_scopes = [ ]
+
+[auth]
+redirect_urls = [
+  "https://trucredit.up.railway.app/auth/callback",
+  "http://127.0.0.1:3460/auth/callback"
+]

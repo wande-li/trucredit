@@ -1,0 +1,452 @@
+// TruCredit — Prisma Schema v1.0
+// AI-Powered Credit & Collections for B2B Merchants
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════ Enums ═══════════════════
+
+enum Plan {
+  FREE    // 5 customers
+  GROWTH  // 50 customers
+  PRO     // Unlimited
+}
+
+enum CreditGrade {
+  A_PLUS  // 90-100
+  A       // 80-89
+  B       // 70-79
+  C       // 60-69
+  D       // 50-59
+  F       // <50
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CustomerStatus {
+  ACTIVE
+  FROZEN
+  BLACKLISTED
+}
+
+enum CreditAction {
+  SET_LIMIT
+  ADJUST_LIMIT
+  FREEZE
+  SET_GRADE
+  SET_TERMS
+}
+
+enum CreditEventType {
+  LIMIT_CHANGE
+  GRADE_CHANGE
+  FROZEN
+  UNFROZEN
+  SCORE_UPDATE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  OVERDUE
+  PARTIALLY_PAID
+  PAID
+  VOID
+  DISPUTED
+}
+
+enum TriggerType {
+  BEFORE_DUE
+  ON_DUE
+  OVERDUE
+}
+
+enum Channel {
+  EMAIL
+  SMS       // Phase 2
+  WHATSAPP  // Phase 3
+}
+
+enum TaskStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  STOPPED
+  ESCALATED
+}
+
+enum EventType {
+  EMAIL_SENT
+  SMS_SENT
+  REPLY_RECEIVED
+  PAYMENT_RECEIVED
+  INTENT_DETECTED
+  ESCALATED
+  FROZEN
+  MANUAL_NOTE
+}
+
+enum ReplyIntent {
+  WILL_PAY
+  ALREADY_PAID
+  DISPUTE
+  PAYMENT_PLAN
+  DELAY_REQUEST
+  CANNOT_PAY
+  UNRELATED
+}
+
+enum TemplateType {
+  REMINDER_BEFORE_DUE
+  REMINDER_ON_DUE
+  COLLECTION_GENTLE
+  COLLECTION_FIRM
+  COLLECTION_URGENT
+  COLLECTION_FINAL
+  PAYMENT_RECEIVED
+  CREDIT_APPROVED
+  CREDIT_FROZEN
+  CUSTOM
+}
+
+// ═══════════════════ Session (Shopify OAuth - REQUIRED) ═══════════════════
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  accessTokenExpires  DateTime?
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop])
+  @@index([shop, isOnline])
+  @@index([refreshTokenExpires])
+}
+
+// ═══════════════════ Shop ═══════════════════
+
+model Shop {
+  id            String  @id @default(cuid())
+  shopDomain    String  @unique
+  accessToken   String
+  plan          Plan    @default(FREE)
+
+  // Settings
+  currency      String  @default("USD")
+  timezone      String  @default("America/New_York")
+  emailFromName String?
+  emailReplyTo  String?
+
+  // Subscription
+  shopifyChargeId    String?
+  subscriptionId     String?
+  subscriptionStatus String  @default("NONE")
+  billingInterval    String?
+  priceAmount        Float?
+  currentPeriodEnd   DateTime?
+  trialDays          Int?
+  cancelledAt        DateTime?
+
+  // Quota
+  customerQuota      Int     @default(5)
+  invoiceQuota       Int     @default(10)
+
+  // Install/Uninstall
+  installedAt   DateTime @default(now())
+  uninstalledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers      Customer[]
+  invoices       Invoice[]
+  sequences      CollectionSequence[]
+  creditRules    CreditRule[]
+  emailTemplates EmailTemplate[]
+
+  @@index([plan])
+  @@index([uninstalledAt])
+}
+
+// ═══════════════════ Customer & Credit ═══════════════════
+
+model Customer {
+  id                String         @id @default(cuid())
+  shopId            String
+  shop              Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Shopify data
+  shopifyCustomerId String
+  email             String
+  name              String
+  company           String?
+  phone             String?
+
+  // Credit data
+  creditLimit       Decimal        @default(0)
+  creditUsed        Decimal        @default(0)
+  creditAvailable   Decimal        @default(0)
+  creditScore       Int?
+  creditGrade       CreditGrade?
+  riskLevel         RiskLevel      @default(MEDIUM)
+
+  // Payment behavior
+  totalOrders       Int            @default(0)
+  totalRevenue      Decimal        @default(0)
+  avgPaymentDays    Float?
+  onTimePaymentRate Float?
+  lastPaymentDate   DateTime?
+
+  // Net Terms
+  netTermsDays      Int            @default(30)
+
+  // Status
+  status            CustomerStatus @default(ACTIVE)
+  isFrozen          Boolean        @default(false)
+  frozenReason      String?
+  frozenAt          DateTime?
+
+  // Relations
+  invoices          Invoice[]
+  creditEvents      CreditEvent[]
+  collectionTasks   CollectionTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, shopifyCustomerId])
+  @@index([shopId, status])
+  @@index([shopId, creditGrade])
+}
+
+model CreditRule {
+  id          String       @id @default(cuid())
+  shopId      String
+  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  priority    Int          @default(0)
+  isActive    Boolean      @default(true)
+
+  conditions  Json
+  action      CreditAction
+  actionValue Json
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([shopId, isActive])
+}
+
+model CreditEvent {
+  id          String          @id @default(cuid())
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  type        CreditEventType
+  previousValue Json?
+  newValue    Json?
+  reason      String?
+  triggeredBy String
+
+  createdAt   DateTime        @default(now())
+}
+
+// ═══════════════════ Invoice & AR ═══════════════════
+
+model Invoice {
+  id                  String         @id @default(cuid())
+  shopId              String
+  shop                Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId          String
+  customer            Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Shopify
+  shopifyOrderId      String?
+  shopifyOrderName    String?
+  shopifyDraftOrderId String?
+
+  // Info
+  invoiceNumber       String
+  amount              Decimal
+  currency            String         @default("USD")
+
+  // Dates
+  issueDate           DateTime
+  dueDate             DateTime
+  paidDate            DateTime?
+
+  // Net Terms
+  netTermsDays        Int            @default(30)
+
+  // Status
+  status              InvoiceStatus  @default(PENDING)
+  daysOverdue         Int            @default(0)
+
+  // Payment
+  paymentUrl          String?
+  paymentMethod       String?
+
+  // Relations
+  collectionTasks     CollectionTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, status])
+  @@index([shopId, dueDate])
+  @@index([customerId, status])
+}
+
+// ═══════════════════ Collection Engine ═══════════════════
+
+model CollectionSequence {
+  id          String        @id @default(cuid())
+  shopId      String
+  shop        Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  isDefault   Boolean       @default(false)
+  isActive    Boolean       @default(true)
+
+  triggerType TriggerType   @default(OVERDUE)
+  triggerDays Int           @default(0)
+
+  steps       CollectionStep[]
+  tasks       CollectionTask[]
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([shopId, isActive])
+}
+
+model CollectionStep {
+  id          String             @id @default(cuid())
+  sequenceId  String
+  sequence    CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  order       Int
+  delayDays   Int
+  channel     Channel            @default(EMAIL)
+
+  // AI tone (1-7)
+  toneLevel   Int                @default(3)
+
+  // Email template
+  subject     String?
+  templateId  String?
+  useAI       Boolean            @default(true)
+  aiPromptHint String?
+
+  // Conditions
+  skipIfPaid  Boolean            @default(true)
+  skipConditions Json?
+
+  createdAt   DateTime           @default(now())
+}
+
+model CollectionTask {
+  id              String             @id @default(cuid())
+  sequenceId      String
+  sequence        CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  customerId      String
+  customer        Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  invoice         Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  status          TaskStatus         @default(PENDING)
+  currentStep     Int                @default(0)
+  nextStepAt      DateTime?
+
+  // Reply tracking
+  lastReplyAt     DateTime?
+  lastReplyIntent ReplyIntent?
+
+  // Records
+  events          CollectionEvent[]
+
+  startedAt       DateTime           @default(now())
+  completedAt     DateTime?
+  completedReason String?
+
+  @@index([status, nextStepAt])
+}
+
+model CollectionEvent {
+  id              String          @id @default(cuid())
+  taskId          String
+  task            CollectionTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  type            EventType
+  channel         Channel?
+  stepOrder       Int?
+
+  // Email content
+  emailSubject    String?
+  emailBody       String?
+  emailMessageId  String?
+
+  // AI
+  toneLevel       Int?
+  aiGenerated     Boolean         @default(false)
+
+  // Reply parse
+  replyContent    String?
+  replyIntent     ReplyIntent?
+  replyConfidence Float?
+  aiAnalysis      Json?
+
+  // Action
+  actionTaken     String?
+
+  createdAt       DateTime        @default(now())
+}
+
+// ═══════════════════ Email Templates ═══════════════════
+
+model EmailTemplate {
+  id          String       @id @default(cuid())
+  shopId      String
+  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  name        String
+  type        TemplateType
+  subject     String
+  body        String
+  toneLevel   Int?
+  isDefault   Boolean      @default(false)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}

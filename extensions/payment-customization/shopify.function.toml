@@ -1,0 +1,21 @@
+# Payment Customization Function — TruCredit credit check at checkout
+# Shopify Functions use JavaScript (ES2023 target), deployed via Shopify CLI
+
+name = "trucredit-payment"
+type = "payment_customization"
+api_version = "2024-07"
+
+[build]
+command = ""
+path = ""
+
+[ui.paths]
+create = "/"
+details = "/"
+
+[[targeting]]
+target = "payments.payment-customization.run"
+
+[input.variables]
+namespace = "payments"
+key = "payment_customization"

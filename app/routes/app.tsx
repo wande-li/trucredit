@@ -18,7 +18,8 @@ export default function AppLayout() {
   const location = useLocation();
 
   return (
-    <Navigation location={location.pathname}>
+    <>
+      <Navigation location={location.pathname}>
         <Navigation.Section
           items={[
             {
@@ -70,5 +71,6 @@ export default function AppLayout() {
         />
       </Navigation>
       <Outlet />
+    </>
   );
 }

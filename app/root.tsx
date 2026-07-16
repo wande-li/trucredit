@@ -1,4 +1,3 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import {
   Links,
@@ -10,11 +9,9 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
-import { authenticate } from "./shopify.server";
 import { RouteError } from "./services/error-boundary.shared";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+export const loader = async () => {
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 

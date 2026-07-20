@@ -285,6 +285,7 @@ export default function EmailsPage() {
           <Text as="p">Are you sure you want to delete this template? This cannot be undone.</Text>
         </Modal.Section>
       </Modal>
+      </BlockStack>
     </Page>
   );
 }

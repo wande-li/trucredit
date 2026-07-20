@@ -336,10 +336,11 @@ function ReplyDetailModal({
     aiAnalysis: unknown;
     createdAt: string;
     task: { invoice: { invoiceNumber: string; amount: string; currency: string } | null } | null;
-  };
+  } | null;
   onClose: () => void;
   onResolve: (eventId: string, taskId: string) => void;
 }) {
+  if (!event) return null;
   const analysis: Record<string, unknown> = (event.aiAnalysis as Record<string, unknown>) ?? {};
   const inv = event.task?.invoice;
 

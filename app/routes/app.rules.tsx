@@ -217,7 +217,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button url="/app/rules/new">Add Rule</Button>}
+      primaryAction={{ content: "Add Rule", url: "/app/rules/new" }}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}

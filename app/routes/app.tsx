@@ -7,6 +7,7 @@ import {
   useLocation,
   useLoaderData,
   useNavigation,
+  useNavigate,
   Link,
 } from "@remix-run/react";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
@@ -19,6 +20,8 @@ import {
   Badge,
   Button,
   SkeletonBodyText,
+  Popover,
+  ActionList,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
@@ -210,28 +213,100 @@ export const shouldRevalidate = ({
   return false;
 };
 
-// ── Navigation config — flat 10 items ──
-interface NavItem {
+// ── Navigation config — 6 top-level items (3 standalone + 3 dropdowns) ──
+
+interface NavSubItem {
   label: string;
   href: string;
-  match: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+interface NavGroup {
+  label: string;
+  match: string;
+  items: NavSubItem[];
+}
+
+const NAV_STANDALONE = [
   { label: "Dashboard", href: "/app", match: "/app" },
   { label: "Customers", href: "/app/customers", match: "/app/customers" },
   { label: "Invoices", href: "/app/invoices", match: "/app/invoices" },
-  { label: "Rules", href: "/app/rules", match: "/app/rules" },
-  { label: "Collections", href: "/app/collections", match: "/app/collections" },
-  { label: "Tasks", href: "/app/tasks", match: "/app/tasks" },
-  { label: "Emails", href: "/app/emails", match: "/app/emails" },
-  { label: "Replies", href: "/app/replies", match: "/app/replies" },
-  { label: "Billing", href: "/app/billing", match: "/app/billing" },
-  { label: "Settings", href: "/app/settings", match: "/app/settings" },
+] as const;
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Automation",
+    match: "/app/rules",
+    items: [
+      { label: "Rules", href: "/app/rules" },
+      { label: "Collections", href: "/app/collections" },
+    ],
+  },
+  {
+    label: "Activity",
+    match: "/app/tasks",
+    items: [
+      { label: "Tasks", href: "/app/tasks" },
+      { label: "Emails", href: "/app/emails" },
+      { label: "Replies", href: "/app/replies" },
+    ],
+  },
+  {
+    label: "Settings",
+    match: "/app/settings",
+    items: [
+      { label: "General", href: "/app/settings" },
+      { label: "Billing", href: "/app/billing" },
+    ],
+  },
 ];
 
-function isItemActive(item: NavItem, pathname: string): boolean {
-  return pathname === item.match || (item.match !== "/app" && pathname.startsWith(item.match));
+function isStandaloneActive(href: string, pathname: string): boolean {
+  return href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+}
+
+// ── NavDropdown Component ──
+function NavDropdown({
+  group,
+  pathname,
+}: {
+  group: NavGroup;
+  pathname: string;
+}) {
+  const [active, setActive] = useState(false);
+  const navigate = useNavigate();
+  const isGroupActive = group.items.some((item) =>
+    pathname.startsWith(item.href),
+  );
+
+  return (
+    <Popover
+      active={active}
+      activator={
+        <Button
+          variant="tertiary"
+          size="large"
+          pressed={isGroupActive}
+          onClick={() => setActive(!active)}
+          removeUnderline
+          disclosure
+        >
+          {group.label}
+        </Button>
+      }
+      onClose={() => setActive(false)}
+      fullWidth
+    >
+      <ActionList
+        items={group.items.map((item) => ({
+          content: item.label,
+          onAction: () => {
+            setActive(false);
+            navigate(item.href);
+          },
+        }))}
+      />
+    </Popover>
+  );
 }
 
 // ── Unauthed Fallback: auto-retry when auth not yet ready ──
@@ -322,9 +397,9 @@ export default function AppLayout() {
                   </Text>
                 </InlineStack>
               </Link>
-              <InlineStack gap="100" blockAlign="center">
-                {NAV_ITEMS.map((item) => {
-                  const active = isItemActive(item, location.pathname);
+              <InlineStack gap="500" blockAlign="center">
+                {NAV_STANDALONE.map((item) => {
+                  const active = isStandaloneActive(item.href, location.pathname);
                   return (
                     <Link key={item.label} to={item.href} style={{ textDecoration: "none" }}>
                       <Button
@@ -338,6 +413,13 @@ export default function AppLayout() {
                     </Link>
                   );
                 })}
+                {NAV_GROUPS.map((group) => (
+                  <NavDropdown
+                    key={group.label}
+                    group={group}
+                    pathname={location.pathname}
+                  />
+                ))}
               </InlineStack>
             </InlineStack>
             <Badge tone="info">{plan}</Badge>

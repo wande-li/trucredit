@@ -129,10 +129,14 @@ const statCardStyle = (tone?: "critical" | "warning" | "success"): React.CSSProp
   background: tone
     ? `var(--p-color-bg-${tone}-strong)`
     : "var(--p-color-bg-surface)",
-  borderRadius: 8,
-  padding: "20px 24px",
+  borderRadius: 10,
+  padding: "24px 28px",
   flex: "1 1 160px",
   minWidth: 160,
+  boxShadow: tone
+    ? undefined
+    : "0 1px 3px rgba(0,0,0,0.06)",
+  border: tone ? undefined : "1px solid var(--p-color-border-secondary)",
 });
 
 const statLabelStyle = (tone?: string): React.CSSProperties => ({
@@ -156,14 +160,15 @@ export default function Dashboard() {
     useLoaderData<typeof loader>();
 
   return (
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
     <Page fullWidth>
-      <BlockStack gap="500">
+      <BlockStack gap="600">
         {/* ── KPI Stat Cards Row ── */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 16,
+            gap: 20,
           }}
         >
           <div style={statCardStyle()}>
@@ -199,7 +204,7 @@ export default function Dashboard() {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: 16,
+            gap: 20,
           }}
         >
           {/* AR Aging */}
@@ -347,7 +352,7 @@ export default function Dashboard() {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: 16,
+            gap: 20,
           }}
         >
           {/* Collections */}
@@ -421,7 +426,7 @@ export default function Dashboard() {
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                  gap: 12,
+                  gap: 16,
                 }}
               >
                 {recentCustomers.map((c) => (
@@ -474,5 +479,6 @@ export default function Dashboard() {
         </Card>
       </BlockStack>
     </Page>
+    </div>
   );
 }

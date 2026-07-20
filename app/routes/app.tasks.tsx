@@ -337,8 +337,8 @@ export default function TasksPage() {
             >
               {tasks.map((task, idx) => {
                 const st = STATUS_MAP[task.status] ?? { label: task.status, tone: "info" as const };
-                const replyIntent = task.lastReplyIntent;
-                const ri = replyIntent ? INTENT_MAP[replyIntent] : null;
+                const replyIntent = (task as Record<string, unknown>).lastReplyIntent as string | undefined;
+                const ri = replyIntent ? INTENT_MAP[replyIntent] ?? null : null;
 
                 return (
                   <IndexTable.Row key={task.id} id={task.id} position={idx}>

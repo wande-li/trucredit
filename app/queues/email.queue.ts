@@ -1,5 +1,5 @@
-// BullMQ queue — Email delivery
-import { Queue } from "bullmq";
+// BullMQ queue — Email delivery (lazy init to avoid crash when Redis unavailable)
+import type { Queue as QueueType } from "bullmq";
 import { logger } from "~/services/logger.server";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
@@ -12,9 +12,23 @@ const defaultJobOptions = {
   backoff: { type: "exponential" as const, delay: 5000 },
 };
 
-export const emailQueue = new Queue(`${PREFIX}-email`, {
-  connection: { url: REDIS_URL },
-  defaultJobOptions,
+let _emailQueue: QueueType | null = null;
+function getEmailQueue(): QueueType {
+  if (!_emailQueue) {
+    const { Queue } = require("bullmq") as typeof import("bullmq");
+    _emailQueue = new Queue(`${PREFIX}-email`, {
+      connection: { url: REDIS_URL },
+      defaultJobOptions,
+    });
+  }
+  return _emailQueue;
+}
+
+// Lazy proxy: allows `emailQueue.name` and Worker usage without init crash
+export const emailQueue = new Proxy({} as QueueType, {
+  get(_, prop) {
+    return Reflect.get(getEmailQueue(), prop);
+  },
 });
 
 export interface EmailJobData {
@@ -41,7 +55,8 @@ export interface EmailJobData {
 
 export async function enqueueEmail(data: EmailJobData) {
   try {
-    await emailQueue.add("send-email", data, {
+    const q = getEmailQueue();
+    await q.add("send-email", data, {
       jobId: `email:${data.vars.invoiceNumber}:${Date.now()}`,
     });
     logger.app("INFO", "Email job enqueued", {

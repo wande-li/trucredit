@@ -1,11 +1,11 @@
-// TruCredit — Pricing Page (Managed Pricing — Shopify hosts payment)
-// No Billing API calls. Clicking "Upgrade" redirects to Shopify's hosted pricing page.
+// TruCredit — Pricing Page (Billing API — Shopify hosted charge confirmation)
+// Managed Pricing plans are only configurable at app review submission time.
+// During development: use Billing API to create recurring charges.
 // Webhook APP_SUBSCRIPTIONS_UPDATE syncs plan changes to DB.
-// Strictly matches Wandex billing page pattern (Shopify App Store reviewed + approved).
 
-import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
-import { useLoaderData, useRouteError } from "@remix-run/react";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
+import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -21,7 +21,8 @@ import {
   Button,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { PLANS, pricingPageUrl } from "~/lib/constants";
+import { PLAN_MONTHLY, PLAN_ANNUAL } from "~/shopify.server";
+import { PLANS } from "~/lib/constants";
 import prisma from "~/db.server";
 import { RouteError } from "~/services/error-boundary.shared";
 
@@ -57,7 +58,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
-    // Fallback: return empty state so component can show error UI or default
     return json(
       {
         shopDomain: "",
@@ -76,10 +76,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
+// ── Action ──
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { billing } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const plan = formData.get("plan") as string;
+
+  if (plan === "GROWTH" || plan === "PRO") {
+    const billingPlan = plan === "PRO" ? PLAN_ANNUAL : PLAN_MONTHLY;
+    const charge = await billing.request({
+      plan: billingPlan,
+      isTest: true,
+      returnUrl: "/app/billing",
+    });
+    return redirect(charge.confirmationUrl);
+  }
+
+  return json({ error: "Invalid plan" }, { status: 400 });
+};
+
 // ── Component ──
 export default function BillingPage() {
   const {
-    shopDomain,
     currentPlan,
     isPaid,
     subscriptionStatus,
@@ -89,6 +107,8 @@ export default function BillingPage() {
     proFeatures,
   } = useLoaderData<typeof loader>();
 
+  const fetcher = useFetcher();
+
   const isCancelling = isPaid && subscriptionStatus === "CANCELLED";
   const renewDate = currentPeriodEnd
     ? new Date(currentPeriodEnd).toLocaleDateString("en-US", {
@@ -97,14 +117,6 @@ export default function BillingPage() {
         day: "numeric",
       })
     : null;
-
-  const handleUpgrade = () => {
-    if (!shopDomain) return;
-    // Navigate parent window (Shopify Admin) to Shopify Managed Pricing page.
-    // Using window.top.location.href is the only reliable way for embedded apps
-    // to escape the iframe; redirect() / open() / shopify:// are all unreliable.
-    window.top!.location.href = pricingPageUrl(shopDomain);
-  };
 
   const planLabel =
     currentPlan === "GROWTH"
@@ -206,14 +218,18 @@ export default function BillingPage() {
                 ))}
               </List>
               {currentPlan !== "GROWTH" && currentPlan !== "PRO" && (
-                <Button
-                  variant="primary"
-                  size="large"
-                  fullWidth
-                  onClick={handleUpgrade}
-                >
-                  Upgrade to Growth
-                </Button>
+                <fetcher.Form method="post">
+                  <input type="hidden" name="plan" value="GROWTH" />
+                  <Button
+                    submit
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    loading={fetcher.state === "submitting"}
+                  >
+                    Upgrade to Growth
+                  </Button>
+                </fetcher.Form>
               )}
             </BlockStack>
           </Card>
@@ -251,14 +267,18 @@ export default function BillingPage() {
                 ))}
               </List>
               {currentPlan !== "PRO" && (
-                <Button
-                  variant="primary"
-                  size="large"
-                  fullWidth
-                  onClick={handleUpgrade}
-                >
-                  Upgrade to Pro
-                </Button>
+                <fetcher.Form method="post">
+                  <input type="hidden" name="plan" value="PRO" />
+                  <Button
+                    submit
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    loading={fetcher.state === "submitting"}
+                  >
+                    Upgrade to Pro
+                  </Button>
+                </fetcher.Form>
               )}
             </BlockStack>
           </Card>

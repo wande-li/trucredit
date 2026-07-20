@@ -125,35 +125,42 @@ function progressTone(pct: number): "success" | "highlight" | "critical" {
   return "success";
 }
 
+const statCardAccent = (tone?: "critical" | "warning" | "success"): string => {
+  switch (tone) {
+    case "success": return "var(--p-color-bg-success-strong)";
+    case "warning": return "var(--p-color-bg-warning-strong)";
+    case "critical": return "var(--p-color-bg-critical-strong)";
+    default: return "var(--p-color-border-secondary)";
+  }
+};
+
 const statCardStyle = (tone?: "critical" | "warning" | "success"): React.CSSProperties => ({
-  background: tone
-    ? `var(--p-color-bg-${tone}-strong)`
-    : "var(--p-color-bg-surface)",
+  background: "var(--p-color-bg-surface)",
   borderRadius: 10,
-  padding: "24px 28px",
+  padding: "20px 24px",
   flex: "1 1 160px",
   minWidth: 160,
-  boxShadow: tone
-    ? undefined
-    : "0 1px 3px rgba(0,0,0,0.06)",
-  border: tone ? undefined : "1px solid var(--p-color-border-secondary)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  border: "1px solid var(--p-color-border-secondary)",
+  borderLeft: `4px solid ${statCardAccent(tone)}`,
+  position: "relative" as const,
 });
 
-const statLabelStyle = (tone?: string): React.CSSProperties => ({
+const statLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 500,
   textTransform: "uppercase" as const,
   letterSpacing: "0.05em",
-  color: tone ? "var(--p-color-text-on-color)" : "var(--p-color-text-subdued)",
-  marginBottom: 8,
-});
+  color: "var(--p-color-text-subdued)",
+  marginBottom: 6,
+};
 
-const statValueStyle = (tone?: string): React.CSSProperties => ({
+const statValueStyle: React.CSSProperties = {
   fontSize: 28,
   fontWeight: 700,
-  color: tone ? "var(--p-color-text-on-color)" : "var(--p-color-text)",
+  color: "var(--p-color-text)",
   lineHeight: 1.2,
-});
+};
 
 export default function Dashboard() {
   const { stats, quota, planName, aging, collectionStats, recentCustomers } =
@@ -172,28 +179,28 @@ export default function Dashboard() {
           }}
         >
           <div style={statCardStyle()}>
-            <div style={statLabelStyle()}>Total Customers</div>
-            <div style={statValueStyle()}>{stats.totalCustomers}</div>
+            <div style={statLabelStyle}>Total Customers</div>
+            <div style={statValueStyle}>{stats.totalCustomers}</div>
           </div>
           <div style={statCardStyle("success")}>
-            <div style={statLabelStyle("success")}>Active</div>
-            <div style={statValueStyle("success")}>{stats.activeCustomers}</div>
+            <div style={statLabelStyle}>Active</div>
+            <div style={statValueStyle}>{stats.activeCustomers}</div>
           </div>
           <div style={statCardStyle("warning")}>
-            <div style={statLabelStyle("warning")}>Frozen</div>
-            <div style={statValueStyle("warning")}>{stats.frozenCustomers}</div>
+            <div style={statLabelStyle}>Frozen</div>
+            <div style={statValueStyle}>{stats.frozenCustomers}</div>
           </div>
           <div style={statCardStyle()}>
-            <div style={statLabelStyle()}>Total Invoices</div>
-            <div style={statValueStyle()}>{stats.totalInvoices}</div>
+            <div style={statLabelStyle}>Total Invoices</div>
+            <div style={statValueStyle}>{stats.totalInvoices}</div>
           </div>
           <div style={statCardStyle("critical")}>
-            <div style={statLabelStyle("critical")}>Overdue</div>
-            <div style={statValueStyle("critical")}>{stats.overdueInvoices}</div>
+            <div style={statLabelStyle}>Overdue</div>
+            <div style={statValueStyle}>{stats.overdueInvoices}</div>
           </div>
           <div style={statCardStyle("critical")}>
-            <div style={statLabelStyle("critical")}>Overdue Total</div>
-            <div style={statValueStyle("critical")}>
+            <div style={statLabelStyle}>Overdue Total</div>
+            <div style={statValueStyle}>
               ${Number(stats.overdueTotal).toLocaleString()}
             </div>
           </div>
@@ -214,8 +221,8 @@ export default function Dashboard() {
                 <Text as="h2" variant="headingMd">
                   AR Aging
                 </Text>
-                <Link to="/app/invoices">
-                  <Text as="span" variant="bodySm" tone="subdued">
+                <Link to="/app/invoices" style={{ textDecoration: "none" }}>
+                  <Text as="span" variant="bodySm" tone="success" fontWeight="medium">
                     View all →
                   </Text>
                 </Link>
@@ -362,15 +369,15 @@ export default function Dashboard() {
                 <Text as="h2" variant="headingMd">
                   Collections
                 </Text>
-                <Link to="/app/tasks">
-                  <Text as="span" variant="bodySm" tone="subdued">
+                <Link to="/app/tasks" style={{ textDecoration: "none" }}>
+                  <Text as="span" variant="bodySm" tone="success" fontWeight="medium">
                     View tasks →
                   </Text>
                 </Link>
               </InlineStack>
               <div style={statCardStyle("warning")}>
-                <div style={statLabelStyle("warning")}>Active Tasks</div>
-                <div style={statValueStyle("warning")}>
+                <div style={statLabelStyle}>Active Tasks</div>
+                <div style={statValueStyle}>
                   {collectionStats.activeTasks}
                 </div>
               </div>
@@ -409,8 +416,8 @@ export default function Dashboard() {
               <Text as="h2" variant="headingMd">
                 Recent Customers
               </Text>
-              <Link to="/app/customers">
-                <Text as="span" variant="bodySm" tone="subdued">
+              <Link to="/app/customers" style={{ textDecoration: "none" }}>
+                <Text as="span" variant="bodySm" tone="success" fontWeight="medium">
                   View all →
                 </Text>
               </Link>

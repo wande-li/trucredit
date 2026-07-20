@@ -62,7 +62,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+    logger.app("ERROR", "Rules loader failed", msg);
+    throw new Response("Something went wrong", { status: 500 });
   }
 };
 
@@ -104,7 +105,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Response(`Rule action failed: ${msg}`, { status: 500 });
+    logger.app("ERROR", "Rule action failed", msg);
+    throw new Response("Something went wrong", { status: 500 });
   }
 };
 

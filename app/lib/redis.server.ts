@@ -2,6 +2,7 @@
 import Redis from "ioredis";
 
 export const REDIS_PREFIX = "trucredit:" as const;
+export const BULLMQ_PREFIX = "b2b" as const;
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 

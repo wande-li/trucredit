@@ -1,9 +1,9 @@
 // BullMQ queue — Email delivery (lazy init to avoid crash when Redis unavailable)
 import type { Queue as QueueType } from "bullmq";
 import { logger } from "~/services/logger.server";
+import { BULLMQ_PREFIX } from "~/lib/redis.server";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-const PREFIX = "b2b";
 
 const defaultJobOptions = {
   removeOnComplete: { age: 86400 },
@@ -16,7 +16,7 @@ let _emailQueue: QueueType | null = null;
 function getEmailQueue(): QueueType {
   if (!_emailQueue) {
     const { Queue } = require("bullmq") as typeof import("bullmq");
-    _emailQueue = new Queue(`${PREFIX}-email`, {
+    _emailQueue = new Queue(`${BULLMQ_PREFIX}-email`, {
       connection: { url: REDIS_URL },
       defaultJobOptions,
     });

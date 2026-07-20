@@ -20,7 +20,7 @@ if (process.env.NODE_ENV === "development") {
   const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
   import("~/db.server").then(({ default: prisma }) => {
     prisma.session
-      .findFirst()
+      .findFirst({ where: { shop: devShop } })
       .then((s) => {
         if (!s) {
           // eslint-disable-next-line no-console

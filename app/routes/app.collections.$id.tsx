@@ -54,7 +54,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+    logger.app("ERROR", "Collection detail loader failed", msg);
+    throw new Response("Something went wrong", { status: 500 });
   }
 };
 

@@ -67,8 +67,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Fall back to DB lookup before re-throwing — once installed, the shop
     // record exists and we can serve the page without OAuth redirect loop.
     if (e instanceof Response) {
-      // Try session table → shop table as fallback
+      // Try session table → shop table as fallback.
+      // Prefer shop from URL param to avoid cross-tenant data leak.
+      const shopParam = url.searchParams.get("shop") || undefined;
       const dbSession = await prisma.session.findFirst({
+        where: shopParam ? { shop: shopParam } : undefined,
         orderBy: { id: "desc" },
         select: { shop: true },
       });
@@ -76,9 +79,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       let shopDomain: string | null = null;
       if (dbSession?.shop) {
         shopDomain = dbSession.shop.trim();
-      } else {
+      } else if (shopParam) {
         const anyShop = await prisma.shop.findFirst({
-          orderBy: { createdAt: "desc" },
+          where: { shopDomain: shopParam },
           select: { shopDomain: true },
         });
         if (anyShop?.shopDomain) shopDomain = anyShop.shopDomain.trim();
@@ -115,7 +118,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (process.env.NODE_ENV === "development") {
       const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
       try {
-        const existingShop = await prisma.shop.findFirst();
+        const existingShop = await prisma.shop.findFirst({ take: 1 });
         if (!existingShop) {
           logger.app("INFO", "Cold start — auto-seeding dev data");
           await prisma.session.create({
@@ -163,7 +166,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         // Data already seeded — use existing
         logger.app("INFO", "Dev mode — using existing seeded data");
-        const shop = await prisma.shop.findFirst();
+        const shop = await prisma.shop.findFirst({ where: { shopDomain: devShop } });
         const elapsed = Date.now() - startTime;
         return json(
           {

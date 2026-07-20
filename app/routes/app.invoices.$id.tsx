@@ -85,7 +85,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+    logger.app("ERROR", "Invoice detail loader failed", msg);
+    throw new Response("Something went wrong", { status: 500 });
   }
 };
 
@@ -171,7 +172,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Response(`Invoice action failed: ${msg}`, { status: 500 });
+    logger.app("ERROR", "Invoice action failed", msg);
+    throw new Response("Something went wrong", { status: 500 });
   }
 };
 

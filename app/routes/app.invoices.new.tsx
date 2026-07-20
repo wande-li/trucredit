@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
   Page,
@@ -13,7 +13,7 @@ import {
   Banner,
   InlineStack,
 } from "@shopify/polaris";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server";
@@ -111,7 +111,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Sync metafield for Shopify Function checkout validation
     syncCreditMetafield(admin, shopDomain, customerId).catch(() => {});
 
-    return redirect(`/app/invoices/${invoice.id}`);
+    return json({ success: true, redirectTo: `/app/invoices/${invoice.id}` });
   } catch (error: unknown) {
     if (error instanceof Response) throw error;
     const msg = error instanceof Error ? error.message : String(error);
@@ -121,8 +121,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function NewInvoice() {
   const { customers, nextNumber, currency, netTermsOptions } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ error?: string }>();
+  const fetcher = useFetcher<{ success?: boolean; error?: string; redirectTo?: string }>();
   const navigate = useNavigate();
+
+  // Navigate after successful save
+  useEffect(() => {
+    const data = fetcher.data;
+    if (data?.success && data.redirectTo) {
+      navigate(data.redirectTo);
+    }
+  }, [fetcher.data, navigate]);
 
   const [customerId, setCustomerId] = useState("");
   const [amount, setAmount] = useState("");

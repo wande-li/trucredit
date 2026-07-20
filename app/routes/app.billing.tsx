@@ -1,39 +1,35 @@
-// Billing Page — plan comparison, upgrade/downgrade, usage display
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+// TruCredit — Billing Page (Managed Pricing — Shopify hosts payment)
+// No action. Clicking "Upgrade" redirects to Shopify's hosted pricing page via window.top.location.href.
+// Webhook APP_SUBSCRIPTIONS_UPDATE syncs plan changes to DB.
+// Strictly follows Wandex's billing page pattern.
+
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
-import { useState } from "react";
+import { useLoaderData } from "@remix-run/react";
 import {
   Page,
+  Layout,
   Card,
   Text,
   BlockStack,
   InlineStack,
-  Button,
   Badge,
   Box,
   Banner,
   ProgressBar,
-  Spinner,
-  Icon,
+  Divider,
+  List,
+  Button,
 } from "@shopify/polaris";
-import { CheckCircleIcon } from "@shopify/polaris-icons";
 import { authenticate } from "~/shopify.server";
 import {
   getShopBilling,
-  planToBillingName,
   PLANS,
 } from "~/services/billing.server";
-import type { Plan } from "@prisma/client";
+import { pricingPageUrl } from "~/lib/constants";
 import prisma from "~/db.server";
 
-type BillingActionData = {
-  error: string | null;
-  billing: null;
-  plans: null;
-  success?: string;
-};
-
+// ── Loader ──
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { session } = await authenticate.admin(request);
@@ -49,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const billing = await getShopBilling(shop.id);
 
     return json({
+      shopDomain,
       billing,
       plans: PLANS,
     });
@@ -59,318 +56,160 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  try {
-    const { billing, session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const formData = await request.formData();
-    const intent = formData.get("intent") as string;
-    const targetPlan = formData.get("plan") as Plan;
-
-    if (intent !== "upgrade" || !targetPlan) {
-      return json({ error: "Invalid request", billing: null, plans: null } satisfies BillingActionData);
-    }
-
-    if (targetPlan === "FREE") {
-      return json({ error: null, billing: null, plans: null, success: "You are on the Free plan" } satisfies BillingActionData);
-    }
-
-    const billingPlanName = planToBillingName(targetPlan);
-    if (!billingPlanName) {
-      return json({ error: "Invalid plan selection", billing: null, plans: null } satisfies BillingActionData);
-    }
-
-    // Check if already on this plan and active
-    const existingShop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { plan: true, subscriptionStatus: true },
-    });
-
-    if (
-      existingShop?.plan === targetPlan &&
-      existingShop?.subscriptionStatus === "ACTIVE"
-    ) {
-      return json({
-        error: null,
-        billing: null,
-        plans: null,
-        success: `Already on ${targetPlan} plan`,
-      } satisfies BillingActionData);
-    }
-
-    // billing.request() returns Promise<never> — it always redirects to Shopify checkout
-    const url = new URL(request.url);
-    const returnUrl = `${url.origin}/app/billing`;
-
-    // This will redirect the user to Shopify's billing confirmation page
-    return billing.request({
-      plan: billingPlanName,
-      isTest: process.env.NODE_ENV !== "production",
-      returnUrl,
-    });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Response(`Billing action failed: ${msg}`, { status: 500 });
-  }
-};
-
+// ── Helper ──
 function progressTone(pct: number): "success" | "highlight" | "critical" {
   if (pct >= 90) return "critical";
   if (pct >= 70) return "highlight";
   return "success";
 }
 
+// ── Component ──
 export default function BillingPage() {
-  const { billing, plans } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<BillingActionData>();
-  const isSubmitting = fetcher.state === "submitting";
-  const [dismissedError, setDismissedError] = useState(false);
-  const [dismissedSuccess, setDismissedSuccess] = useState(false);
+  const { shopDomain, billing, plans } = useLoaderData<typeof loader>();
+
+  const handleUpgrade = () => {
+    if (!shopDomain) return;
+    // Navigate parent window (Shopify Admin) to Shopify Managed Pricing page.
+    // Using window.top.location.href is the only reliable way for embedded apps
+    // to escape the iframe; redirect() / open() / shopify:// are all unreliable.
+    window.top!.location.href = pricingPageUrl(shopDomain);
+  };
 
   return (
-    <Page
-      fullWidth
-      title="Billing & Plan"
-      subtitle={
-        billing.subscriptionStatus === "ACTIVE"
-          ? `Current plan: ${billing.planName}`
-          : "Choose a plan to unlock full features"
-      }
-    >
-      <BlockStack gap="500">
-        {/* Current Usage */}
+    <Page title="Billing & Plan" backAction={{ url: "/app" }} fullWidth>
+      {/* Current usage status */}
+      <Box paddingBlockEnd="400">
+        {billing.subscriptionStatus === "ACTIVE" ? (
+          <Banner tone="success">
+            <Text as="p" variant="bodyMd">
+              You&apos;re on <strong>{billing.planName}</strong>
+              {billing.currentPeriodEnd
+                ? ` — renews ${new Date(billing.currentPeriodEnd).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`
+                : ""}
+            </Text>
+          </Banner>
+        ) : (
+          <Banner tone="info">
+            <Text as="p" variant="bodyMd">
+              You are on the <strong>{billing.planName}</strong> plan.
+              {billing.needsUpgrade && " You've reached your limits — upgrade for more capacity."}
+            </Text>
+          </Banner>
+        )}
+      </Box>
+
+      {/* Usage progress */}
+      <Box paddingBlockEnd="400">
         <Card>
           <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">
-              Current Plan: {billing.planName}
-            </Text>
-
-            {billing.subscriptionStatus === "ACTIVE" &&
-              billing.currentPeriodEnd && (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Next billing date:{" "}
-                  {new Date(
-                    billing.currentPeriodEnd,
-                  ).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-              )}
-
+            <Text as="h2" variant="headingMd">Usage</Text>
             <BlockStack gap="300">
               <BlockStack gap="200">
                 <InlineStack align="space-between">
                   <Text as="span" variant="bodyMd">
-                    Customers ({billing.customerCount} /{" "}
-                    {billing.customerQuota})
+                    Customers ({billing.customerCount} / {billing.customerQuota})
                   </Text>
-                  <Text
-                    as="span"
-                    variant="bodyMd"
-                    tone={
-                      billing.customerQuotaPercent >= 90
-                        ? "critical"
-                        : "subdued"
-                    }
-                  >
+                  <Text as="span" variant="bodyMd" tone={billing.customerQuotaPercent >= 90 ? "critical" : "subdued"}>
                     {billing.customerQuotaPercent}%
                   </Text>
                 </InlineStack>
-                <ProgressBar
-                  progress={billing.customerQuotaPercent}
-                  tone={progressTone(billing.customerQuotaPercent)}
-                />
+                <ProgressBar progress={billing.customerQuotaPercent} tone={progressTone(billing.customerQuotaPercent)} />
               </BlockStack>
-
               <BlockStack gap="200">
                 <InlineStack align="space-between">
                   <Text as="span" variant="bodyMd">
-                    Invoices ({billing.invoiceCount} /{" "}
-                    {billing.invoiceQuota})
+                    Invoices ({billing.invoiceCount} / {billing.invoiceQuota})
                   </Text>
-                  <Text
-                    as="span"
-                    variant="bodyMd"
-                    tone={
-                      billing.invoiceQuotaPercent >= 90
-                        ? "critical"
-                        : "subdued"
-                    }
-                  >
+                  <Text as="span" variant="bodyMd" tone={billing.invoiceQuotaPercent >= 90 ? "critical" : "subdued"}>
                     {billing.invoiceQuotaPercent}%
                   </Text>
                 </InlineStack>
-                <ProgressBar
-                  progress={billing.invoiceQuotaPercent}
-                  tone={progressTone(billing.invoiceQuotaPercent)}
-                />
+                <ProgressBar progress={billing.invoiceQuotaPercent} tone={progressTone(billing.invoiceQuotaPercent)} />
               </BlockStack>
             </BlockStack>
-
-            {billing.needsUpgrade && billing.plan === "FREE" && (
-              <Banner tone="warning">
-                <Text as="p" variant="bodyMd">
-                  You&apos;ve reached your plan limits. Upgrade to Pro for more
-                  customers and invoices.
-                </Text>
-              </Banner>
-            )}
           </BlockStack>
         </Card>
+      </Box>
 
-        {/* Plan Cards */}
-        <Text as="h2" variant="headingLg">
-          Available Plans
-        </Text>
+      {/* Plan Cards */}
+      <Layout>
+        {plans.map((plan) => {
+          const isCurrent = plan.key === billing.plan;
+          const planPrice = plan.price ?? 0;
+          const priceLabel = planPrice > 0 ? `$${planPrice}` : "$0";
+          const periodLabel = plan.period === "year" ? "/year" : plan.period === "month" ? "/month" : "";
 
-        <InlineStack gap="400" blockAlign="start" wrap>
-          {plans.map((plan) => {
-            const isCurrent = plan.key === billing.plan;
-            const planPrice = plan.price ?? 0;
-            const priceLabel = planPrice > 0
-              ? `$${planPrice}${plan.period === "year" ? "/yr" : "/mo"}`
-              : "Free";
+          // Feature list heading
+          const featureHeading =
+            plan.key === "FREE"
+              ? "Includes:"
+              : plan.key === "GROWTH"
+                ? "Everything in Starter, plus:"
+                : "Everything in Growth, plus:";
 
-            return (
-              <Box key={plan.key} minWidth="280px" width="calc(33.333% - 1rem)" maxWidth="380px">
-                <Card>
-                  <BlockStack gap="400">
-                    <BlockStack gap="100">
-                      <InlineStack align="space-between" blockAlign="center">
-                        <Text as="h3" variant="headingMd">
-                          {plan.name}
-                        </Text>
-                        {isCurrent && (
-                          <Badge tone="success">Current</Badge>
-                        )}
-                      </InlineStack>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {planPrice === 0
-                          ? "Get started free"
-                          : plan.period === "year"
-                            ? "Billed annually — save 20%"
-                            : "Billed monthly"}
+          // Only show included features (List.Item with no strikethrough/disabled)
+          const includedFeatures = plan.features.filter((f) => f.included);
+
+          return (
+            <Layout.Section key={plan.key} variant="oneThird">
+              <Card>
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingLg" as="h2">
+                      {plan.name}
+                    </Text>
+                    {isCurrent && <Badge tone="success">Current Plan</Badge>}
+                  </InlineStack>
+
+                  <Text variant="heading2xl" as="p">
+                    {priceLabel}
+                    {periodLabel && (
+                      <Text as="span" variant="bodyMd" tone="subdued">
+                        {" "}
+                        {periodLabel}
                       </Text>
-                    </BlockStack>
+                    )}
+                  </Text>
 
-                    <Box>
-                      <InlineStack blockAlign="baseline" gap="100">
-                        <Text as="p" variant="heading2xl" fontWeight="bold">
-                          {priceLabel}
-                        </Text>
-                        {plan.period === "year" && planPrice > 0 && (
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            ($39.20/mo)
-                          </Text>
-                        )}
-                      </InlineStack>
-                    </Box>
+                  {plan.period === "year" && planPrice > 0 && (
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Billed annually — save 20%
+                    </Text>
+                  )}
+                  {plan.key === "FREE" && (
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Get started free
+                    </Text>
+                  )}
 
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="intent" value="upgrade" />
-                      <input type="hidden" name="plan" value={plan.key} />
-                      <Button
-                        submit
-                        variant={
-                          plan.highlight ? "primary" : "secondary"
-                        }
-                        fullWidth
-                        disabled={
-                          isCurrent ||
-                          isSubmitting ||
-                          plan.key === "FREE"
-                        }
-                        tone={
-                          plan.highlight && !isCurrent
-                            ? "success"
-                            : undefined
-                        }
-                      >
-                        {isCurrent
-                          ? "Current Plan"
-                          : isSubmitting &&
-                            fetcher.formData?.get("plan") === plan.key
-                            ? "Redirecting..."
-                            : plan.key === "FREE"
-                              ? "Included"
-                              : "Upgrade"}
-                      </Button>
-                    </fetcher.Form>
+                  <Divider />
 
-                    <BlockStack gap="200">
-                      {plan.features.map((feature) => (
-                        <InlineStack
-                          key={feature.key}
-                          gap="200"
-                          blockAlign="center"
-                        >
-                          {feature.included ? (
-                            <Icon
-                              source={CheckCircleIcon}
-                              tone="success"
-                            />
-                          ) : (
-                            <Box width="20px" />
-                          )}
-                          <Text
-                            as="span"
-                            variant="bodySm"
-                            tone={
-                              feature.included
-                                ? undefined
-                                : "subdued"
-                            }
-                          >
-                            {feature.label}
-                          </Text>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
-                  </BlockStack>
-                </Card>
-              </Box>
-            );
-          })}
-        </InlineStack>
+                  <Text variant="headingSm" as="h3">
+                    {featureHeading}
+                  </Text>
 
-        {/* Error / Success feedback */}
-        {fetcher.data?.error && !dismissedError && (
-          <Banner
-            tone="critical"
-            onDismiss={() => setDismissedError(true)}
-          >
-            <Text as="p" variant="bodyMd">
-              {fetcher.data.error}
-            </Text>
-          </Banner>
-        )}
+                  <List>
+                    {includedFeatures.map((f) => (
+                      <List.Item key={f.key}>{f.label}</List.Item>
+                    ))}
+                  </List>
 
-        {fetcher.data && "success" in fetcher.data && fetcher.data.success && !dismissedSuccess && (
-          <Banner
-            tone="success"
-            onDismiss={() => setDismissedSuccess(true)}
-          >
-            <Text as="p" variant="bodyMd">
-              {fetcher.data.success}
-            </Text>
-          </Banner>
-        )}
-
-        {isSubmitting && (
-          <Box padding="400">
-            <InlineStack align="center" gap="200">
-              <Spinner size="small" />
-              <Text as="span" variant="bodyMd" tone="subdued">
-                Redirecting to Shopify billing...
-              </Text>
-            </InlineStack>
-          </Box>
-        )}
-      </BlockStack>
+                  {!isCurrent && plan.key !== "FREE" && (
+                    <Button
+                      variant="primary"
+                      size="large"
+                      fullWidth
+                      onClick={handleUpgrade}
+                    >
+                      Upgrade to {plan.name}
+                    </Button>
+                  )}
+                </BlockStack>
+              </Card>
+            </Layout.Section>
+          );
+        })}
+      </Layout>
     </Page>
   );
 }

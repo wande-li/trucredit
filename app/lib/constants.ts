@@ -3,6 +3,21 @@ import { ApiVersion } from "@shopify/shopify-app-remix/server";
 // Shopify API version — must match shopify.server.ts
 export const SHOPIFY_API_VERSION = ApiVersion.October25;
 
+// App Handle — must match shopify.app.toml
+export const APP_HANDLE = "trucredit";
+
+/** Shopify Managed Pricing — redirect to plan selection page.
+ *  Official URL format per Shopify docs:
+ *  https://admin.shopify.com/store/{store-handle}/charges/{app-handle}/pricing_plans
+ *
+ *  Using window.top.location.href is the only reliable way for embedded apps
+ *  to escape the iframe; redirect() / open() / shopify:// are all unreliable.
+ */
+export function pricingPageUrl(shopDomain: string): string {
+  const storeHandle = shopDomain.replace(".myshopify.com", "");
+  return `https://admin.shopify.com/store/${storeHandle}/charges/${APP_HANDLE}/pricing_plans`;
+}
+
 // Plan quotas
 export const PLAN_QUOTAS = {
   FREE: { customers: 5, invoices: 10 },

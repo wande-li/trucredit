@@ -1,5 +1,4 @@
-// TruCredit — app routes layout
-// This layout wraps all /app/* pages with Polaris Frame + Nav
+// TruCredit — app routes layout (Wandex-style top nav)
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import type { ShouldRevalidateFunctionArgs } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -8,15 +7,16 @@ import {
   useLocation,
   useLoaderData,
   useNavigation,
+  Link,
 } from "@remix-run/react";
 import {
-  Navigation,
-  Frame,
   SkeletonBodyText,
   Box,
   BlockStack,
+  InlineStack,
   Text,
   Button,
+  Badge,
 } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
@@ -210,6 +210,32 @@ export const shouldRevalidate = ({
   return false;
 };
 
+// ── Navigation config ──
+interface NavItem {
+  label: string;
+  href: string;
+  match: string | string[];
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { label: "Dashboard", href: "/app", match: "/app" },
+  { label: "Customers", href: "/app/customers", match: "/app/customers" },
+  { label: "Invoices", href: "/app/invoices", match: "/app/invoices" },
+  { label: "Rules", href: "/app/rules", match: "/app/rules" },
+  { label: "Collections", href: "/app/collections", match: "/app/collections" },
+  { label: "Tasks", href: "/app/tasks", match: "/app/tasks" },
+  { label: "Emails", href: "/app/emails", match: "/app/emails" },
+  { label: "Replies", href: "/app/replies", match: "/app/replies" },
+  { label: "Billing", href: "/app/billing", match: "/app/billing" },
+];
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  if (Array.isArray(item.match)) {
+    return item.match.some((m) => pathname === m || (m !== "/app" && pathname.startsWith(m)));
+  }
+  return pathname === item.match || (item.match !== "/app" && pathname.startsWith(item.match));
+}
+
 // ── Unauthed Fallback: auto-retry when auth not yet ready ──
 function UnauthedFallback({ apiKey }: { apiKey: string }) {
   const retryCount = useRef(0);
@@ -250,10 +276,16 @@ function UnauthedFallback({ apiKey }: { apiKey: string }) {
 }
 
 export default function AppLayout() {
-  const { apiKey, authed } = useLoaderData<typeof loader>();
+  const { apiKey, authed, plan } = useLoaderData<typeof loader>();
   const location = useLocation();
   const navigation = useNavigation();
   const isLoading = navigation.state === "loading";
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   if (!authed) {
     return <UnauthedFallback apiKey={apiKey} />;
@@ -261,66 +293,166 @@ export default function AppLayout() {
 
   return (
     <AppProvider isEmbeddedApp={true} apiKey={apiKey}>
-      <Frame>
-        <Navigation location={location.pathname}>
-          <Navigation.Section
-            items={[
-              {
-                url: "/app",
-                label: "Dashboard",
-                exactMatch: true,
-              },
-              {
-                url: "/app/customers",
-                label: "Customers",
-                matchPaths: ["/app/customers"],
-              },
-              {
-                url: "/app/invoices",
-                label: "Invoices",
-                matchPaths: ["/app/invoices"],
-              },
-              {
-                url: "/app/rules",
-                label: "Rules",
-                matchPaths: ["/app/rules"],
-              },
-              {
-                url: "/app/collections",
-                label: "Collections",
-                matchPaths: ["/app/collections"],
-              },
-              {
-                url: "/app/tasks",
-                label: "Tasks",
-                matchPaths: ["/app/tasks"],
-              },
-              {
-                url: "/app/emails",
-                label: "Emails",
-                matchPaths: ["/app/emails"],
-              },
-              {
-                url: "/app/replies",
-                label: "Replies",
-                matchPaths: ["/app/replies"],
-              },
-              {
-                url: "/app/billing",
-                label: "Billing",
-                matchPaths: ["/app/billing"],
-              },
-            ]}
-          />
-        </Navigation>
-        {isLoading ? (
-          <Box padding="600">
-            <SkeletonBodyText lines={8} />
-          </Box>
-        ) : (
-          <Outlet />
-        )}
-      </Frame>
+      {/* ── Top Navigation Bar ── */}
+      <Box
+        background="bg-surface"
+        borderBlockEndWidth="025"
+        borderColor="border"
+        position="sticky"
+        insetBlockStart="0"
+        style={{ zIndex: 100, padding: "8px 32px" }}
+      >
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <InlineStack gap="600" blockAlign="center" align="space-between" wrap>
+            {/* Brand + Nav */}
+            <InlineStack gap="400" blockAlign="center" wrap>
+              <Link to="/app" style={{ textDecoration: "none" }}>
+                <InlineStack gap="200" blockAlign="center">
+                  {/* Brand icon */}
+                  <Box
+                    background="bg-fill-brand"
+                    borderRadius="200"
+                    padding="050"
+                  >
+                    <Text as="span" variant="bodySm" fontWeight="bold" tone="text-on-color">
+                      TC
+                    </Text>
+                  </Box>
+                  <Text as="span" variant="bodyLg" fontWeight="bold">
+                    TruCredit
+                  </Text>
+                </InlineStack>
+              </Link>
+              <InlineStack gap="100" blockAlign="center">
+                {NAV_ITEMS.map((item) => {
+                  const active = isItemActive(item, location.pathname);
+                  return (
+                    <Link
+                      key={item.label}
+                      to={item.href}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Button
+                        variant="tertiary"
+                        size="large"
+                        pressed={active}
+                        removeUnderline
+                      >
+                        {item.label}
+                      </Button>
+                    </Link>
+                  );
+                })}
+              </InlineStack>
+            </InlineStack>
+            <Badge tone="info">{plan}</Badge>
+          </InlineStack>
+        </div>
+      </Box>
+
+      {/* ── Main Content ── */}
+      <Box minHeight="100vh" background="bg-surface-secondary">
+        <Box
+          paddingInline="800"
+          paddingBlockStart="600"
+          paddingBlockEnd="800"
+          id="main-content"
+        >
+          {isLoading ? (
+            <BlockStack gap="400">
+              <Box background="bg-surface" borderRadius="200" padding="500">
+                <BlockStack gap="400">
+                  <SkeletonBodyText lines={1} />
+                  <SkeletonBodyText lines={3} />
+                </BlockStack>
+              </Box>
+              <Box background="bg-surface" borderRadius="200" padding="500">
+                <BlockStack gap="400">
+                  <SkeletonBodyText lines={1} />
+                  <div
+                    style={{
+                      height: 180,
+                      background: "var(--p-color-bg-surface-secondary)",
+                      borderRadius: 8,
+                    }}
+                  />
+                </BlockStack>
+              </Box>
+              <Box background="bg-surface" borderRadius="200" padding="500">
+                <BlockStack gap="400">
+                  <SkeletonBodyText lines={1} />
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Box key={i} paddingBlock="200">
+                      <SkeletonBodyText lines={1} />
+                    </Box>
+                  ))}
+                </BlockStack>
+              </Box>
+            </BlockStack>
+          ) : (
+            <div
+              style={{
+                opacity: visible ? 1 : 0,
+                transition: "opacity 0.3s ease",
+              }}
+            >
+              <Outlet />
+            </div>
+          )}
+        </Box>
+      </Box>
     </AppProvider>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <html>
+      <head>
+        <title>Error — TruCredit</title>
+      </head>
+      <body
+        style={{
+          margin: 0,
+          fontFamily: "Inter, -apple-system, sans-serif",
+          background: "var(--p-color-bg-surface-secondary)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "80px auto",
+            padding: 48,
+            textAlign: "center",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: "var(--p-color-text)",
+              marginBottom: 16,
+            }}
+          >
+            Something Went Wrong
+          </h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--p-color-text-subdued)",
+              marginBottom: 24,
+            }}
+          >
+            Please try again or check the server logs.
+          </p>
+          <a
+            href="/app"
+            style={{ color: "var(--p-color-text-link)", fontSize: 14 }}
+          >
+            Return to Dashboard
+          </a>
+        </div>
+      </body>
+    </html>
   );
 }

@@ -2,6 +2,7 @@
 // Orchestrates full data pull on app install: companies → orders → metafields
 import type { AdminApiContext } from "@shopify/shopify-app-remix/server";
 import prisma from "~/db.server";
+import type { InvoiceStatus } from "@prisma/client";
 import { syncAllCompanies } from "~/services/company.server";
 import { syncAllCreditMetafields } from "~/services/metafield.server";
 import { GET_ORDERS } from "~/lib/graphql-queries";
@@ -129,6 +130,13 @@ async function syncHistoricalOrders(
       break;
     }
 
+    // Collect eligible B2B orders (no DB queries yet)
+    const validOrders: Array<{
+      order: typeof result.data.orders.edges[number]["node"];
+      shopifyCustomerId: string;
+      shopifyOrderId: string;
+    }> = [];
+
     for (const { node: order } of result.data.orders.edges) {
       // Only process B2B orders (with purchasingEntity)
       if (!order.purchasingEntity?.company) continue;
@@ -136,17 +144,59 @@ async function syncHistoricalOrders(
       const customerId = order.customer?.id;
       if (!customerId) continue;
 
-      const dbCustomer = await prisma.customer.findUnique({
-        where: { shopId_shopifyCustomerId: { shopId, shopifyCustomerId: String(customerId) } },
-        select: { id: true },
+      // --- Batch lookup preparation ---
+      // Collect all customer + invoice identifiers from this page first,
+      // then batch-query to avoid N+1 per order.
+      validOrders.push({
+        order,
+        shopifyCustomerId: String(customerId),
+        shopifyOrderId: String(order.id),
       });
-      if (!dbCustomer) continue;
+    }
 
-      const existing = await prisma.invoice.findFirst({
-        where: { shopifyOrderId: String(order.id), shopId },
-        select: { id: true },
-      });
-      if (existing) {
+    // --- Batch: find existing customers ---
+    const customerIds = [...new Set(validOrders.map(o => o.shopifyCustomerId))];
+    const existingCustomers = await prisma.customer.findMany({
+      where: {
+        shopId,
+        shopifyCustomerId: { in: customerIds },
+      },
+      select: { id: true, shopifyCustomerId: true },
+    });
+    const customerMap = new Map(existingCustomers.map(c => [c.shopifyCustomerId, c.id]));
+
+    // --- Batch: find existing invoices ---
+    const orderIds = validOrders.map(o => o.shopifyOrderId);
+    const existingInvoices = await prisma.invoice.findMany({
+      where: {
+        shopId,
+        shopifyOrderId: { in: orderIds },
+      },
+      select: { shopifyOrderId: true },
+    });
+    const invoiceSet = new Set(existingInvoices.map(i => i.shopifyOrderId));
+
+    // --- Process with pre-loaded maps ---
+    const newInvoices: Array<{
+      shopId: string;
+      customerId: string;
+      shopifyOrderId: string;
+      shopifyOrderName: string;
+      invoiceNumber: string;
+      amount: number;
+      currency: string;
+      issueDate: Date;
+      dueDate: Date;
+      status: InvoiceStatus;
+      netTermsDays: number;
+      paidDate?: Date;
+    }> = [];
+
+    for (const { order, shopifyCustomerId, shopifyOrderId } of validOrders) {
+      const dbCustomerId = customerMap.get(shopifyCustomerId);
+      if (!dbCustomerId) continue;
+
+      if (invoiceSet.has(shopifyOrderId)) {
         skipped++;
         continue;
       }
@@ -162,25 +212,28 @@ async function syncHistoricalOrders(
       const paidDate =
         status === "PAID" && order.paymentTerms?.paymentSchedules?.edges?.[0]?.node?.completedAt
           ? new Date(order.paymentTerms.paymentSchedules.edges[0].node.completedAt)
-          : null;
+          : undefined;
 
-      await prisma.invoice.create({
-        data: {
-          shopId,
-          customerId: dbCustomer.id,
-          shopifyOrderId: String(order.id),
-          shopifyOrderName: order.name,
-          invoiceNumber: order.name.replace("#", ""),
-          amount,
-          currency,
-          issueDate: new Date(order.createdAt),
-          dueDate,
-          status,
-          netTermsDays,
-          ...(paidDate ? { paidDate } : {}),
-        },
+      newInvoices.push({
+        shopId,
+        customerId: dbCustomerId,
+        shopifyOrderId,
+        shopifyOrderName: order.name,
+        invoiceNumber: order.name.replace("#", ""),
+        amount,
+        currency,
+        issueDate: new Date(order.createdAt),
+        dueDate,
+        status,
+        netTermsDays,
+        ...(paidDate ? { paidDate } : {}),
       });
       created++;
+    }
+
+    // Batch insert all new invoices in a single query
+    if (newInvoices.length > 0) {
+      await prisma.invoice.createMany({ data: newInvoices });
     }
 
     hasNextPage = result.data.orders.pageInfo.hasNextPage;

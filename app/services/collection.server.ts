@@ -110,7 +110,7 @@ export async function updateSequence(params: {
   if (!existing) return { success: false, error: "Sequence not found" };
 
   await prisma.collectionSequence.update({
-    where: { id: params.sequenceId },
+    where: { id: params.sequenceId, shopId: params.shopId },
     data: {
       ...(params.name !== undefined && { name: params.name }),
       ...(params.description !== undefined && { description: params.description }),
@@ -777,7 +777,7 @@ export async function checkAndSetDedup(
     await redis.set(dedupKey, "1", "EX", 86400); // 24h TTL
     return false;
   } catch (e: unknown) {
-    logger.app("WARN", "Redis dedup failed, proceeding without dedup", e instanceof Error ? e.message : String(e));
-    return false; // Fail open — process anyway
+    logger.app("ERROR", "Redis dedup unavailable — skipping sweep to prevent duplicates", e instanceof Error ? e.message : String(e));
+    return true; // Fail closed — skip rather than risk duplicate emails/actions
   }
 }

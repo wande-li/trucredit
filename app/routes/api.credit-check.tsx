@@ -2,23 +2,18 @@
 // Authenticated via x-api-key header (shared secret per app)
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { z } from "zod";
 import { checkCreditEligibility } from "~/services/checkout.server";
 import { logger } from "~/services/logger.server";
+import { verifyApiKey } from "~/lib/api-auth.server";
+import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
 
-const API_SECRET = process.env.TRUCREDIT_API_SECRET;
-
-function verifyApiKey(request: Request): boolean {
-  if (!API_SECRET) {
-    logger.app("WARN", "TRUCREDIT_API_SECRET not configured — API auth disabled");
-    return true; // Fail open if not configured (dev mode)
-  }
-  const key = request.headers.get("x-api-key");
-  if (!key || key !== API_SECRET) {
-    logger.app("WARN", "Unauthorized API access attempt — invalid or missing x-api-key");
-    return false;
-  }
-  return true;
-}
+const CreditCheckSchema = z.object({
+  shopDomain: z.string().min(1, "shopDomain is required"),
+  customerEmail: z.string().email("Invalid customer email"),
+  cartTotal: z.number().min(0, "cartTotal must be non-negative"),
+  currency: z.string().optional(),
+});
 
 /**
  * POST /api/credit-check
@@ -27,6 +22,7 @@ function verifyApiKey(request: Request): boolean {
  * Requires x-api-key header. Validates B2B customer eligibility for net terms payment.
  *
  * Body: { shopDomain, customerEmail, cartTotal, currency? }
+ * Rate limit: 100 req/min per IP (RATE_LIMIT_RPM env, default 100)
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -37,30 +33,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: Record<string, unknown>;
+  // Rate limit by IP
+  const allowed = await checkRateLimit(getRateLimitKey(request, "credit-check"));
+  if (!allowed) {
+    return json({ error: "Too Many Requests" }, { status: 429 });
+  }
+
+  // Parse + validate body with Zod
+  let body: unknown;
   try {
-    body = await request.json() as Record<string, unknown>;
+    body = await request.json();
   } catch {
     return json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const shopDomain = String(body.shopDomain ?? "").trim();
-  const customerEmail = String(body.customerEmail ?? "").trim();
-  const cartTotal = Number(body.cartTotal);
-
-  if (!shopDomain || !customerEmail || isNaN(cartTotal) || cartTotal < 0) {
+  const parsed = CreditCheckSchema.safeParse(body);
+  if (!parsed.success) {
     return json(
-      { eligible: false, reason: "Missing or invalid parameters" },
+      { eligible: false, reason: parsed.error.issues[0]?.message ?? "Invalid parameters" },
       { status: 400 },
     );
   }
+
+  const { shopDomain, customerEmail, cartTotal, currency } = parsed.data;
 
   try {
     const result = await checkCreditEligibility({
       shopDomain,
       customerEmail,
       cartTotal,
-      currency: body.currency ? String(body.currency) : undefined,
+      currency,
     });
 
     return json(result);

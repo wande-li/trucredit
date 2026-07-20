@@ -26,7 +26,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "~/services/logger.server";
 import { RouteError } from "~/services/error-boundary.shared";
 
@@ -273,15 +273,59 @@ function isStandaloneActive(href: string, pathname: string): boolean {
 function NavDropdown({
   group,
   pathname,
+  closeToken,
+  onAnyInteraction,
 }: {
   group: NavGroup;
   pathname: string;
+  closeToken: number;
+  onAnyInteraction?: () => void;
 }) {
   const [active, setActive] = useState(false);
   const navigate = useNavigate();
   const isGroupActive = group.items.some((item) =>
     pathname.startsWith(item.href),
   );
+
+  // Close on route change
+  useEffect(() => {
+    setActive(false);
+  }, [pathname]);
+
+  // Close when sibling dropdown opens (via closeToken)
+  useEffect(() => {
+    setActive(false);
+  }, [closeToken]);
+
+  // Close on scroll (Shopify iframe: use capture phase to catch events early)
+  useEffect(() => {
+    if (!active) return;
+    const handleScroll = () => setActive(false);
+    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener("scroll", handleScroll, { capture: true });
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [active]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!active) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActive(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [active]);
+
+  const toggle = useCallback(() => {
+    setActive((prev) => {
+      const next = !prev;
+      if (next && onAnyInteraction) onAnyInteraction();
+      return next;
+    });
+  }, [onAnyInteraction]);
 
   return (
     <Popover
@@ -291,7 +335,7 @@ function NavDropdown({
           variant="tertiary"
           size="large"
           pressed={isGroupActive}
-          onClick={() => setActive(!active)}
+          onClick={toggle}
           removeUnderline
           disclosure
         >
@@ -360,6 +404,10 @@ export default function AppLayout() {
   const isLoading = navigation.state === "loading";
   const [visible, setVisible] = useState(false);
 
+  // Cascade close token — increment when standalone nav is clicked to close all dropdowns
+  const [closeToken, setCloseToken] = useState(0);
+  const bumpCloseToken = useCallback(() => setCloseToken((t) => t + 1), []);
+
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(raf);
@@ -412,6 +460,7 @@ export default function AppLayout() {
                         size="large"
                         pressed={active}
                         removeUnderline
+                        onClick={bumpCloseToken}
                       >
                         {item.label}
                       </Button>
@@ -423,6 +472,8 @@ export default function AppLayout() {
                     key={group.label}
                     group={group}
                     pathname={location.pathname}
+                    closeToken={closeToken}
+                    onAnyInteraction={bumpCloseToken}
                   />
                 ))}
               </InlineStack>

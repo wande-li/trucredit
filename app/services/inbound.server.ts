@@ -26,34 +26,69 @@ export interface InboundResult {
 
 /**
  * Find active collection tasks for a customer by email.
- * Returns the most relevant task (by most recent activity).
+ * Searches ALL customers matching the email across ALL shops,
+ * then finds the most recently active task (within each customer's own shop).
+ * Prevents cross-shop leakage: customer from shop A cannot match tasks from shop B.
  */
 async function findTaskByEmail(fromEmail: string): Promise<{
   taskId: string | null;
   customerName: string | null;
 }> {
-  const customer = await prisma.customer.findFirst({
+  const customers = await prisma.customer.findMany({
     where: { email: fromEmail },
-    select: { id: true, name: true },
+    select: { id: true, name: true, shopId: true },
   });
 
-  if (!customer) {
+  if (customers.length === 0) {
     return { taskId: null, customerName: null };
   }
 
-  // Find the most recently active task for this customer
-  const task = await prisma.collectionTask.findFirst({
-    where: {
-      customerId: customer.id,
-      status: { in: ["ACTIVE", "PAUSED", "ESCALATED"] },
-    },
-    orderBy: { lastReplyAt: { sort: "desc", nulls: "last" } },
-    select: { id: true },
-  });
+  // Single customer: simple lookup within their shop
+  if (customers.length === 1) {
+    const c = customers[0]!;
+    const task = await prisma.collectionTask.findFirst({
+      where: {
+        customerId: c.id,
+        status: { in: ["ACTIVE", "PAUSED", "ESCALATED"] },
+      },
+      orderBy: { lastReplyAt: { sort: "desc", nulls: "last" } },
+      select: { id: true },
+    });
+    return { taskId: task?.id ?? null, customerName: c.name };
+  }
+
+  // Multiple customers across shops: find the most recently active task
+  // by querying tasks for all matching customers in parallel, then picking
+  // the one with latest activity.
+  const tasksList = await Promise.all(
+    customers.map((c) =>
+      prisma.collectionTask.findFirst({
+        where: {
+          customerId: c.id,
+          status: { in: ["ACTIVE", "PAUSED", "ESCALATED"] },
+        },
+        orderBy: { lastReplyAt: { sort: "desc", nulls: "last" } },
+        select: { id: true, customerId: true, lastReplyAt: true },
+      }),
+    ),
+  );
+
+  // Find task with most recent lastReplyAt
+  let bestTask: typeof tasksList[number] = null;
+  let bestCustomer: (typeof customers)[number] | null = null;
+
+  for (let i = 0; i < tasksList.length; i++) {
+    const t = tasksList[i];
+    if (!t) continue;
+    if (!bestTask || (t.lastReplyAt && (!bestTask.lastReplyAt || t.lastReplyAt > bestTask.lastReplyAt))) {
+      bestTask = t;
+      bestCustomer = customers[i]!;
+    }
+  }
 
   return {
-    taskId: task?.id ?? null,
-    customerName: customer.name,
+    taskId: bestTask?.id ?? null,
+    customerName: bestCustomer?.name ?? null,
   };
 }
 
@@ -102,25 +137,34 @@ export async function processInboundEmail(email: InboundEmail): Promise<InboundR
     // Try matching by invoice reference in subject
     const invRef = extractInvoiceRef(email.subject, email.body);
     if (invRef) {
-      const matchingTasks = await prisma.collectionTask.findMany({
-        where: {
-          invoice: {
-            invoiceNumber: invRef,
-            customer: { email: cleanFrom },
-          },
-          status: { in: ["ACTIVE", "PAUSED", "ESCALATED"] },
-        },
-        orderBy: { lastReplyAt: { sort: "desc", nulls: "last" } },
-        take: 1,
-        select: {
-          id: true,
-          customer: { select: { name: true } },
-        },
-      });
+      // Find all customers with this email to scope invoice lookup by customerId.
+      // customerId acts as the shop-scoping bridge: invoice → shop → customer.
+      const emailCustomerIds = (
+        await prisma.customer.findMany({
+          where: { email: cleanFrom },
+          select: { id: true },
+        })
+      ).map((c) => c.id);
 
-      if (matchingTasks[0]) {
-        taskId = matchingTasks[0].id;
-        customerName = matchingTasks[0].customer.name;
+      if (emailCustomerIds.length > 0) {
+        const matchingTasks = await prisma.collectionTask.findMany({
+          where: {
+            customerId: { in: emailCustomerIds },
+            invoice: { invoiceNumber: invRef },
+            status: { in: ["ACTIVE", "PAUSED", "ESCALATED"] },
+          },
+          orderBy: { lastReplyAt: { sort: "desc", nulls: "last" } },
+          take: 1,
+          select: {
+            id: true,
+            customer: { select: { name: true } },
+          },
+        });
+
+        if (matchingTasks[0]) {
+          taskId = matchingTasks[0].id;
+          customerName = matchingTasks[0].customer.name;
+        }
       }
     }
   }

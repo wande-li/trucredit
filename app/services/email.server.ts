@@ -148,7 +148,7 @@ export async function updateTemplate(params: {
   if (!existing) return { success: false, error: "Template not found" };
 
   await prisma.emailTemplate.update({
-    where: { id: params.templateId },
+    where: { id: params.templateId, shopId: params.shopId },
     data: {
       ...(params.name !== undefined && { name: params.name }),
       ...(params.subject !== undefined && { subject: params.subject }),

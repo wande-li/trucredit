@@ -154,21 +154,44 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
     { label: "90+ Days", min: 91, max: 9999 },
   ];
 
-  const buckets: AgingBucket[] = bucketDefs.map((def) => {
-    const filtered = (invoices as BaseRow[]).filter((inv) => {
-      const overdue = calcOverdueDays(inv.dueDate, now);
-      return overdue >= def.min && overdue <= def.max;
-    });
+  // Single-pass bucketing: O(n) instead of iterating 5×n
+  const bucketData = bucketDefs.map((def) => ({
+    ...def,
+    count: 0,
+    totalAmount: 0,
+    invoices: [] as BaseRow[],
+  }));
 
-    const totalAmount = filtered.reduce((sum: number, inv) => sum + Number(inv.amount), 0);
+  for (const inv of invoices as BaseRow[]) {
+    const overdue = calcOverdueDays(inv.dueDate, now);
+    const bucket = bucketData.find((b) => overdue >= b.min && overdue <= b.max);
+    if (bucket) {
+      bucket.count++;
+      bucket.totalAmount += Number(inv.amount);
+      bucket.invoices.push(inv);
+    }
+  }
+
+  let totalOutstanding = 0;
+  let totalOverdue = 0;
+  const customerSet = new Set<string>();
+
+  const buckets: AgingBucket[] = bucketData.map((b) => {
+    totalOutstanding += b.totalAmount;
+    if (["OVERDUE"].some((s) => b.invoices.some((inv) => inv.status === s))) {
+      totalOverdue += b.invoices
+        .filter((inv) => inv.status === "OVERDUE")
+        .reduce((s, inv) => s + Number(inv.amount), 0);
+    }
+    for (const inv of b.invoices) customerSet.add(inv.customer.name);
 
     return {
-      label: def.label,
-      minDays: def.min === -9999 ? null : def.min,
-      maxDays: def.max === 9999 ? null : def.max,
-      count: filtered.length,
-      totalAmount: totalAmount.toFixed(2),
-      invoices: filtered.map((inv) => ({
+      label: b.label,
+      minDays: b.min === -9999 ? null : b.min,
+      maxDays: b.max === 9999 ? null : b.max,
+      count: b.count,
+      totalAmount: b.totalAmount.toFixed(2),
+      invoices: b.invoices.map((inv) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         customerName: inv.customer.name,
@@ -183,13 +206,6 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
       })),
     };
   });
-
-  const totalOutstanding = (invoices as BaseRow[]).reduce((sum: number, inv) => sum + Number(inv.amount), 0);
-  const totalOverdue = (invoices as BaseRow[])
-    .filter((inv) => inv.status === "OVERDUE")
-    .reduce((sum: number, inv) => sum + Number(inv.amount), 0);
-
-  const customerSet = new Set((invoices as BaseRow[]).map((inv) => inv.customer.name));
 
   // DSO = (AR / Total Credit Sales) × Days
   const allPaidInvoices = await prisma.invoice.findMany({
@@ -235,17 +251,30 @@ export async function refreshOverdueDays(shopId: string): Promise<number> {
 
   let updated = 0;
 
+  // Batch update: collect all changed invoices, then update concurrently in a transaction
+  const changes: Array<{ id: string; daysOverdue: number; status: InvoiceStatus }> = [];
+
   for (const inv of overdueInvoices) {
     const newDays = calcOverdueDays(inv.dueDate, now);
     if (newDays !== inv.daysOverdue) {
-      const newStatus: InvoiceStatus = newDays > 0 ? "OVERDUE" : "PENDING";
-
-      await prisma.invoice.update({
-        where: { id: inv.id },
-        data: { daysOverdue: newDays, status: newStatus },
+      changes.push({
+        id: inv.id,
+        daysOverdue: newDays,
+        status: newDays > 0 ? "OVERDUE" : "PENDING",
       });
-      updated++;
     }
+  }
+
+  if (changes.length > 0) {
+    await prisma.$transaction(
+      changes.map((c) =>
+        prisma.invoice.update({
+          where: { id: c.id },
+          data: { daysOverdue: c.daysOverdue, status: c.status },
+        }),
+      ),
+    );
+    updated = changes.length;
   }
 
   return updated;

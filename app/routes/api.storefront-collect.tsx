@@ -3,24 +3,20 @@
 // Authenticated via x-api-key header (shared secret per app)
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { z } from "zod";
 import { reserveCredit } from "~/services/checkout.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import { verifyApiKey } from "~/lib/api-auth.server";
+import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
 
-const API_SECRET = process.env.TRUCREDIT_API_SECRET;
-
-function verifyApiKey(request: Request): boolean {
-  if (!API_SECRET) {
-    logger.app("WARN", "TRUCREDIT_API_SECRET not configured — API auth disabled");
-    return true; // Fail open if not configured (dev mode)
-  }
-  const key = request.headers.get("x-api-key");
-  if (!key || key !== API_SECRET) {
-    logger.app("WARN", "Unauthorized API access attempt — invalid or missing x-api-key");
-    return false;
-  }
-  return true;
-}
+const CollectSchema = z.object({
+  shopDomain: z.string().min(1, "shopDomain is required"),
+  customerEmail: z.string().email("Invalid customer email"),
+  orderId: z.string().min(1, "orderId is required"),
+  orderName: z.string().optional(),
+  totalPrice: z.number().positive("totalPrice must be positive"),
+});
 
 /**
  * POST /api/storefront-collect
@@ -30,6 +26,7 @@ function verifyApiKey(request: Request): boolean {
  * Validates customer identity and deducts from creditUsed.
  *
  * Body: { shopDomain, customerEmail, orderId, orderName, totalPrice }
+ * Rate limit: 100 req/min per IP (RATE_LIMIT_RPM env, default 100)
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -40,22 +37,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: Record<string, unknown>;
+  // Rate limit by IP
+  const allowed = await checkRateLimit(getRateLimitKey(request, "storefront-collect"));
+  if (!allowed) {
+    return json({ error: "Too Many Requests" }, { status: 429 });
+  }
+
+  // Parse + validate body with Zod
+  let body: unknown;
   try {
-    body = await request.json() as Record<string, unknown>;
+    body = await request.json();
   } catch {
     return json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const shopDomain = String(body.shopDomain ?? "").trim();
-  const customerEmail = String(body.customerEmail ?? "").trim();
-  const orderId = String(body.orderId ?? "").trim();
-  const orderName = String(body.orderName ?? `#${orderId}`).trim();
-  const totalPrice = Number(body.totalPrice ?? 0);
-
-  if (!shopDomain || !customerEmail || !orderId || isNaN(totalPrice) || totalPrice <= 0) {
-    return json({ success: false, error: "Missing or invalid parameters" }, { status: 400 });
+  const parsed = CollectSchema.safeParse(body);
+  if (!parsed.success) {
+    return json(
+      { success: false, error: parsed.error.issues[0]?.message ?? "Invalid parameters" },
+      { status: 400 },
+    );
   }
+
+  const { shopDomain, customerEmail, orderId, orderName: rawOrderName, totalPrice } = parsed.data;
+  const orderName = rawOrderName ?? `#${orderId}`;
 
   // Find customer
   const shop = await prisma.shop.findUnique({

@@ -245,6 +245,8 @@ model Customer {
   @@unique([shopId, shopifyCustomerId])
   @@index([shopId, status])
   @@index([shopId, creditGrade])
+  @@index([shopId, email])
+  @@index([email])
 }
 
 model CreditRule {
@@ -280,6 +282,8 @@ model CreditEvent {
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  @@index([customerId])
 }
 
 // ═══════════════════ Invoice & AR ═══════════════════
@@ -325,7 +329,9 @@ model Invoice {
 
   @@index([shopId, status])
   @@index([shopId, dueDate])
+  @@index([shopId, customerId])
   @@index([customerId, status])
+  @@index([shopifyOrderId])
 }
 
 // ═══════════════════ Collection Engine ═══════════════════
@@ -405,6 +411,8 @@ model CollectionTask {
   completedReason String?
 
   @@index([status, nextStepAt])
+  @@index([customerId])
+  @@index([invoiceId])
 }
 
 model CollectionEvent {

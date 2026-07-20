@@ -15,13 +15,14 @@ const defaultJobOptions = {
 let _emailQueue: QueueType | null = null;
 function getEmailQueue(): QueueType {
   if (!_emailQueue) {
-    const { Queue } = require("bullmq") as typeof import("bullmq");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/consistent-type-imports
+    const { Queue } = require("bullmq");
     _emailQueue = new Queue(`${BULLMQ_PREFIX}-email`, {
       connection: { url: REDIS_URL },
       defaultJobOptions,
     });
   }
-  return _emailQueue;
+  return _emailQueue!; // _emailQueue is always set above
 }
 
 // Lazy proxy: allows `emailQueue.name` and Worker usage without init crash

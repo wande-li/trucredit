@@ -6,6 +6,7 @@ import { logger } from "~/services/logger.server";
 import { getTemplate, fillTemplate, stageToTemplateKey } from "~/services/email.server";
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { TemplateType } from "@prisma/client";
+import type { CollectionStage, ToneLevel } from "~/types/collection";
 
 // ═══════════════════ SES Client ═══════════════════
 
@@ -91,8 +92,8 @@ export async function sendCollectionEmail(
     if (useAI) {
       // AI-generated email
       const generated = await generateCollectionEmail({
-        stage: (params.stage || "STAGE_PLUS_7") as import("~/types").CollectionStage,
-        toneLevel: (params.toneLevel || 3) as import("~/types").ToneLevel,
+        stage: (params.stage || "STAGE_PLUS_7") as CollectionStage,
+        toneLevel: (params.toneLevel || 3) as ToneLevel,
         customerName: params.vars.customerName,
         companyName: params.vars.companyName || "Our Company",
         invoiceNumber: params.vars.invoiceNumber,

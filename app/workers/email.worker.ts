@@ -5,6 +5,7 @@ import { Worker } from "bullmq";
 import { logger } from "~/services/logger.server";
 import { sendCollectionEmail } from "~/services/email-delivery.server";
 import prisma from "~/db.server";
+import type { TemplateType } from "@prisma/client";
 import { emailQueue, type EmailJobData } from "~/queues/email.queue";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
@@ -30,7 +31,7 @@ export function createEmailWorker(): Worker<EmailJobData> {
 
       const result = await sendCollectionEmail({
         shopId: data.shopId,
-        templateType: data.templateType as import("@prisma/client").TemplateType | undefined,
+        templateType: data.templateType as TemplateType | undefined,
         stage: data.stage,
         useAI: data.useAI,
         toneLevel: data.toneLevel,

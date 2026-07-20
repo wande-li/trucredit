@@ -8,6 +8,7 @@ import {
   useLoaderData,
   useNavigation,
   useNavigate,
+  useRouteError,
   Link,
 } from "@remix-run/react";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
@@ -27,6 +28,7 @@ import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { useEffect, useRef, useState } from "react";
 import { logger } from "~/services/logger.server";
+import { RouteError } from "~/services/error-boundary.shared";
 
 export const links = () => [
   { rel: "preload", href: polarisStyles, as: "style" },
@@ -486,52 +488,14 @@ export default function AppLayout() {
 }
 
 export function ErrorBoundary() {
+  const error = useRouteError();
   return (
     <html>
       <head>
         <title>Error — TruCredit</title>
       </head>
-      <body
-        style={{
-          margin: 0,
-          fontFamily: "Inter, -apple-system, sans-serif",
-          background: "var(--p-color-bg-surface-secondary)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 720,
-            margin: "80px auto",
-            padding: 48,
-            textAlign: "center",
-          }}
-        >
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 700,
-              color: "var(--p-color-text)",
-              marginBottom: 16,
-            }}
-          >
-            Something Went Wrong
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--p-color-text-subdued)",
-              marginBottom: 24,
-            }}
-          >
-            Please try again or check the server logs.
-          </p>
-          <a
-            href="/app"
-            style={{ color: "var(--p-color-text-link)", fontSize: 14 }}
-          >
-            Return to Dashboard
-          </a>
-        </div>
+      <body>
+        <RouteError error={error} />
       </body>
     </html>
   );

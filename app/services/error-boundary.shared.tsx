@@ -1,13 +1,12 @@
-import { isRouteErrorResponse, useRouteError } from "@remix-run/react";
+// TruCredit — Shared Error Boundary
+// Matches Wandex pattern: imported into any route for graceful error UI
 
-export function RouteError({ error }: { error: unknown }) {
-  const isDev = process.env.NODE_ENV === "development";
+export function RouteError({ error }: { error?: unknown }) {
   const message =
     error instanceof Error
       ? error.message
-      : isRouteErrorResponse(error)
-        ? `${error.status} ${error.statusText}`
-        : "An unexpected error occurred.";
+      : String(error || "An unexpected error occurred.");
+  const isDev = process.env.NODE_ENV === "development";
 
   return (
     <div
@@ -23,7 +22,7 @@ export function RouteError({ error }: { error: unknown }) {
         style={{
           fontSize: 20,
           fontWeight: 700,
-          color: "var(--p-color-text, #1a1a1a)",
+          color: "var(--p-color-text)",
           marginBottom: 12,
         }}
       >
@@ -32,7 +31,7 @@ export function RouteError({ error }: { error: unknown }) {
       <p
         style={{
           fontSize: 14,
-          color: "var(--p-color-text-subdued, #6d7175)",
+          color: "var(--p-color-text-subdued)",
           marginBottom: 24,
         }}
       >
@@ -47,15 +46,15 @@ export function RouteError({ error }: { error: unknown }) {
             padding: "10px 24px",
             borderRadius: 8,
             textDecoration: "none",
-            background: "var(--p-color-bg-fill-brand, #008060)",
-            color: "var(--p-color-text-on-color, #fff)",
+            background: "var(--p-color-bg-fill-brand)",
+            color: "var(--p-color-text-on-color)",
             fontSize: 14,
             fontWeight: 600,
           }}
         >
           Back to Dashboard
         </a>
-        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
+        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid -- reload is intentional */}
         <a
           href=""
           onClick={(e) => {
@@ -66,8 +65,8 @@ export function RouteError({ error }: { error: unknown }) {
             padding: "10px 24px",
             borderRadius: 8,
             textDecoration: "none",
-            border: "1px solid var(--p-color-border, #8c9196)",
-            color: "var(--p-color-text, #1a1a1a)",
+            border: "1px solid var(--p-color-border)",
+            color: "var(--p-color-text)",
             fontSize: 14,
           }}
         >
@@ -76,9 +75,4 @@ export function RouteError({ error }: { error: unknown }) {
       </div>
     </div>
   );
-}
-
-export default function ErrorBoundaryShared() {
-  const error = useRouteError();
-  return <RouteError error={error} />;
 }

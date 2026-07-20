@@ -25,6 +25,52 @@ export const PLAN_QUOTAS = {
   PRO: { customers: Infinity, invoices: Infinity },
 } as const;
 
+// ── Plans (Managed Pricing — Shopify hosts payment) ──
+// displayFeatures are user-facing strings rendered in List.Item
+// Pattern matches Wandex: PLANS.FREE.displayFeatures / PLANS.PAID.displayFeatures
+export const PLANS = {
+  FREE: {
+    name: "Starter",
+    price: 0,
+    period: null,
+    displayFeatures: [
+      "Up to 5 customers",
+      "Up to 10 invoices",
+      "Basic credit scoring",
+      "Manual collections",
+    ],
+  },
+  GROWTH: {
+    name: "Growth",
+    price: 49,
+    period: "month",
+    displayFeatures: [
+      "Up to 50 customers",
+      "Up to 200 invoices",
+      "Advanced credit scoring",
+      "Automated collections",
+      "AI email generation",
+      "Reply classification",
+      "Auto sequences",
+    ],
+  },
+  PRO: {
+    name: "Pro",
+    price: 470.40,
+    period: "year",
+    displayFeatures: [
+      "Unlimited customers",
+      "Unlimited invoices",
+      "Advanced credit scoring",
+      "Automated collections",
+      "AI email generation",
+      "Reply classification",
+      "Auto sequences",
+      "Priority support",
+    ],
+  },
+} as const;
+
 // Credit scoring
 export const CREDIT_SCORE = {
   MIN: 0,

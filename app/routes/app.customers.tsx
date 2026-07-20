@@ -112,7 +112,7 @@ export default function CustomersPage() {
       fullWidth
       title="Customers"
       subtitle={`${total} total`}
-      primaryAction={<Button url="/app/customers/new">Add Customer</Button>}
+      primaryAction={<Button url="/app/customers/new" variant="primary">Add Customer</Button>}
     >
       <BlockStack gap="400">
         {/* Filters */}

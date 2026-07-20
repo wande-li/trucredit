@@ -157,7 +157,7 @@ export default function NewCustomerPage() {
                 Upgrade to Pro to add more customers.
               </Text>
             </Banner>
-            <Button url="/app/billing" tone="success">
+            <Button url="/app/billing" variant="primary">
               Upgrade Plan
             </Button>
           </BlockStack>
@@ -250,7 +250,7 @@ export default function NewCustomerPage() {
                 onClick={handleSubmit}
                 disabled={!isValid || isBusy}
                 loading={isBusy}
-                tone="success"
+                variant="primary"
               >
                 Create Customer
               </Button>

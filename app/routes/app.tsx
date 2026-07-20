@@ -339,7 +339,7 @@ function UnauthedFallback({ apiKey }: { apiKey: string }) {
           <Text as="p" variant="bodyLg" tone="subdued">
             {message}
           </Text>
-          <Button onClick={() => window.location.reload()}>
+          <Button onClick={() => window.location.reload()} variant="primary">
             Reload App
           </Button>
         </BlockStack>

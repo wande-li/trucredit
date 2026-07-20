@@ -106,7 +106,7 @@ export default function Invoices() {
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"
       } days`}
-      primaryAction={<Button url="/app/invoices/new">Create Invoice</Button>}
+      primaryAction={<Button url="/app/invoices/new" variant="primary">Create Invoice</Button>}
     >
       <BlockStack gap="400">
         {/* AR Aging Summary Cards */}

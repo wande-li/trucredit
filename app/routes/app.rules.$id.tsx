@@ -598,7 +598,7 @@ export default function RuleEditPage() {
               onClick={handleSubmit}
               disabled={!isValid || isBusy}
               loading={isBusy}
-              tone="success"
+              variant="primary"
             >
               {isNew ? "Create Rule" : "Save Changes"}
             </Button>

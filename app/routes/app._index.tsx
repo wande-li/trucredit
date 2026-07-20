@@ -344,7 +344,7 @@ export default function Dashboard() {
                 </BlockStack>
               </BlockStack>
               {quota.needsUpgrade && (
-                <Button url="/app/billing" tone="success">
+                <Button url="/app/billing" variant="primary">
                   Upgrade Plan
                 </Button>
               )}

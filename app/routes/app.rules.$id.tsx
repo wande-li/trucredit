@@ -1,7 +1,7 @@
 // Credit Rules — create / edit page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -17,7 +17,7 @@ import {
   Divider,
   Box,
 } from "@shopify/polaris";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
 import {
   getRule,
@@ -207,7 +207,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
 
-    return redirect("/app/rules");
+    return json({ success: true });
   } catch (error: unknown) {
     if (error instanceof Response) throw error;
     const msg = error instanceof Error ? error.message : String(error);
@@ -219,7 +219,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 export default function RuleEditPage() {
   const { isNew, rule } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ error?: string }>();
+  const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const navigate = useNavigate();
+
+  // Navigate to list after successful save
+  useEffect(() => {
+    if (fetcher.data?.success) {
+      navigate("/app/rules");
+    }
+  }, [fetcher.data, navigate]);
 
   // Form state — initialize from existing rule or defaults
   const [name, setName] = useState(rule?.name ?? "");

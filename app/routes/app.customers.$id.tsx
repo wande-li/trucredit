@@ -32,70 +32,76 @@ import type { CustomerRecord, CreditRecommendation } from "~/types";
 import prisma from "~/db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  try {
+    const { session } = await authenticate.admin(request);
 
-  if (!params.id) {
-    throw new Response("Customer ID required", { status: 400 });
+    if (!params.id) {
+      throw new Response("Customer ID required", { status: 400 });
+    }
+
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const customer = await getCustomer({
+      shopId: shop.id,
+      customerId: params.id,
+    });
+
+    if (!customer) {
+      throw new Response("Customer not found", { status: 404 });
+    }
+
+    const assessment = assessCredit({
+      onTimePaymentRate: customer.onTimePaymentRate,
+      creditUsed: Number(customer.creditUsed),
+      creditLimit: Number(customer.creditLimit),
+      totalOrders: customer.totalOrders,
+      totalRevenue: Number(customer.totalRevenue),
+    });
+
+    const creditEvents = await prisma.creditEvent.findMany({
+      where: { customerId: customer.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    const aging = await getARAgingByCustomer({
+      shopId: shop.id,
+      customerId: customer.id,
+    });
+
+    return json({ customer, assessment, creditEvents, aging });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
-
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const customer = await getCustomer({
-    shopId: shop.id,
-    customerId: params.id,
-  });
-
-  if (!customer) {
-    throw new Response("Customer not found", { status: 404 });
-  }
-
-  const assessment = assessCredit({
-    onTimePaymentRate: customer.onTimePaymentRate,
-    creditUsed: Number(customer.creditUsed),
-    creditLimit: Number(customer.creditLimit),
-    totalOrders: customer.totalOrders,
-    totalRevenue: Number(customer.totalRevenue),
-  });
-
-  const creditEvents = await prisma.creditEvent.findMany({
-    where: { customerId: customer.id },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
-
-  const aging = await getARAgingByCustomer({
-    shopId: shop.id,
-    customerId: customer.id,
-  });
-
-  return json({ customer, assessment, creditEvents, aging });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-
-  if (!params.id) {
-    throw new Response("Customer ID required", { status: 400 });
-  }
-
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-
   try {
+    const { session } = await authenticate.admin(request);
+
+    if (!params.id) {
+      throw new Response("Customer ID required", { status: 400 });
+    }
+
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
     switch (intent) {
       case "set-credit-limit": {
         const newLimitStr = formData.get("newLimit")?.toString();
@@ -151,9 +157,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Customer action failed: ${msg}`, { status: 500 });
   }
 };
 

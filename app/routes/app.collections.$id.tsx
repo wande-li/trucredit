@@ -34,116 +34,128 @@ import type { Channel, TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const sequenceId = params.id;
-  if (!sequenceId) throw new Response("Not Found", { status: 404 });
+    const sequenceId = params.id;
+    if (!sequenceId) throw new Response("Not Found", { status: 404 });
 
-  const sequence = await getSequence(sequenceId, shop.id);
-  if (!sequence) throw new Response("Not Found", { status: 404 });
+    const sequence = await getSequence(sequenceId, shop.id);
+    if (!sequence) throw new Response("Not Found", { status: 404 });
 
-  return json({ sequence });
+    return json({ sequence });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
 
-  const sequenceId = params.id;
-  if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });
+    const sequenceId = params.id;
+    if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });
 
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
 
-  switch (intent) {
-    case "updateMeta": {
-      const name = formData.get("name")?.toString()?.trim();
-      const description = formData.get("description")?.toString()?.trim();
-      const triggerType = formData.get("triggerType")?.toString() as TriggerType | undefined;
-      const triggerDays = formData.get("triggerDays")?.toString();
+    switch (intent) {
+      case "updateMeta": {
+        const name = formData.get("name")?.toString()?.trim();
+        const description = formData.get("description")?.toString()?.trim();
+        const triggerType = formData.get("triggerType")?.toString() as TriggerType | undefined;
+        const triggerDays = formData.get("triggerDays")?.toString();
 
-      if (!name) return json({ error: "Name is required" }, { status: 400 });
+        if (!name) return json({ error: "Name is required" }, { status: 400 });
 
-      const result = await updateSequence({
-        sequenceId,
-        shopId: shop.id,
-        name,
-        description: description || undefined,
-        triggerType,
-        triggerDays: triggerDays !== undefined ? parseInt(triggerDays, 10) : undefined,
-      });
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
+        const result = await updateSequence({
+          sequenceId,
+          shopId: shop.id,
+          name,
+          description: description || undefined,
+          triggerType,
+          triggerDays: triggerDays !== undefined ? parseInt(triggerDays, 10) : undefined,
+        });
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      case "addStep": {
+        const order = parseInt(formData.get("order")?.toString() ?? "0", 10);
+        const delayDays = parseInt(formData.get("delayDays")?.toString() ?? "0", 10);
+        const channel = (formData.get("channel")?.toString() ?? "EMAIL") as Channel;
+        const toneLevel = parseInt(formData.get("toneLevel")?.toString() ?? "3", 10);
+        const subject = formData.get("subject")?.toString()?.trim() || undefined;
+
+        if (order < 1) return json({ error: "Order must be >= 1" }, { status: 400 });
+
+        const result = await addStep({
+          sequenceId,
+          shopId: shop.id,
+          order,
+          delayDays,
+          channel,
+          toneLevel,
+          subject,
+        });
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      case "editStep": {
+        const stepId = formData.get("stepId")?.toString();
+        if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
+
+        const delayDays = formData.get("delayDays")?.toString();
+        const channel = formData.get("channel")?.toString() as Channel | undefined;
+        const toneLevel = formData.get("toneLevel")?.toString();
+        const subject = formData.get("subject")?.toString()?.trim();
+
+        const result = await updateStep({
+          stepId,
+          sequenceId,
+          shopId: shop.id,
+          delayDays: delayDays !== undefined ? parseInt(delayDays, 10) : undefined,
+          channel,
+          toneLevel: toneLevel !== undefined ? parseInt(toneLevel, 10) : undefined,
+          subject: subject ?? undefined,
+        });
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      case "deleteStep": {
+        const stepId = formData.get("stepId")?.toString();
+        if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
+
+        const result = await deleteStep(stepId, sequenceId, shop.id);
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      default:
+        return json({ error: "Unknown intent" }, { status: 400 });
     }
-
-    case "addStep": {
-      const order = parseInt(formData.get("order")?.toString() ?? "0", 10);
-      const delayDays = parseInt(formData.get("delayDays")?.toString() ?? "0", 10);
-      const channel = (formData.get("channel")?.toString() ?? "EMAIL") as Channel;
-      const toneLevel = parseInt(formData.get("toneLevel")?.toString() ?? "3", 10);
-      const subject = formData.get("subject")?.toString()?.trim() || undefined;
-
-      if (order < 1) return json({ error: "Order must be >= 1" }, { status: 400 });
-
-      const result = await addStep({
-        sequenceId,
-        shopId: shop.id,
-        order,
-        delayDays,
-        channel,
-        toneLevel,
-        subject,
-      });
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
-    }
-
-    case "editStep": {
-      const stepId = formData.get("stepId")?.toString();
-      if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
-
-      const delayDays = formData.get("delayDays")?.toString();
-      const channel = formData.get("channel")?.toString() as Channel | undefined;
-      const toneLevel = formData.get("toneLevel")?.toString();
-      const subject = formData.get("subject")?.toString()?.trim();
-
-      const result = await updateStep({
-        stepId,
-        sequenceId,
-        shopId: shop.id,
-        delayDays: delayDays !== undefined ? parseInt(delayDays, 10) : undefined,
-        channel,
-        toneLevel: toneLevel !== undefined ? parseInt(toneLevel, 10) : undefined,
-        subject: subject ?? undefined,
-      });
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
-    }
-
-    case "deleteStep": {
-      const stepId = formData.get("stepId")?.toString();
-      if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
-
-      const result = await deleteStep(stepId, sequenceId, shop.id);
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
-    }
-
-    default:
-      return json({ error: "Unknown intent" }, { status: 400 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    return json({ error: msg }, { status: 500 });
   }
 };
 

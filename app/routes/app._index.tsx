@@ -19,98 +19,104 @@ import { getShopBilling } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    include: {
-      _count: {
-        select: { customers: true, invoices: true },
-      },
-    },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const [overdueInvoices, activeCustomers, frozenCustomers, billing, agingReport, activeTasks] =
-    await Promise.all([
-      prisma.invoice.count({
-        where: { shopId: shop.id, status: "OVERDUE" },
-      }),
-      prisma.customer.count({
-        where: { shopId: shop.id, status: "ACTIVE" },
-      }),
-      prisma.customer.count({
-        where: { shopId: shop.id, isFrozen: true },
-      }),
-      getShopBilling(shop.id),
-      getARAgingReport(shop.id),
-      prisma.collectionTask.count({
-        where: {
-          sequence: { shopId: shop.id },
-          status: { in: ["PENDING", "ACTIVE", "PAUSED", "ESCALATED"] },
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      include: {
+        _count: {
+          select: { customers: true, invoices: true },
         },
-      }),
-    ]);
+      },
+    });
 
-  // Recent customers
-  const recentCustomers = await prisma.customer.findMany({
-    where: { shopId: shop.id },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: {
-      id: true,
-      name: true,
-      company: true,
-      creditGrade: true,
-      status: true,
-    },
-  });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  // Overdue total amount
-  const overdueTotal = await prisma.invoice.aggregate({
-    where: { shopId: shop.id, status: "OVERDUE" },
-    _sum: { amount: true },
-  });
+    const [overdueInvoices, activeCustomers, frozenCustomers, billing, agingReport, activeTasks] =
+      await Promise.all([
+        prisma.invoice.count({
+          where: { shopId: shop.id, status: "OVERDUE" },
+        }),
+        prisma.customer.count({
+          where: { shopId: shop.id, status: "ACTIVE" },
+        }),
+        prisma.customer.count({
+          where: { shopId: shop.id, isFrozen: true },
+        }),
+        getShopBilling(shop.id),
+        getARAgingReport(shop.id),
+        prisma.collectionTask.count({
+          where: {
+            sequence: { shopId: shop.id },
+            status: { in: ["PENDING", "ACTIVE", "PAUSED", "ESCALATED"] },
+          },
+        }),
+      ]);
 
-  return json({
-    plan: billing.plan,
-    planName: billing.planName,
-    subscriptionStatus: billing.subscriptionStatus,
-    stats: {
-      totalCustomers: shop._count.customers,
-      totalInvoices: shop._count.invoices,
-      overdueInvoices,
-      activeCustomers,
-      frozenCustomers,
-      overdueTotal: overdueTotal._sum.amount?.toString() ?? "0.00",
-    },
-    quota: {
-      customerQuotaPercent: billing.customerQuotaPercent,
-      invoiceQuotaPercent: billing.invoiceQuotaPercent,
-      customerCount: billing.customerCount,
-      customerQuota: billing.customerQuota,
-      invoiceCount: billing.invoiceCount,
-      invoiceQuota: billing.invoiceQuota,
-      needsUpgrade: billing.needsUpgrade,
-    },
-    aging: {
-      totalOutstanding: agingReport.totalOutstanding,
-      totalOverdue: agingReport.totalOverdue,
-      dso: agingReport.dso,
-      totalCustomers: agingReport.totalCustomers,
-      buckets: agingReport.buckets.map((b) => ({
-        label: b.label,
-        count: b.count,
-        totalAmount: b.totalAmount,
-      })),
-    },
-    collectionStats: {
-      activeTasks,
-    },
-    recentCustomers,
-  });
+    // Recent customers
+    const recentCustomers = await prisma.customer.findMany({
+      where: { shopId: shop.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        creditGrade: true,
+        status: true,
+      },
+    });
+
+    // Overdue total amount
+    const overdueTotal = await prisma.invoice.aggregate({
+      where: { shopId: shop.id, status: "OVERDUE" },
+      _sum: { amount: true },
+    });
+
+    return json({
+      plan: billing.plan,
+      planName: billing.planName,
+      subscriptionStatus: billing.subscriptionStatus,
+      stats: {
+        totalCustomers: shop._count.customers,
+        totalInvoices: shop._count.invoices,
+        overdueInvoices,
+        activeCustomers,
+        frozenCustomers,
+        overdueTotal: overdueTotal._sum.amount?.toString() ?? "0.00",
+      },
+      quota: {
+        customerQuotaPercent: billing.customerQuotaPercent,
+        invoiceQuotaPercent: billing.invoiceQuotaPercent,
+        customerCount: billing.customerCount,
+        customerQuota: billing.customerQuota,
+        invoiceCount: billing.invoiceCount,
+        invoiceQuota: billing.invoiceQuota,
+        needsUpgrade: billing.needsUpgrade,
+      },
+      aging: {
+        totalOutstanding: agingReport.totalOutstanding,
+        totalOverdue: agingReport.totalOverdue,
+        dso: agingReport.dso,
+        totalCustomers: agingReport.totalCustomers,
+        buckets: agingReport.buckets.map((b) => ({
+          label: b.label,
+          count: b.count,
+          totalAmount: b.totalAmount,
+        })),
+      },
+      collectionStats: {
+        activeTasks,
+      },
+      recentCustomers,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 function progressTone(pct: number): "success" | "highlight" | "critical" {

@@ -27,20 +27,26 @@ import type { CollectionStage, ToneLevel } from "~/types";
 // ═══════════════════ Loader ═══════════════════
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const template = await getTemplateById(params.id!, session.shop);
-  if (!template) throw new Response("Template not found", { status: 404 });
-  return json({ template });
+  try {
+    const { session } = await authenticate.admin(request);
+    const template = await getTemplateById(params.id!, session.shop);
+    if (!template) throw new Response("Template not found", { status: 404 });
+    return json({ template });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 // ═══════════════════ Actions ═══════════════════
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-
   try {
+    const { session } = await authenticate.admin(request);
+    const formData = await request.formData();
+    const intent = formData.get("intent") as string;
+
     // Update template
     if (intent === "update") {
       const name = formData.get("name") as string;
@@ -103,9 +109,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     return json({ success: false, error: "Unknown intent" });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ success: false, error: msg });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Email action failed: ${msg}`, { status: 500 });
   }
 };
 

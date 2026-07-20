@@ -22,33 +22,39 @@ import prisma from "~/db.server";
 import { useCallback } from "react";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
 
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const search = url.searchParams.get("search") ?? undefined;
-  const status = url.searchParams.get("status") ?? undefined;
-  const creditGrade = url.searchParams.get("creditGrade") ?? undefined;
-  const riskLevel = url.searchParams.get("riskLevel") ?? undefined;
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search") ?? undefined;
+    const status = url.searchParams.get("status") ?? undefined;
+    const creditGrade = url.searchParams.get("creditGrade") ?? undefined;
+    const riskLevel = url.searchParams.get("riskLevel") ?? undefined;
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
 
-  const result = await listCustomers({
-    shopId: shop.id,
-    search,
-    status,
-    creditGrade,
-    riskLevel,
-    page,
-  });
+    const result = await listCustomers({
+      shopId: shop.id,
+      search,
+      status,
+      creditGrade,
+      riskLevel,
+      page,
+    });
 
-  return json({ result, shopDomain });
+    return json({ result, shopDomain });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export default function CustomersPage() {

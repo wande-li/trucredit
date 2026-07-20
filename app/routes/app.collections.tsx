@@ -34,80 +34,92 @@ import type { TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
 
-  const result = await listSequences(shop.id, { page });
+    const result = await listSequences(shop.id, { page });
 
-  return json({ shopId: shop.id, ...result });
+    return json({ shopId: shop.id, ...result });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
 
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
 
-  switch (intent) {
-    case "create": {
-      const name = formData.get("name")?.toString()?.trim();
-      const description = formData.get("description")?.toString()?.trim();
-      const triggerType = (formData.get("triggerType")?.toString() ?? "OVERDUE") as TriggerType;
-      const triggerDays = parseInt(formData.get("triggerDays")?.toString() ?? "0", 10);
+    switch (intent) {
+      case "create": {
+        const name = formData.get("name")?.toString()?.trim();
+        const description = formData.get("description")?.toString()?.trim();
+        const triggerType = (formData.get("triggerType")?.toString() ?? "OVERDUE") as TriggerType;
+        const triggerDays = parseInt(formData.get("triggerDays")?.toString() ?? "0", 10);
 
-      if (!name) return json({ error: "Name is required" }, { status: 400 });
+        if (!name) return json({ error: "Name is required" }, { status: 400 });
 
-      const seq = await createSequence({
-        shopId: shop.id,
-        name,
-        description: description || undefined,
-        triggerType,
-        triggerDays,
-      });
-      return redirect(`/app/collections/${seq!.id}`);
+        const seq = await createSequence({
+          shopId: shop.id,
+          name,
+          description: description || undefined,
+          triggerType,
+          triggerDays,
+        });
+        return redirect(`/app/collections/${seq!.id}`);
+      }
+
+      case "delete": {
+        const sequenceId = formData.get("sequenceId")?.toString();
+        if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
+
+        const result = await deleteSequence(sequenceId, shop.id);
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      case "toggle": {
+        const sequenceId = formData.get("sequenceId")?.toString();
+        const isActive = formData.get("isActive") === "true";
+        if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
+
+        const result = await updateSequence({
+          sequenceId,
+          shopId: shop.id,
+          isActive: !isActive,
+        });
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      default:
+        return json({ error: "Unknown intent" }, { status: 400 });
     }
-
-    case "delete": {
-      const sequenceId = formData.get("sequenceId")?.toString();
-      if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
-
-      const result = await deleteSequence(sequenceId, shop.id);
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
-    }
-
-    case "toggle": {
-      const sequenceId = formData.get("sequenceId")?.toString();
-      const isActive = formData.get("isActive") === "true";
-      if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
-
-      const result = await updateSequence({
-        sequenceId,
-        shopId: shop.id,
-        isActive: !isActive,
-      });
-      if (!result.success) return json({ error: result.error }, { status: 400 });
-      return json({ success: true });
-    }
-
-    default:
-      return json({ error: "Unknown intent" }, { status: 400 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    return json({ error: msg }, { status: 500 });
   }
 };
 

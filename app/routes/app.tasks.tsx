@@ -54,139 +54,151 @@ function daysToStage(daysOverdue: number): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
-  const pageSize = Math.min(
-    parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10),
-    PAGINATION.MAX_PAGE_SIZE,
-  );
-  const statusFilter = url.searchParams.get("status") ?? "";
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
+    const pageSize = Math.min(
+      parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10),
+      PAGINATION.MAX_PAGE_SIZE,
+    );
+    const statusFilter = url.searchParams.get("status") ?? "";
 
-  const where: Record<string, unknown> = {
-    sequence: { shopId: shop.id },
-  };
-  if (statusFilter && statusFilter !== "ALL") {
-    where.status = statusFilter;
+    const where: Record<string, unknown> = {
+      sequence: { shopId: shop.id },
+    };
+    if (statusFilter && statusFilter !== "ALL") {
+      where.status = statusFilter;
+    }
+
+    const [tasks, total] = await Promise.all([
+      prisma.collectionTask.findMany({
+        where,
+        include: {
+          sequence: { select: { name: true } },
+          customer: { select: { id: true, name: true, company: true, email: true } },
+          invoice: { select: { id: true, invoiceNumber: true, amount: true, currency: true, dueDate: true, status: true } },
+          events: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+        orderBy: [{ status: "asc" }, { nextStepAt: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.collectionTask.count({ where }),
+    ]);
+
+    // Summary counts
+    const [activeCount, pausedCount, escalatedCount] = await Promise.all([
+      prisma.collectionTask.count({ where: { ...where, status: "ACTIVE" } }),
+      prisma.collectionTask.count({ where: { ...where, status: "PAUSED" } }),
+      prisma.collectionTask.count({ where: { ...where, status: "ESCALATED" } }),
+    ]);
+
+    return json({
+      tasks,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      summary: { active: activeCount, paused: pausedCount, escalated: escalatedCount },
+      statusFilter,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
-
-  const [tasks, total] = await Promise.all([
-    prisma.collectionTask.findMany({
-      where,
-      include: {
-        sequence: { select: { name: true } },
-        customer: { select: { id: true, name: true, company: true, email: true } },
-        invoice: { select: { id: true, invoiceNumber: true, amount: true, currency: true, dueDate: true, status: true } },
-        events: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-      orderBy: [{ status: "asc" }, { nextStepAt: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.collectionTask.count({ where }),
-  ]);
-
-  // Summary counts
-  const [activeCount, pausedCount, escalatedCount] = await Promise.all([
-    prisma.collectionTask.count({ where: { ...where, status: "ACTIVE" } }),
-    prisma.collectionTask.count({ where: { ...where, status: "PAUSED" } }),
-    prisma.collectionTask.count({ where: { ...where, status: "ESCALATED" } }),
-  ]);
-
-  return json({
-    tasks,
-    page,
-    pageSize,
-    total,
-    totalPages: Math.ceil(total / pageSize),
-    summary: { active: activeCount, paused: pausedCount, escalated: escalatedCount },
-    statusFilter,
-  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
 
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-  const taskId = formData.get("taskId")?.toString();
-  if (!taskId) return json({ error: "Task ID required" }, { status: 400 });
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+    const taskId = formData.get("taskId")?.toString();
+    if (!taskId) return json({ error: "Task ID required" }, { status: 400 });
 
-  switch (intent) {
-    case "pause": {
-      await pauseTask({ taskId, reason: "Manually paused" });
-      return json({ success: true });
-    }
-    case "stop": {
-      await stopTask({ taskId, reason: "Manually stopped" });
-      return json({ success: true });
-    }
-    case "resume": {
-      const task = await prisma.collectionTask.findUnique({ where: { id: taskId } });
-      if (!task || task.status !== "PAUSED") {
-        return json({ error: "Task not found or not paused" }, { status: 400 });
+    switch (intent) {
+      case "pause": {
+        await pauseTask({ taskId, reason: "Manually paused" });
+        return json({ success: true });
       }
-      await prisma.collectionTask.update({
-        where: { id: taskId },
-        data: { status: "ACTIVE" },
-      });
-      return json({ success: true });
-    }
-    case "send": {
-      const task = await prisma.collectionTask.findUnique({
-        where: { id: taskId },
-        include: {
-          customer: { select: { name: true, company: true, email: true } },
-          invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true } },
-          sequence: { select: { steps: { orderBy: { order: "asc" }, take: 1 } } },
-        },
-      });
-      if (!task || !task.customer || !task.invoice) {
-        return json({ error: "Task, customer, or invoice not found" }, { status: 400 });
+      case "stop": {
+        await stopTask({ taskId, reason: "Manually stopped" });
+        return json({ success: true });
       }
+      case "resume": {
+        const task = await prisma.collectionTask.findUnique({ where: { id: taskId } });
+        if (!task || task.status !== "PAUSED") {
+          return json({ error: "Task not found or not paused" }, { status: 400 });
+        }
+        await prisma.collectionTask.update({
+          where: { id: taskId },
+          data: { status: "ACTIVE" },
+        });
+        return json({ success: true });
+      }
+      case "send": {
+        const task = await prisma.collectionTask.findUnique({
+          where: { id: taskId },
+          include: {
+            customer: { select: { name: true, company: true, email: true } },
+            invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true } },
+            sequence: { select: { steps: { orderBy: { order: "asc" }, take: 1 } } },
+          },
+        });
+        if (!task || !task.customer || !task.invoice) {
+          return json({ error: "Task, customer, or invoice not found" }, { status: 400 });
+        }
 
-      const daysOverdue = Math.floor(
-        (Date.now() - task.invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
+        const daysOverdue = Math.floor(
+          (Date.now() - task.invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
-      await enqueueEmail({
-        shopId: shop.id,
-        toEmail: task.customer.email,
-        stage: daysToStage(daysOverdue),
-        useAI: task.sequence.steps[0]?.useAI ?? false,
-        toneLevel: task.sequence.steps[0]?.toneLevel ?? 3,
-        vars: {
-          customerName: task.customer.name,
-          companyName: task.customer.company ?? undefined,
-          invoiceNumber: task.invoice.invoiceNumber,
-          amount: String(task.invoice.amount),
-          currency: task.invoice.currency,
-          dueDate: task.invoice.dueDate.toISOString().slice(0, 10),
-          daysOverdue,
-        },
-        taskId,
-        stepOrder: task.currentStep,
-      });
+        await enqueueEmail({
+          shopId: shop.id,
+          toEmail: task.customer.email,
+          stage: daysToStage(daysOverdue),
+          useAI: task.sequence.steps[0]?.useAI ?? false,
+          toneLevel: task.sequence.steps[0]?.toneLevel ?? 3,
+          vars: {
+            customerName: task.customer.name,
+            companyName: task.customer.company ?? undefined,
+            invoiceNumber: task.invoice.invoiceNumber,
+            amount: String(task.invoice.amount),
+            currency: task.invoice.currency,
+            dueDate: task.invoice.dueDate.toISOString().slice(0, 10),
+            daysOverdue,
+          },
+          taskId,
+          stepOrder: task.currentStep,
+        });
 
-      return json({ success: true });
+        return json({ success: true });
+      }
+      default:
+        return json({ error: "Unknown intent" }, { status: 400 });
     }
-    default:
-      return json({ error: "Unknown intent" }, { status: 400 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Task action failed: ${msg}`, { status: 500 });
   }
 };
 

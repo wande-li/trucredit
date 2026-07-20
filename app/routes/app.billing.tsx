@@ -35,73 +35,85 @@ type BillingActionData = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true, plan: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true, plan: true },
+    });
 
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const billing = await getShopBilling(shop.id);
+    const billing = await getShopBilling(shop.id);
 
-  return json({
-    billing,
-    plans: PLANS,
-  });
+    return json({
+      billing,
+      plans: PLANS,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { billing, session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-  const targetPlan = formData.get("plan") as Plan;
+    const formData = await request.formData();
+    const intent = formData.get("intent") as string;
+    const targetPlan = formData.get("plan") as Plan;
 
-  if (intent !== "upgrade" || !targetPlan) {
-    return json({ error: "Invalid request", billing: null, plans: null } satisfies BillingActionData);
+    if (intent !== "upgrade" || !targetPlan) {
+      return json({ error: "Invalid request", billing: null, plans: null } satisfies BillingActionData);
+    }
+
+    if (targetPlan === "FREE") {
+      return json({ error: null, billing: null, plans: null, success: "You are on the Free plan" } satisfies BillingActionData);
+    }
+
+    const billingPlanName = planToBillingName(targetPlan);
+    if (!billingPlanName) {
+      return json({ error: "Invalid plan selection", billing: null, plans: null } satisfies BillingActionData);
+    }
+
+    // Check if already on this plan and active
+    const existingShop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { plan: true, subscriptionStatus: true },
+    });
+
+    if (
+      existingShop?.plan === targetPlan &&
+      existingShop?.subscriptionStatus === "ACTIVE"
+    ) {
+      return json({
+        error: null,
+        billing: null,
+        plans: null,
+        success: `Already on ${targetPlan} plan`,
+      } satisfies BillingActionData);
+    }
+
+    // billing.request() returns Promise<never> — it always redirects to Shopify checkout
+    const url = new URL(request.url);
+    const returnUrl = `${url.origin}/app/billing`;
+
+    // This will redirect the user to Shopify's billing confirmation page
+    return billing.request({
+      plan: billingPlanName,
+      isTest: process.env.NODE_ENV !== "production",
+      returnUrl,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Billing action failed: ${msg}`, { status: 500 });
   }
-
-  if (targetPlan === "FREE") {
-    return json({ error: null, billing: null, plans: null, success: "You are on the Free plan" } satisfies BillingActionData);
-  }
-
-  const billingPlanName = planToBillingName(targetPlan);
-  if (!billingPlanName) {
-    return json({ error: "Invalid plan selection", billing: null, plans: null } satisfies BillingActionData);
-  }
-
-  // Check if already on this plan and active
-  const existingShop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { plan: true, subscriptionStatus: true },
-  });
-
-  if (
-    existingShop?.plan === targetPlan &&
-    existingShop?.subscriptionStatus === "ACTIVE"
-  ) {
-    return json({
-      error: null,
-      billing: null,
-      plans: null,
-      success: `Already on ${targetPlan} plan`,
-    } satisfies BillingActionData);
-  }
-
-  // billing.request() returns Promise<never> — it always redirects to Shopify checkout
-  const url = new URL(request.url);
-  const returnUrl = `${url.origin}/app/billing`;
-
-  // This will redirect the user to Shopify's billing confirmation page
-  return billing.request({
-    plan: billingPlanName,
-    isTest: process.env.NODE_ENV !== "production",
-    returnUrl,
-  });
 };
 
 function progressTone(pct: number): "success" | "highlight" | "critical" {

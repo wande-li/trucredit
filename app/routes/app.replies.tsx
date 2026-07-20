@@ -65,50 +65,62 @@ function shortBody(body: string | null | undefined, maxLen = 120): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
-  const intent = (url.searchParams.get("intent") ?? undefined) as ReplyIntent | undefined;
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
+    const intent = (url.searchParams.get("intent") ?? undefined) as ReplyIntent | undefined;
 
-  const result = await listReplies(shop.id, { page, intent });
+    const result = await listReplies(shop.id, { page, intent });
 
-  return json({ shopId: shop.id, ...result });
+    return json({ shopId: shop.id, ...result });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
 
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
 
-  if (intent === "resolve") {
-    const eventId = formData.get("eventId")?.toString();
-    const taskId = formData.get("taskId")?.toString();
-    const notes = formData.get("notes")?.toString()?.trim();
+    if (intent === "resolve") {
+      const eventId = formData.get("eventId")?.toString();
+      const taskId = formData.get("taskId")?.toString();
+      const notes = formData.get("notes")?.toString()?.trim();
 
-    if (!eventId || !taskId) return json({ error: "Missing parameters" }, { status: 400 });
+      if (!eventId || !taskId) return json({ error: "Missing parameters" }, { status: 400 });
 
-    const result = await resolveReply({ eventId, taskId, shopId: shop.id, notes });
-    if (!result.success) return json({ error: result.error }, { status: 400 });
-    return json({ success: true });
+      const result = await resolveReply({ eventId, taskId, shopId: shop.id, notes });
+      if (!result.success) return json({ error: result.error }, { status: 400 });
+      return json({ success: true });
+    }
+
+    return json({ error: "Unknown intent" }, { status: 400 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    return json({ error: msg }, { status: 500 });
   }
-
-  return json({ error: "Unknown intent" }, { status: 400 });
 };
 
 export default function RepliesPage() {

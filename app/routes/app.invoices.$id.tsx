@@ -23,83 +23,89 @@ import prisma from "~/db.server";
 import { useState, useCallback } from "react";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  try {
+    const { session } = await authenticate.admin(request);
 
-  if (!params.id) {
-    throw new Response("Invoice ID required", { status: 400 });
+    if (!params.id) {
+      throw new Response("Invoice ID required", { status: 400 });
+    }
+
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const invoice = await getInvoice({
+      shopId: shop.id,
+      invoiceId: params.id,
+    });
+
+    if (!invoice) {
+      throw new Response("Invoice not found", { status: 404 });
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: invoice.customerId },
+      select: { name: true, company: true, email: true, creditGrade: true },
+    });
+
+    const collectionTasks = await prisma.collectionTask.findMany({
+      where: { invoiceId: invoice.id },
+      orderBy: { startedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        status: true,
+        currentStep: true,
+        startedAt: true,
+        completedAt: true,
+        completedReason: true,
+        lastReplyIntent: true,
+      },
+    });
+
+    return json({
+      invoice: {
+        ...invoice,
+        issueDate: invoice.issueDate.toISOString(),
+        dueDate: invoice.dueDate.toISOString(),
+        paidDate: invoice.paidDate?.toISOString() ?? null,
+        createdAt: invoice.createdAt.toISOString(),
+        updatedAt: invoice.updatedAt.toISOString(),
+      },
+      customer,
+      collectionTasks,
+      allowedTransitions: INVOICE_TRANSITIONS[invoice.status] as InvoiceStatus[],
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
-
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const invoice = await getInvoice({
-    shopId: shop.id,
-    invoiceId: params.id,
-  });
-
-  if (!invoice) {
-    throw new Response("Invoice not found", { status: 404 });
-  }
-
-  const customer = await prisma.customer.findUnique({
-    where: { id: invoice.customerId },
-    select: { name: true, company: true, email: true, creditGrade: true },
-  });
-
-  const collectionTasks = await prisma.collectionTask.findMany({
-    where: { invoiceId: invoice.id },
-    orderBy: { startedAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      status: true,
-      currentStep: true,
-      startedAt: true,
-      completedAt: true,
-      completedReason: true,
-      lastReplyIntent: true,
-    },
-  });
-
-  return json({
-    invoice: {
-      ...invoice,
-      issueDate: invoice.issueDate.toISOString(),
-      dueDate: invoice.dueDate.toISOString(),
-      paidDate: invoice.paidDate?.toISOString() ?? null,
-      createdAt: invoice.createdAt.toISOString(),
-      updatedAt: invoice.updatedAt.toISOString(),
-    },
-    customer,
-    collectionTasks,
-    allowedTransitions: INVOICE_TRANSITIONS[invoice.status] as InvoiceStatus[],
-  });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-
-  if (!params.id) {
-    throw new Response("Invoice ID required", { status: 400 });
-  }
-
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-
   try {
+    const { session } = await authenticate.admin(request);
+
+    if (!params.id) {
+      throw new Response("Invoice ID required", { status: 400 });
+    }
+
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
     switch (intent) {
       case "mark-paid": {
         const paymentMethod = formData.get("paymentMethod")?.toString();
@@ -153,9 +159,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Invoice action failed: ${msg}`, { status: 500 });
   }
 };
 

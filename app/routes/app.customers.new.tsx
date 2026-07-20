@@ -20,73 +20,79 @@ import { checkCustomerQuota, upsertCustomerFromShopify } from "~/services/custom
 import { getShopBilling } from "~/services/billing.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true, plan: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true, plan: true },
+    });
 
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const quota = await checkCustomerQuota(shop.id, shop.plan);
-  const billing = await getShopBilling(shop.id);
+    const quota = await checkCustomerQuota(shop.id, shop.plan);
+    const billing = await getShopBilling(shop.id);
 
-  return json({
-    quotaAllowed: quota.allowed,
-    quotaCurrent: quota.current,
-    quotalimit: quota.limit,
-    plan: shop.plan,
-    needsUpgrade: billing.needsUpgrade || !quota.allowed,
-  });
+    return json({
+      quotaAllowed: quota.allowed,
+      quotaCurrent: quota.current,
+      quotalimit: quota.limit,
+      plan: shop.plan,
+      needsUpgrade: billing.needsUpgrade || !quota.allowed,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true, plan: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const quota = await checkCustomerQuota(shop.id, shop.plan);
-  if (!quota.allowed) {
-    return json({
-      error: `Customer quota reached (${quota.current}/${quota.limit}). Please upgrade your plan.`,
-    });
-  }
-
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-
-  if (intent !== "create") {
-    return json({ error: "Invalid action" }, { status: 400 });
-  }
-
-  const email = formData.get("email")?.toString()?.trim() ?? "";
-  const name = formData.get("name")?.toString()?.trim() ?? "";
-  const company = formData.get("company")?.toString()?.trim() || undefined;
-  const phone = formData.get("phone")?.toString()?.trim() || undefined;
-  const shopifyCustomerId = formData.get("shopifyCustomerId")?.toString()?.trim() ?? "";
-
-  if (!email) return json({ error: "Email is required" }, { status: 400 });
-  if (!name) return json({ error: "Name is required" }, { status: 400 });
-
-  // Check for duplicate email
-  const existing = await prisma.customer.findFirst({
-    where: { shopId: shop.id, email },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return json({ error: "Customer with this email already exists" }, { status: 400 });
-  }
-
   try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true, plan: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const quota = await checkCustomerQuota(shop.id, shop.plan);
+    if (!quota.allowed) {
+      return json({
+        error: `Customer quota reached (${quota.current}/${quota.limit}). Please upgrade your plan.`,
+      });
+    }
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
+    if (intent !== "create") {
+      return json({ error: "Invalid action" }, { status: 400 });
+    }
+
+    const email = formData.get("email")?.toString()?.trim() ?? "";
+    const name = formData.get("name")?.toString()?.trim() ?? "";
+    const company = formData.get("company")?.toString()?.trim() || undefined;
+    const phone = formData.get("phone")?.toString()?.trim() || undefined;
+    const shopifyCustomerId = formData.get("shopifyCustomerId")?.toString()?.trim() ?? "";
+
+    if (!email) return json({ error: "Email is required" }, { status: 400 });
+    if (!name) return json({ error: "Name is required" }, { status: 400 });
+
+    // Check for duplicate email
+    const existing = await prisma.customer.findFirst({
+      where: { shopId: shop.id, email },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return json({ error: "Customer with this email already exists" }, { status: 400 });
+    }
+
     const customer = await upsertCustomerFromShopify({
       shopId: shop.id,
       shopifyCustomerId: shopifyCustomerId || `manual_${Date.now()}`,
@@ -97,9 +103,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return redirect(`/app/customers/${customer.id}`);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to create customer: ${msg}`, { status: 500 });
   }
 };
 

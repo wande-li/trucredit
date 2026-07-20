@@ -39,49 +39,55 @@ const ACTION_TONE: Record<CreditAction, "success" | "critical" | "warning" | "ne
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-  const showInactive = url.searchParams.get("inactive") === "1";
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const showInactive = url.searchParams.get("inactive") === "1";
 
-  const result = await listRules({
-    shopId: shop.id,
-    isActive: showInactive ? undefined : true,
-    page,
-  });
+    const result = await listRules({
+      shopId: shop.id,
+      isActive: showInactive ? undefined : true,
+      page,
+    });
 
-  return json({ result, shopDomain, showInactive });
+    return json({ result, shopDomain, showInactive });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-  const ruleId = formData.get("ruleId")?.toString();
-
-  if (!ruleId) return json({ error: "Rule ID required" }, { status: 400 });
-
-  // Verify rule belongs to shop
-  const rule = await prisma.creditRule.findFirst({
-    where: { id: ruleId, shopId: shop.id },
-  });
-  if (!rule) return json({ error: "Rule not found" }, { status: 404 });
-
   try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+    const ruleId = formData.get("ruleId")?.toString();
+
+    if (!ruleId) return json({ error: "Rule ID required" }, { status: 400 });
+
+    // Verify rule belongs to shop
+    const rule = await prisma.creditRule.findFirst({
+      where: { id: ruleId, shopId: shop.id },
+    });
+    if (!rule) return json({ error: "Rule not found" }, { status: 404 });
+
     switch (intent) {
       case "toggle": {
         const isActive = formData.get("isActive") === "true";
@@ -95,9 +101,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Rule action failed: ${msg}`, { status: 500 });
   }
 };
 

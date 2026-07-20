@@ -49,7 +49,7 @@ export const PLANS: PlanDefinition[] = [
   },
   {
     key: "GROWTH",
-    name: "Pro",
+    name: "Growth",
     price: 49,
     period: "month",
     billingPlanName: PLAN_MONTHLY,
@@ -69,7 +69,7 @@ export const PLANS: PlanDefinition[] = [
   },
   {
     key: "PRO",
-    name: "Pro Annual",
+    name: "Pro",
     price: 470.4,
     period: "year",
     billingPlanName: PLAN_ANNUAL,

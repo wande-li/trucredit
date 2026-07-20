@@ -170,7 +170,7 @@ model Shop {
   subscriptionId     String?
   subscriptionStatus String  @default("NONE")
   billingInterval    String?
-  priceAmount        Float?
+  priceAmount        Decimal?
   currentPeriodEnd   DateTime?
   trialDays          Int?
   cancelledAt        DateTime?
@@ -279,6 +279,7 @@ model CreditEvent {
   triggeredBy String
 
   createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 // ═══════════════════ Invoice & AR ═══════════════════
@@ -374,6 +375,7 @@ model CollectionStep {
   skipConditions Json?
 
   createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 }
 
 model CollectionTask {
@@ -397,6 +399,8 @@ model CollectionTask {
   events          CollectionEvent[]
 
   startedAt       DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   completedAt     DateTime?
   completedReason String?
 
@@ -431,6 +435,7 @@ model CollectionEvent {
   actionTaken     String?
 
   createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 // ═══════════════════ Email Templates ═══════════════════

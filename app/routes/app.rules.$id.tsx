@@ -48,131 +48,137 @@ const GRADE_OPTIONS = [
 // ─── Loader ──────────────────────────────────────────────
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const isNew = params.id === "new";
-  if (isNew) {
-    return json({ isNew: true, rule: null, shopId: shop.id });
+    const isNew = params.id === "new";
+    if (isNew) {
+      return json({ isNew: true, rule: null, shopId: shop.id });
+    }
+
+    if (!params.id) throw new Response("Rule ID required", { status: 400 });
+
+    const rule = await getRule({ shopId: shop.id, ruleId: params.id });
+    if (!rule) throw new Response("Rule not found", { status: 404 });
+
+    return json({ isNew: false, rule, shopId: shop.id });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
-
-  if (!params.id) throw new Response("Rule ID required", { status: 400 });
-
-  const rule = await getRule({ shopId: shop.id, ruleId: params.id });
-  if (!rule) throw new Response("Rule not found", { status: 404 });
-
-  return json({ isNew: false, rule, shopId: shop.id });
 };
 
 // ─── Action ──────────────────────────────────────────────
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-
-  if (intent !== "save") {
-    return json({ error: "Invalid action" }, { status: 400 });
-  }
-
-  const name = formData.get("name")?.toString()?.trim();
-  const description = formData.get("description")?.toString()?.trim() || undefined;
-  const priorityStr = formData.get("priority")?.toString() ?? "0";
-  const isActive = formData.get("isActive") === "true";
-  const action = formData.get("action")?.toString() as CreditAction | undefined;
-
-  if (!name) return json({ error: "Name is required" }, { status: 400 });
-  if (!action) return json({ error: "Action is required" }, { status: 400 });
-
-  const priority = parseInt(priorityStr, 10);
-  if (isNaN(priority)) return json({ error: "Invalid priority" }, { status: 400 });
-
-  // Build conditions from form fields
-  const conditions: RuleConditions = {};
-  const scoreMin = formData.get("scoreMin")?.toString();
-  const scoreMax = formData.get("scoreMax")?.toString();
-  if (scoreMin || scoreMax) {
-    conditions.creditScore = {};
-    if (scoreMin) conditions.creditScore.min = parseInt(scoreMin, 10);
-    if (scoreMax) conditions.creditScore.max = parseInt(scoreMax, 10);
-  }
-
-  const grades = formData.getAll("grades").map(String).filter(Boolean);
-  if (grades.length > 0) conditions.creditGrade = grades;
-
-  const risks = formData.getAll("risks").map(String).filter(Boolean);
-  if (risks.length > 0) conditions.riskLevel = risks;
-
-  const orderMin = formData.get("orderMin")?.toString();
-  const orderMax = formData.get("orderMax")?.toString();
-  if (orderMin || orderMax) {
-    conditions.totalOrders = {};
-    if (orderMin) conditions.totalOrders.min = parseInt(orderMin, 10);
-    if (orderMax) conditions.totalOrders.max = parseInt(orderMax, 10);
-  }
-
-  const revMin = formData.get("revenueMin")?.toString();
-  const revMax = formData.get("revenueMax")?.toString();
-  if (revMin || revMax) {
-    conditions.totalRevenue = {};
-    if (revMin) conditions.totalRevenue.min = parseFloat(revMin);
-    if (revMax) conditions.totalRevenue.max = parseFloat(revMax);
-  }
-
-  const payMin = formData.get("payMin")?.toString();
-  const payMax = formData.get("payMax")?.toString();
-  if (payMin || payMax) {
-    conditions.onTimePaymentRate = {};
-    if (payMin) conditions.onTimePaymentRate.min = parseInt(payMin, 10) / 100;
-    if (payMax) conditions.onTimePaymentRate.max = parseInt(payMax, 10) / 100;
-  }
-
-  // Build action value from form fields
-  const actionValue: RuleActionValue = {};
-  switch (action) {
-    case "SET_LIMIT":
-    case "ADJUST_LIMIT": {
-      const limit = formData.get("actionLimit")?.toString();
-      if (!limit) return json({ error: "Credit limit amount is required" }, { status: 400 });
-      const num = parseFloat(limit);
-      if (isNaN(num) || num <= 0) return json({ error: "Invalid limit amount" }, { status: 400 });
-      actionValue.creditLimit = num;
-      break;
-    }
-    case "SET_GRADE": {
-      const grade = formData.get("actionGrade")?.toString();
-      if (!grade) return json({ error: "Grade is required" }, { status: 400 });
-      actionValue.creditGrade = grade;
-      break;
-    }
-    case "SET_TERMS": {
-      const terms = formData.get("actionTerms")?.toString();
-      if (!terms) return json({ error: "Net terms days is required" }, { status: 400 });
-      const num = parseInt(terms, 10);
-      if (isNaN(num) || num <= 0) return json({ error: "Invalid net terms" }, { status: 400 });
-      actionValue.netTerms = num;
-      break;
-    }
-    case "FREEZE":
-      // No value needed for freeze
-      break;
-  }
-
-  const isNew = params.id === "new";
-
   try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
+    if (intent !== "save") {
+      return json({ error: "Invalid action" }, { status: 400 });
+    }
+
+    const name = formData.get("name")?.toString()?.trim();
+    const description = formData.get("description")?.toString()?.trim() || undefined;
+    const priorityStr = formData.get("priority")?.toString() ?? "0";
+    const isActive = formData.get("isActive") === "true";
+    const action = formData.get("action")?.toString() as CreditAction | undefined;
+
+    if (!name) return json({ error: "Name is required" }, { status: 400 });
+    if (!action) return json({ error: "Action is required" }, { status: 400 });
+
+    const priority = parseInt(priorityStr, 10);
+    if (isNaN(priority)) return json({ error: "Invalid priority" }, { status: 400 });
+
+    // Build conditions from form fields
+    const conditions: RuleConditions = {};
+    const scoreMin = formData.get("scoreMin")?.toString();
+    const scoreMax = formData.get("scoreMax")?.toString();
+    if (scoreMin || scoreMax) {
+      conditions.creditScore = {};
+      if (scoreMin) conditions.creditScore.min = parseInt(scoreMin, 10);
+      if (scoreMax) conditions.creditScore.max = parseInt(scoreMax, 10);
+    }
+
+    const grades = formData.getAll("grades").map(String).filter(Boolean);
+    if (grades.length > 0) conditions.creditGrade = grades;
+
+    const risks = formData.getAll("risks").map(String).filter(Boolean);
+    if (risks.length > 0) conditions.riskLevel = risks;
+
+    const orderMin = formData.get("orderMin")?.toString();
+    const orderMax = formData.get("orderMax")?.toString();
+    if (orderMin || orderMax) {
+      conditions.totalOrders = {};
+      if (orderMin) conditions.totalOrders.min = parseInt(orderMin, 10);
+      if (orderMax) conditions.totalOrders.max = parseInt(orderMax, 10);
+    }
+
+    const revMin = formData.get("revenueMin")?.toString();
+    const revMax = formData.get("revenueMax")?.toString();
+    if (revMin || revMax) {
+      conditions.totalRevenue = {};
+      if (revMin) conditions.totalRevenue.min = parseFloat(revMin);
+      if (revMax) conditions.totalRevenue.max = parseFloat(revMax);
+    }
+
+    const payMin = formData.get("payMin")?.toString();
+    const payMax = formData.get("payMax")?.toString();
+    if (payMin || payMax) {
+      conditions.onTimePaymentRate = {};
+      if (payMin) conditions.onTimePaymentRate.min = parseInt(payMin, 10) / 100;
+      if (payMax) conditions.onTimePaymentRate.max = parseInt(payMax, 10) / 100;
+    }
+
+    // Build action value from form fields
+    const actionValue: RuleActionValue = {};
+    switch (action) {
+      case "SET_LIMIT":
+      case "ADJUST_LIMIT": {
+        const limit = formData.get("actionLimit")?.toString();
+        if (!limit) return json({ error: "Credit limit amount is required" }, { status: 400 });
+        const num = parseFloat(limit);
+        if (isNaN(num) || num <= 0) return json({ error: "Invalid limit amount" }, { status: 400 });
+        actionValue.creditLimit = num;
+        break;
+      }
+      case "SET_GRADE": {
+        const grade = formData.get("actionGrade")?.toString();
+        if (!grade) return json({ error: "Grade is required" }, { status: 400 });
+        actionValue.creditGrade = grade;
+        break;
+      }
+      case "SET_TERMS": {
+        const terms = formData.get("actionTerms")?.toString();
+        if (!terms) return json({ error: "Net terms days is required" }, { status: 400 });
+        const num = parseInt(terms, 10);
+        if (isNaN(num) || num <= 0) return json({ error: "Invalid net terms" }, { status: 400 });
+        actionValue.netTerms = num;
+        break;
+      }
+      case "FREEZE":
+        // No value needed for freeze
+        break;
+    }
+
+    const isNew = params.id === "new";
+
     if (isNew) {
       await createRule({
         shopId: shop.id,
@@ -202,10 +208,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     return redirect("/app/rules");
-  } catch (e: unknown) {
-    if (e instanceof Response) throw e;
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Rule save failed: ${msg}`, { status: 500 });
   }
 };
 

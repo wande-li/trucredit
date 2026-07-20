@@ -23,27 +23,33 @@ import prisma from "~/db.server";
 import { useCallback, useMemo } from "react";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
 
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const url = new URL(request.url);
-  const search = url.searchParams.get("search") ?? undefined;
-  const status = url.searchParams.get("status") ?? undefined;
-  const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search") ?? undefined;
+    const status = url.searchParams.get("status") ?? undefined;
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
 
-  const [invoiceResult, agingReport] = await Promise.all([
-    listInvoices({ shopId: shop.id, search, status, page }),
-    getARAgingReport(shop.id),
-  ]);
+    const [invoiceResult, agingReport] = await Promise.all([
+      listInvoices({ shopId: shop.id, search, status, page }),
+      getARAgingReport(shop.id),
+    ]);
 
-  return json({ invoiceResult, agingReport, shopDomain });
+    return json({ invoiceResult, agingReport, shopDomain });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 const statusTone: Record<string, "success" | "critical" | "attention" | "warning" | "new" | "info"> = {

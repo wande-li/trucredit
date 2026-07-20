@@ -21,74 +21,82 @@ import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
+  try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true, currency: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true, currency: true },
+    });
 
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const [customers, nextSeq] = await Promise.all([
-    prisma.customer.findMany({
-      where: { shopId: shop.id, status: { not: "BLACKLISTED" } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, company: true },
-    }),
-    getNextInvoiceSequence(shop.id),
-  ]);
+    const [customers, nextSeq] = await Promise.all([
+      prisma.customer.findMany({
+        where: { shopId: shop.id, status: { not: "BLACKLISTED" } },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, company: true },
+      }),
+      getNextInvoiceSequence(shop.id),
+    ]);
 
-  const nextNumber = generateInvoiceNumber(nextSeq);
+    const nextNumber = generateInvoiceNumber(nextSeq);
 
-  return json({
-    customers,
-    nextNumber,
-    currency: shop.currency,
-    netTermsOptions: [
-      { label: "Net 7", value: "7" },
-      { label: "Net 15", value: "15" },
-      { label: "Net 30", value: "30" },
-      { label: "Net 45", value: "45" },
-      { label: "Net 60", value: "60" },
-      { label: "Net 90", value: "90" },
-    ],
-  });
+    return json({
+      customers,
+      nextNumber,
+      currency: shop.currency,
+      netTermsOptions: [
+        { label: "Net 7", value: "7" },
+        { label: "Net 15", value: "15" },
+        { label: "Net 30", value: "30" },
+        { label: "Net 45", value: "45" },
+        { label: "Net 60", value: "60" },
+        { label: "Net 90", value: "90" },
+      ],
+    });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shopDomain = session.shop.trim();
-
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
-
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  const formData = await request.formData();
-
-  const customerId = formData.get("customerId")?.toString();
-  const amountStr = formData.get("amount")?.toString();
-  const netTermsDaysStr = formData.get("netTermsDays")?.toString();
-  const currency = formData.get("currency")?.toString() ?? "USD";
-  const invoiceNumber = formData.get("invoiceNumber")?.toString();
-  const shopifyOrderName = formData.get("shopifyOrderName")?.toString() || undefined;
-
-  if (!customerId) return json({ error: "Please select a customer." }, { status: 400 });
-  if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
-    return json({ error: "Please enter a valid amount." }, { status: 400 });
-  }
-  if (!invoiceNumber) {
-    return json({ error: "Invoice number is required." }, { status: 400 });
-  }
-
-  const amount = parseFloat(amountStr);
-  const netTermsDays = parseInt(netTermsDaysStr ?? String(COLLECTION.DEFAULT_NET_TERMS), 10);
-
   try {
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+    if (intent !== "create") return json({ error: "Invalid action" }, { status: 400 });
+
+    const customerId = formData.get("customerId")?.toString();
+    const amountStr = formData.get("amount")?.toString();
+    const netTermsDaysStr = formData.get("netTermsDays")?.toString();
+    const currency = formData.get("currency")?.toString() ?? "USD";
+    const invoiceNumber = formData.get("invoiceNumber")?.toString();
+    const shopifyOrderName = formData.get("shopifyOrderName")?.toString() || undefined;
+
+    if (!customerId) return json({ error: "Please select a customer." }, { status: 400 });
+    if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+      return json({ error: "Please enter a valid amount." }, { status: 400 });
+    }
+    if (!invoiceNumber) {
+      return json({ error: "Invoice number is required." }, { status: 400 });
+    }
+
+    const amount = parseFloat(amountStr);
+    const netTermsDays = parseInt(netTermsDaysStr ?? String(COLLECTION.DEFAULT_NET_TERMS), 10);
+
     const invoice = await createInvoice({
       shopId: shop.id,
       customerId,
@@ -100,8 +108,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return redirect(`/app/invoices/${invoice.id}`);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
     return json({ error: msg }, { status: 500 });
   }
 };
@@ -130,6 +139,7 @@ export default function NewInvoice() {
 
   const handleSubmit = useCallback(() => {
     const formData = new FormData();
+    formData.set("intent", "create");
     formData.set("customerId", customerId);
     formData.set("amount", amount);
     formData.set("netTermsDays", netTermsDays);

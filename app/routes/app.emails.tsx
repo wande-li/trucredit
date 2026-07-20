@@ -29,26 +29,32 @@ import type { TemplateType } from "@prisma/client";
 // ═══════════════════ Loader ═══════════════════
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const url = new URL(request.url);
-  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
-  const pageSize = Math.min(parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10), PAGINATION.MAX_PAGE_SIZE);
+  try {
+    const { session } = await authenticate.admin(request);
+    const url = new URL(request.url);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+    const pageSize = Math.min(parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10), PAGINATION.MAX_PAGE_SIZE);
 
-  // Auto-seed default templates
-  await ensureDefaultTemplates(session.shop);
+    // Auto-seed default templates
+    await ensureDefaultTemplates(session.shop);
 
-  const result = await listTemplates(session.shop, { page, pageSize });
-  return json(result);
+    const result = await listTemplates(session.shop, { page, pageSize });
+    return json(result);
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Failed to load data: ${msg}`, { status: 500 });
+  }
 };
 
 // ═══════════════════ Actions ═══════════════════
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-
   try {
+    const { session } = await authenticate.admin(request);
+    const formData = await request.formData();
+    const intent = formData.get("intent") as string;
+
     if (intent === "create") {
       const name = formData.get("name") as string;
       const type = formData.get("type") as TemplateType;
@@ -79,9 +85,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return json({ success: false, error: "Unknown intent" });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ success: false, error: msg });
+  } catch (error: unknown) {
+    if (error instanceof Response) throw error;
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Response(`Email action failed: ${msg}`, { status: 500 });
   }
 };
 

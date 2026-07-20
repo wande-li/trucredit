@@ -17,6 +17,7 @@ import { useState, useCallback, useMemo } from "react";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server";
+import { syncCreditMetafield } from "~/services/metafield.server";
 import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
 
@@ -65,7 +66,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
     const shopDomain = session.shop.trim();
 
     const shop = await prisma.shop.findUnique({
@@ -106,6 +107,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       invoiceNumber,
       shopifyOrderName,
     });
+
+    // Sync metafield for Shopify Function checkout validation
+    syncCreditMetafield(admin, shopDomain, customerId).catch(() => {});
 
     return redirect(`/app/invoices/${invoice.id}`);
   } catch (error: unknown) {

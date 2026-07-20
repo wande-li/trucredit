@@ -3,7 +3,7 @@
 
 name = "trucredit-payment"
 type = "payment_customization"
-api_version = "2024-07"
+api_version = "2025-10"
 
 [build]
 command = ""
@@ -19,3 +19,9 @@ target = "payments.payment-customization.run"
 [input.variables]
 namespace = "payments"
 key = "payment_customization"
+
+# Declare metafield access so the function can read trucredit/credit_status on customers
+# Without this, the metafield won't be available in input.cart.buyerIdentity.customer.metafield
+[[metafields]]
+namespace = "trucredit"
+key = "credit_status"

@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { getInvoice, markInvoicePaid } from "~/services/invoice.server";
+import { syncCreditMetafield } from "~/services/metafield.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import prisma from "~/db.server";
@@ -89,7 +90,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });
@@ -109,11 +110,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     switch (intent) {
       case "mark-paid": {
         const paymentMethod = formData.get("paymentMethod")?.toString();
-        await markInvoicePaid({
+        const invoice = await markInvoicePaid({
           shopId: shop.id,
           invoiceId: params.id,
           paymentMethod,
         });
+
+        // Sync metafield for Shopify Function checkout validation
+        syncCreditMetafield(admin, shopDomain, invoice.customerId).catch(() => {});
+
         return json({ success: true });
       }
 

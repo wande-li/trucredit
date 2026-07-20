@@ -26,6 +26,7 @@ import {
 } from "~/services/customer.server";
 import { assessCredit } from "~/services/credit.server";
 import { getARAgingByCustomer } from "~/services/invoice.server";
+import { syncCreditMetafield } from "~/services/metafield.server";
 import { CustomerStatusBadge } from "~/components/credit/CustomerStatusBadge";
 import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
 import type { CustomerRecord, CreditRecommendation } from "~/types";
@@ -85,7 +86,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { session, admin } = await authenticate.admin(request);
 
     if (!params.id) {
       throw new Response("Customer ID required", { status: 400 });
@@ -122,6 +123,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           triggeredBy: "USER",
         });
 
+        // Sync metafield for Shopify Function checkout validation
+        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+
         return json({ success: true });
       }
 
@@ -133,6 +137,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           reason,
           triggeredBy: "USER",
         });
+
+        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+
         return json({ success: true });
       }
 
@@ -142,6 +149,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           customerId: params.id,
           triggeredBy: "USER",
         });
+
+        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+
         return json({ success: true });
       }
 
@@ -151,6 +161,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           shopId: shop.id,
           triggeredBy: "USER",
         });
+
+        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+
         return json({ success: true });
       }
 

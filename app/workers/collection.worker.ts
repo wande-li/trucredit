@@ -101,7 +101,7 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
       const [invoice, sequence] = await Promise.all([
         prisma.invoice.findUnique({
           where: { id: invoiceId },
-          include: { customer: true, shop: { select: { id: true } } },
+          include: { customer: true, shop: { select: { id: true, shopDomain: true } } },
         }),
         prisma.collectionSequence.findUnique({
           where: { id: sequenceId },
@@ -168,6 +168,10 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
         );
         const shopId = invoice.shop?.id ?? "";
+        const shopDomain = invoice.shop?.shopDomain ?? "";
+        const paymentLink = shopDomain
+          ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
+          : undefined;
         await enqueueEmail({
           shopId,
           toEmail: invoice.customer.email,
@@ -182,6 +186,7 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
             currency: invoice.currency,
             dueDate: invoice.dueDate.toISOString().slice(0, 10),
             daysOverdue,
+            paymentLink,
           },
           taskId: created.id,
           stepOrder,
@@ -219,6 +224,10 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
         );
         const shopId = invoice.shop?.id ?? "";
+        const shopDomain = invoice.shop?.shopDomain ?? "";
+        const paymentLink = shopDomain
+          ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
+          : undefined;
         await enqueueEmail({
           shopId,
           toEmail: invoice.customer.email,
@@ -233,6 +242,7 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
             currency: invoice.currency,
             dueDate: invoice.dueDate.toISOString().slice(0, 10),
             daysOverdue,
+            paymentLink,
           },
           taskId: existingTask.id,
           stepOrder,

@@ -92,6 +92,7 @@ export async function createRule(input: RuleInput): Promise<CreditRule> {
 
 /** Update an existing rule */
 export async function updateRule(
+  shopId: string,
   ruleId: string,
   input: Partial<RuleInput>,
 ): Promise<CreditRule> {
@@ -104,23 +105,24 @@ export async function updateRule(
   if (input.conditions !== undefined) data.conditions = input.conditions as Prisma.JsonObject;
   if (input.actionValue !== undefined) data.actionValue = input.actionValue as Prisma.JsonObject;
 
-  return prisma.creditRule.update({ where: { id: ruleId }, data });
+  return prisma.creditRule.update({ where: { id: ruleId, shopId }, data });
 }
 
 /** Toggle rule active state */
 export async function toggleRule(params: {
+  shopId: string;
   ruleId: string;
   isActive: boolean;
 }): Promise<CreditRule> {
   return prisma.creditRule.update({
-    where: { id: params.ruleId },
+    where: { id: params.ruleId, shopId: params.shopId },
     data: { isActive: params.isActive },
   });
 }
 
 /** Soft-delete a rule */
-export async function deleteRule(ruleId: string): Promise<void> {
-  await prisma.creditRule.delete({ where: { id: ruleId } });
+export async function deleteRule(shopId: string, ruleId: string): Promise<void> {
+  await prisma.creditRule.delete({ where: { id: ruleId, shopId } });
 }
 
 // ─── Evaluation Engine ───────────────────────────────────

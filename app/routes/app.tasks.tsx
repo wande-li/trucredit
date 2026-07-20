@@ -138,27 +138,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     switch (intent) {
       case "pause": {
-        await pauseTask({ taskId, reason: "Manually paused" });
+        await pauseTask({ taskId, shopId: shop.id, reason: "Manually paused" });
         return json({ success: true });
       }
       case "stop": {
-        await stopTask({ taskId, reason: "Manually stopped" });
+        await stopTask({ taskId, shopId: shop.id, reason: "Manually stopped" });
         return json({ success: true });
       }
       case "resume": {
-        const task = await prisma.collectionTask.findUnique({ where: { id: taskId } });
+        // Verify task belongs to this shop
+        const task = await prisma.collectionTask.findUnique({
+          where: { id: taskId, sequence: { shopId: shop.id } },
+        });
         if (!task || task.status !== "PAUSED") {
           return json({ error: "Task not found or not paused" }, { status: 400 });
         }
         await prisma.collectionTask.update({
-          where: { id: taskId },
+          where: { id: taskId, sequence: { shopId: shop.id } },
           data: { status: "ACTIVE" },
         });
         return json({ success: true });
       }
       case "send": {
+        // Verify task belongs to this shop
         const task = await prisma.collectionTask.findUnique({
-          where: { id: taskId },
+          where: { id: taskId, sequence: { shopId: shop.id } },
           include: {
             customer: { select: { name: true, company: true, email: true } },
             invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, paymentUrl: true, shopifyOrderName: true } },

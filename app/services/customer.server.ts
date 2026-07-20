@@ -159,7 +159,7 @@ export async function recalculateCreditScore(params: {
   );
 
   const updated = await prisma.customer.update({
-    where: { id: params.customerId },
+    where: { id: params.customerId, shopId: params.shopId },
     data: {
       creditScore: assessment.score,
       creditGrade: assessment.grade,
@@ -214,7 +214,7 @@ export async function setCreditLimit(params: {
   });
 
   const updated = await prisma.customer.update({
-    where: { id: params.customerId },
+    where: { id: params.customerId, shopId: params.shopId },
     data: {
       creditLimit: params.newLimit,
       creditAvailable: calcAvailableCredit(params.newLimit, Number(customer.creditUsed)),

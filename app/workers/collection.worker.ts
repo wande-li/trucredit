@@ -320,7 +320,7 @@ export function createScoreWorker(): Worker<ScoreJob> {
       const { customerId, shopId } = job.data;
 
       const customer = await prisma.customer.findUnique({
-        where: { id: customerId },
+        where: { id: customerId, shopId },
       });
       if (!customer) return { skipped: true, reason: "Customer not found" };
 
@@ -354,7 +354,7 @@ export function createFreezeCheckWorker(): Worker<FreezeJob> {
       const { customerId, shopId } = job.data;
 
       const customer = await prisma.customer.findUnique({
-        where: { id: customerId },
+        where: { id: customerId, shopId },
       });
       if (!customer) return { skipped: true, reason: "Customer not found" };
       if (customer.isFrozen) return { skipped: true, reason: "Already frozen" };

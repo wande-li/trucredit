@@ -170,7 +170,7 @@ export async function deleteTemplate(
   });
   if (!existing) return { success: false, error: "Template not found" };
 
-  await prisma.emailTemplate.delete({ where: { id: templateId } });
+  await prisma.emailTemplate.delete({ where: { id: templateId, shopId } });
   return { success: true };
 }
 

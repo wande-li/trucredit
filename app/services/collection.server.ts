@@ -135,7 +135,7 @@ export async function deleteSequence(
   if (seq.isDefault) return { success: false, error: "Cannot delete default sequence" };
 
   // Cascade: steps + associated tasks will be deleted via Prisma cascade
-  await prisma.collectionSequence.delete({ where: { id: sequenceId } });
+  await prisma.collectionSequence.delete({ where: { id: sequenceId, shopId } });
   return { success: true };
 }
 
@@ -387,10 +387,11 @@ export async function advanceTask(params: {
  */
 export async function pauseTask(params: {
   taskId: string;
+  shopId: string;
   reason: string;
 }): Promise<void> {
   await prisma.collectionTask.update({
-    where: { id: params.taskId },
+    where: { id: params.taskId, sequence: { shopId: params.shopId } },
     data: {
       status: "PAUSED",
       events: {
@@ -408,10 +409,11 @@ export async function pauseTask(params: {
  */
 export async function stopTask(params: {
   taskId: string;
+  shopId: string;
   reason: string;
 }): Promise<void> {
   await prisma.collectionTask.update({
-    where: { id: params.taskId },
+    where: { id: params.taskId, sequence: { shopId: params.shopId } },
     data: {
       status: "STOPPED",
       completedAt: new Date(),
@@ -425,10 +427,11 @@ export async function stopTask(params: {
  */
 export async function escalateTask(params: {
   taskId: string;
+  shopId: string;
   reason: string;
 }): Promise<void> {
   await prisma.collectionTask.update({
-    where: { id: params.taskId },
+    where: { id: params.taskId, sequence: { shopId: params.shopId } },
     data: {
       status: "ESCALATED",
       events: {
@@ -719,13 +722,14 @@ export function evaluateInvoiceForSweep(
  */
 export async function recordReply(params: {
   taskId: string;
+  shopId: string;
   replyContent: string;
   replyIntent: ReplyIntent;
   replyConfidence: number;
   isDispute: boolean;
 }): Promise<void> {
   const task = await prisma.collectionTask.findUnique({
-    where: { id: params.taskId },
+    where: { id: params.taskId, sequence: { shopId: params.shopId } },
   });
   if (!task) return;
 
@@ -742,7 +746,7 @@ export async function recordReply(params: {
 
   // Update task reply tracking
   await prisma.collectionTask.update({
-    where: { id: params.taskId },
+    where: { id: params.taskId, sequence: { shopId: params.shopId } },
     data: {
       lastReplyAt: new Date(),
       lastReplyIntent: params.replyIntent,
@@ -751,7 +755,7 @@ export async function recordReply(params: {
 
   // If dispute, auto-pause
   if (params.isDispute) {
-    await pauseTask({ taskId: params.taskId, reason: "Customer dispute" });
+    await pauseTask({ taskId: params.taskId, shopId: params.shopId, reason: "Customer dispute" });
   }
 }
 

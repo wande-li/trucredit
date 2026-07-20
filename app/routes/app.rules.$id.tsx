@@ -198,7 +198,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const existing = await getRule({ shopId: shop.id, ruleId: params.id });
       if (!existing) throw new Response("Rule not found", { status: 404 });
 
-      await updateRule(params.id, {
+      await updateRule(shop.id, params.id, {
         name,
         description,
         priority,

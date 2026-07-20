@@ -159,7 +159,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
 
         await prisma.invoice.update({
-          where: { id: params.id },
+          where: { id: params.id, shopId: shop.id },
           data: updateData,
         });
 

@@ -93,11 +93,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (intent) {
       case "toggle": {
         const isActive = formData.get("isActive") === "true";
-        await toggleRule({ ruleId, isActive });
+        await toggleRule({ shopId: shop.id, ruleId, isActive });
         return json({ success: true });
       }
       case "delete": {
-        await deleteRule(ruleId);
+        await deleteRule(shop.id, ruleId);
         return json({ success: true });
       }
       default:

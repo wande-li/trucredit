@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -14,7 +14,9 @@ import {
   Box,
   EmptyState,
   Banner,
+  Pagination,
 } from "@shopify/polaris";
+import { useCallback } from "react";
 import { authenticate } from "~/shopify.server";
 import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
@@ -189,12 +191,23 @@ function formatActionValue(
 export default function RulesPage() {
   const { result } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
 
   const actionError = fetcher.data?.error;
 
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("page", String(newPage));
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
   return (
     <Page
+      fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
       primaryAction={<Button url="/app/rules/new">Add Rule</Button>}
@@ -234,22 +247,13 @@ export default function RulesPage() {
         {totalPages > 1 && (
           <Box padding="400">
             <BlockStack align="center" inlineAlign="center">
-              {/* Simple pagination via links */}
-              <InlineStack gap="200">
-                {page > 1 && (
-                  <Button url={`/app/rules?page=${page - 1}`} variant="secondary">
-                    Previous
-                  </Button>
-                )}
-                <Text as="span" variant="bodyMd">
-                  Page {page} of {totalPages}
-                </Text>
-                {page < totalPages && (
-                  <Button url={`/app/rules?page=${page + 1}`} variant="secondary">
-                    Next
-                  </Button>
-                )}
-              </InlineStack>
+              <Pagination
+                label={`Page ${page} of ${totalPages}`}
+                hasPrevious={page > 1}
+                onPrevious={() => handlePageChange(page - 1)}
+                hasNext={page < totalPages}
+                onNext={() => handlePageChange(page + 1)}
+              />
             </BlockStack>
           </Box>
         )}

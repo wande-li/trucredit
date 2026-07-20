@@ -4,7 +4,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
-  Layout,
+  BlockStack,
   Card,
   IndexTable,
   Text,
@@ -19,6 +19,7 @@ import {
   Modal,
   FormLayout,
   Divider,
+  Pagination,
 } from "@shopify/polaris";
 import { useState, useCallback, useMemo } from "react";
 import { authenticate } from "~/shopify.server";
@@ -118,6 +119,7 @@ export default function RepliesPage() {
 
   const [selectedIntent, setSelectedIntent] = useState(searchParams.get("intent") ?? "ALL");
   const [detailEvent, setDetailEvent] = useState<typeof items[0] | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const actionData = fetcher.data as { success?: boolean; error?: string } | undefined;
 
@@ -151,12 +153,13 @@ export default function RepliesPage() {
     [searchParams, setSearchParams],
   );
 
-  const paginate = useCallback(
-    (dir: "prev" | "next") => {
-      const p = dir === "prev" ? Math.max(1, page - 1) : Math.min(totalPages, page + 1);
-      setSearchParams((sp) => { sp.set("page", String(p)); return sp; });
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("page", String(newPage));
+      setSearchParams(next);
     },
-    [page, totalPages, setSearchParams],
+    [searchParams, setSearchParams],
   );
 
   const intentOptions = [
@@ -166,19 +169,20 @@ export default function RepliesPage() {
 
   return (
     <Page
+      fullWidth
       title="Reply Inbox"
       subtitle="Customer email replies — AI-classified for fast triage"
     >
-      <Layout>
-        <Layout.Section>
-          {actionData?.error && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="critical" onDismiss={() => {}}>{actionData.error}</Banner>
-            </Box>
-          )}
+      <BlockStack gap="400">
+        {actionData?.error && !bannerDismissed && (
+          <Banner tone="critical" onDismiss={() => setBannerDismissed(true)}>
+            {actionData.error}
+          </Banner>
+        )}
 
-          {/* Filters */}
-          <Box paddingBlockEnd="400">
+        {/* Filters */}
+        <Card>
+          <Box padding="400">
             <InlineStack gap="400" align="space-between" blockAlign="center">
               <Select
                 label="Intent"
@@ -192,99 +196,103 @@ export default function RepliesPage() {
               </Text>
             </InlineStack>
           </Box>
+        </Card>
 
-          {deduped.length === 0 ? (
-            <Card>
-              <EmptyState
-                heading="No replies yet"
-                image=""
-              >
-                <p>Customer email replies will appear here once collection emails are sent and customers respond.</p>
-              </EmptyState>
-            </Card>
-          ) : (
-            <Card padding="0">
-              <IndexTable
-                resourceName={{ singular: "reply", plural: "replies" }}
-                itemCount={deduped.length}
-                selectable={false}
-                headings={[
-                  { title: "Invoice" },
-                  { title: "Customer" },
-                  { title: "Subject" },
-                  { title: "Intent" },
-                  { title: "Confidence" },
-                  { title: "Received" },
-                  { title: "Actions" },
-                ]}
-              >
-                {deduped.map((evt, idx) => {
-                  const inv = evt.task?.invoice;
-                  return (
-                    <IndexTable.Row key={evt.id} id={evt.id} position={idx}>
-                      <IndexTable.Cell>
-                        <Text as="span" fontWeight="bold">
-                          {inv?.invoiceNumber ?? "N/A"}
-                        </Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span" tone="subdued">—</Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span" truncate>
-                          {evt.emailSubject || shortBody(evt.emailBody, 60)}
-                        </Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={REPLY_INTENT_COLORS[evt.replyIntent ?? "UNRELATED"] ?? "info"}>
-                          {REPLY_INTENT_LABELS[evt.replyIntent ?? "UNRELATED"] ?? evt.replyIntent}
-                        </Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={CONFIDENCE_COLORS[confidenceLevel(evt.replyConfidence ?? 0)]}>
-                          {evt.replyConfidence != null ? `${Math.round(evt.replyConfidence * 100)}%` : "—"}
-                        </Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span" tone="subdued">
-                          {new Date(evt.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <ButtonGroup>
-                          <Button size="slim" onClick={() => setDetailEvent(evt)}>View</Button>
-                          <Button
-                            size="slim"
-                            tone="success"
-                            onClick={() => {
-                              fetcher.submit(
-                                { intent: "resolve", eventId: evt.id, taskId: evt.taskId },
-                                { method: "POST" },
-                              );
-                            }}
-                          >
-                            Resolve
-                          </Button>
-                        </ButtonGroup>
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  );
-                })}
-              </IndexTable>
+        {deduped.length === 0 ? (
+          <Card>
+            <EmptyState
+              heading="No replies yet"
+              image=""
+            >
+              <p>Customer email replies will appear here once collection emails are sent and customers respond.</p>
+            </EmptyState>
+          </Card>
+        ) : (
+          <Card padding="0">
+            <IndexTable
+              resourceName={{ singular: "reply", plural: "replies" }}
+              itemCount={deduped.length}
+              selectable={false}
+              headings={[
+                { title: "Invoice" },
+                { title: "Customer" },
+                { title: "Subject" },
+                { title: "Intent" },
+                { title: "Confidence" },
+                { title: "Received" },
+                { title: "Actions" },
+              ]}
+            >
+              {deduped.map((evt, idx) => {
+                const inv = evt.task?.invoice;
+                return (
+                  <IndexTable.Row key={evt.id} id={evt.id} position={idx}>
+                    <IndexTable.Cell>
+                      <Text as="span" fontWeight="bold">
+                        {inv?.invoiceNumber ?? "N/A"}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span" tone="subdued">—</Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span" truncate>
+                        {evt.emailSubject || shortBody(evt.emailBody, 60)}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={REPLY_INTENT_COLORS[evt.replyIntent ?? "UNRELATED"] ?? "info"}>
+                        {REPLY_INTENT_LABELS[evt.replyIntent ?? "UNRELATED"] ?? evt.replyIntent}
+                      </Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={CONFIDENCE_COLORS[confidenceLevel(evt.replyConfidence ?? 0)]}>
+                        {evt.replyConfidence != null ? `${Math.round(evt.replyConfidence * 100)}%` : "—"}
+                      </Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span" tone="subdued">
+                        {new Date(evt.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <ButtonGroup>
+                        <Button size="slim" onClick={() => setDetailEvent(evt)}>View</Button>
+                        <Button
+                          size="slim"
+                          tone="success"
+                          onClick={() => {
+                            fetcher.submit(
+                              { intent: "resolve", eventId: evt.id, taskId: evt.taskId },
+                              { method: "POST" },
+                            );
+                          }}
+                        >
+                          Resolve
+                        </Button>
+                      </ButtonGroup>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
 
-              {totalPages > 1 && (
-                <Box padding="400">
-                  <InlineStack align="space-between">
-                    <Button onClick={() => paginate("prev")} disabled={page <= 1}>Previous</Button>
-                    <Text as="span" tone="subdued">Page {page} of {totalPages}</Text>
-                    <Button onClick={() => paginate("next")} disabled={page >= totalPages}>Next</Button>
-                  </InlineStack>
-                </Box>
-              )}
-            </Card>
-          )}
-        </Layout.Section>
-      </Layout>
+            {totalPages > 1 && (
+              <Box padding="400">
+                <BlockStack align="center" inlineAlign="center">
+                  <Pagination
+                    label={`Page ${page} of ${totalPages}`}
+                    hasPrevious={page > 1}
+                    onPrevious={() => handlePageChange(page - 1)}
+                    hasNext={page < totalPages}
+                    onNext={() => handlePageChange(page + 1)}
+                  />
+                </BlockStack>
+              </Box>
+            )}
+          </Card>
+        )}
+      </BlockStack>
 
       {/* Detail Modal */}
       {detailEvent && (

@@ -2,6 +2,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useState } from "react";
 import {
   Page,
   Card,
@@ -113,9 +114,12 @@ export default function BillingPage() {
   const { billing, plans } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<BillingActionData>();
   const isSubmitting = fetcher.state === "submitting";
+  const [dismissedError, setDismissedError] = useState(false);
+  const [dismissedSuccess, setDismissedSuccess] = useState(false);
 
   return (
     <Page
+      fullWidth
       title="Billing & Plan"
       subtitle={
         billing.subscriptionStatus === "ACTIVE"
@@ -322,10 +326,10 @@ export default function BillingPage() {
         </InlineStack>
 
         {/* Error / Success feedback */}
-        {fetcher.data && fetcher.data.error && (
+        {fetcher.data?.error && !dismissedError && (
           <Banner
             tone="critical"
-            onDismiss={() => {}}
+            onDismiss={() => setDismissedError(true)}
           >
             <Text as="p" variant="bodyMd">
               {fetcher.data.error}
@@ -333,10 +337,10 @@ export default function BillingPage() {
           </Banner>
         )}
 
-        {fetcher.data && "success" in fetcher.data && fetcher.data.success && (
+        {fetcher.data && "success" in fetcher.data && fetcher.data.success && !dismissedSuccess && (
           <Banner
             tone="success"
-            onDismiss={() => {}}
+            onDismiss={() => setDismissedSuccess(true)}
           >
             <Text as="p" variant="bodyMd">
               {fetcher.data.success}

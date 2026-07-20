@@ -2,11 +2,10 @@
 import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   IndexTable,
-  useIndexResourceState,
   Card,
   Badge,
   Button,
@@ -14,10 +13,12 @@ import {
   TextField,
   Select,
   FormLayout,
-  EmptyState,
   Pagination,
   Banner,
   Text,
+  BlockStack,
+  InlineStack,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
@@ -114,32 +115,21 @@ export default function EmailsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const { items, page, total, totalPages } = loaderData;
+  const [, setSearchParams] = useSearchParams();
 
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [dismissedSuccess, setDismissedSuccess] = useState(false);
 
-  const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(items, {
-    resourceFilter: undefined,
-    resourceIDResolver: (item) => item.id,
-  });
-
-  // Toast auto-dismiss
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastMessage(null), 3000);
-  }, []);
-
-  // Watch fetcher results
-  const fetcherRef = useRef(fetcher.data);
-  if (fetcher.data && fetcher.data !== fetcherRef.current) {
-    fetcherRef.current = fetcher.data;
-    if (fetcher.data.success) {
-      showToast("Template saved successfully");
-    }
-  }
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      setSearchParams((sp) => {
+        sp.set("page", String(newPage));
+        return sp;
+      });
+    },
+    [setSearchParams],
+  );
 
   const handleDelete = useCallback(() => {
     if (!deleteTarget) return;
@@ -148,23 +138,27 @@ export default function EmailsPage() {
       { method: "POST" },
     );
     setDeleteTarget(null);
-    showToast("Template deleted");
-  }, [deleteTarget, fetcher, showToast]);
+  }, [deleteTarget, fetcher]);
+
+  const showSuccess = fetcher.data?.success && !dismissedSuccess;
 
   const rowMarkup = items.map((tpl, index) => (
     <IndexTable.Row
       id={tpl.id}
       key={tpl.id}
-      selected={selectedResources.includes(tpl.id)}
       position={index}
     >
       <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">
-          {tpl.name}
-        </Text>
-        {tpl.isDefault && (
-          <Badge size="small" tone="info">Default</Badge>
-        )}
+        <InlineStack gap="200" blockAlign="center">
+          <Link to={`/app/emails/${tpl.id}`}>
+            <Text variant="bodyMd" fontWeight="bold" as="span">
+              {tpl.name}
+            </Text>
+          </Link>
+          {tpl.isDefault && (
+            <Badge size="small" tone="info">Default</Badge>
+          )}
+        </InlineStack>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Badge size="small">{TEMPLATE_TYPE_LABELS[tpl.type] ?? tpl.type}</Badge>
@@ -191,6 +185,7 @@ export default function EmailsPage() {
 
   return (
     <Page
+      fullWidth
       title="Email Templates"
       subtitle={`${total} template${total !== 1 ? "s" : ""}`}
       primaryAction={
@@ -199,66 +194,70 @@ export default function EmailsPage() {
         </Button>
       }
     >
-      {/* Toast */}
-      {toastMessage && (
-        <Banner tone="success" onDismiss={() => setToastMessage(null)}>
-          {toastMessage}
-        </Banner>
-      )}
-
-      {/* Error banner */}
-      {fetcher.data && !fetcher.data.success && (
-        <Banner tone="critical">
-          {(fetcher.data as { error?: string }).error ?? "An error occurred"}
-        </Banner>
-      )}
-
-      {items.length === 0 ? (
-        <EmptyState
-          heading="No email templates yet"
-          image=""
-        >
-          <Text as="p">Create your first email template to customize collection emails.</Text>
-          <Button variant="primary" onClick={() => setShowCreate(true)}>
-            Create Template
-          </Button>
-        </EmptyState>
-      ) : (
-        <Card padding="0">
-          <IndexTable
-            resourceName={{ singular: "template", plural: "templates" }}
-            itemCount={items.length}
-            selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
-            onSelectionChange={handleSelectionChange}
-            headings={[
-              { title: "Name" },
-              { title: "Type" },
-              { title: "Subject" },
-              { title: "Tone" },
-              { title: "Updated" },
-            ]}
+      <BlockStack gap="400">
+        {/* Error banner */}
+        {fetcher.data && !fetcher.data.success && fetcher.data.error && (
+          <Banner
+            tone="critical"
+            onDismiss={() => window.location.reload()}
           >
-            {rowMarkup}
-          </IndexTable>
-          <div style={{ padding: "16px" }}>
-            <Pagination
-              hasPrevious={page > 1}
-              onPrevious={() => {
-                const url = new URL(window.location.href);
-                url.searchParams.set("page", String(page - 1));
-                window.location.href = url.toString();
-              }}
-              hasNext={page < totalPages}
-              onNext={() => {
-                const url = new URL(window.location.href);
-                url.searchParams.set("page", String(page + 1));
-                window.location.href = url.toString();
-              }}
-              label={`Page ${page} of ${totalPages}`}
-            />
-          </div>
-        </Card>
-      )}
+            <Text as="p">{fetcher.data.error}</Text>
+          </Banner>
+        )}
+
+        {showSuccess && (
+          <Banner tone="success" onDismiss={() => setDismissedSuccess(true)}>
+            <Text as="p">Template saved successfully</Text>
+          </Banner>
+        )}
+
+        {items.length === 0 ? (
+          <Card>
+            <Box padding="800">
+              <BlockStack gap="400" align="center">
+                <BlockStack gap="200" align="center">
+                  <Text as="h2" variant="headingMd">No email templates yet</Text>
+                  <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                    Create your first email template to customize collection emails.
+                  </Text>
+                </BlockStack>
+                <Button variant="primary" onClick={() => setShowCreate(true)}>
+                  Create Template
+                </Button>
+              </BlockStack>
+            </Box>
+          </Card>
+        ) : (
+          <Card padding="0">
+            <IndexTable
+              resourceName={{ singular: "template", plural: "templates" }}
+              itemCount={items.length}
+              selectable={false}
+              headings={[
+                { title: "Name" },
+                { title: "Type" },
+                { title: "Subject" },
+                { title: "Tone" },
+                { title: "Updated" },
+              ]}
+            >
+              {rowMarkup}
+            </IndexTable>
+            {totalPages > 1 && (
+              <Box padding="400">
+                <BlockStack align="center" inlineAlign="center">
+                  <Pagination
+                    hasPrevious={page > 1}
+                    onPrevious={() => handlePageChange(page - 1)}
+                    hasNext={page < totalPages}
+                    onNext={() => handlePageChange(page + 1)}
+                    label={`Page ${page} of ${totalPages}`}
+                  />
+                </BlockStack>
+              </Box>
+            )}
+          </Card>
+        )}
 
       {/* Create Modal */}
       <CreateTemplateModal

@@ -103,6 +103,7 @@ export default function CustomersPage() {
 
   return (
     <Page
+      fullWidth
       title="Customers"
       subtitle={`${total} total`}
       primaryAction={<Button url="/app/customers/new">Add Customer</Button>}

@@ -119,59 +119,188 @@ function progressTone(pct: number): "success" | "highlight" | "critical" {
   return "success";
 }
 
+const statCardStyle = (tone?: "critical" | "warning" | "success"): React.CSSProperties => ({
+  background: tone
+    ? `var(--p-color-bg-${tone}-strong)`
+    : "var(--p-color-bg-surface)",
+  borderRadius: 8,
+  padding: "20px 24px",
+  flex: "1 1 160px",
+  minWidth: 160,
+});
+
+const statLabelStyle = (tone?: string): React.CSSProperties => ({
+  fontSize: 12,
+  fontWeight: 500,
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.05em",
+  color: tone ? "var(--p-color-text-on-color)" : "var(--p-color-text-subdued)",
+  marginBottom: 8,
+});
+
+const statValueStyle = (tone?: string): React.CSSProperties => ({
+  fontSize: 28,
+  fontWeight: 700,
+  color: tone ? "var(--p-color-text-on-color)" : "var(--p-color-text)",
+  lineHeight: 1.2,
+});
+
 export default function Dashboard() {
   const { stats, quota, planName, aging, collectionStats, recentCustomers } =
     useLoaderData<typeof loader>();
 
-  const statCards = [
-    { label: "Total Customers", value: stats.totalCustomers },
-    { label: "Active", value: stats.activeCustomers },
-    { label: "Frozen", value: stats.frozenCustomers },
-    { label: "Total Invoices", value: stats.totalInvoices },
-    { label: "Overdue", value: stats.overdueInvoices },
-    {
-      label: "Overdue Total",
-      value: `$${Number(stats.overdueTotal).toLocaleString()}`,
-    },
-  ];
-
   return (
-    <Page title="Dashboard">
-      <BlockStack gap="400">
-        {/* Plan Quota Summary */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <InlineStack gap="200" blockAlign="center">
-                <Text as="h2" variant="headingMd">
-                  Plan: {planName}
-                </Text>
-                {quota.needsUpgrade && (
-                  <Badge tone="warning">Upgrade Available</Badge>
-                )}
-              </InlineStack>
-              <Button url="/app/billing" variant="plain">
-                Manage Plan
-              </Button>
-            </InlineStack>
+    <Page fullWidth>
+      <BlockStack gap="500">
+        {/* ── KPI Stat Cards Row ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div style={statCardStyle()}>
+            <div style={statLabelStyle()}>Total Customers</div>
+            <div style={statValueStyle()}>{stats.totalCustomers}</div>
+          </div>
+          <div style={statCardStyle("success")}>
+            <div style={statLabelStyle("success")}>Active</div>
+            <div style={statValueStyle("success")}>{stats.activeCustomers}</div>
+          </div>
+          <div style={statCardStyle("warning")}>
+            <div style={statLabelStyle("warning")}>Frozen</div>
+            <div style={statValueStyle("warning")}>{stats.frozenCustomers}</div>
+          </div>
+          <div style={statCardStyle()}>
+            <div style={statLabelStyle()}>Total Invoices</div>
+            <div style={statValueStyle()}>{stats.totalInvoices}</div>
+          </div>
+          <div style={statCardStyle("critical")}>
+            <div style={statLabelStyle("critical")}>Overdue</div>
+            <div style={statValueStyle("critical")}>{stats.overdueInvoices}</div>
+          </div>
+          <div style={statCardStyle("critical")}>
+            <div style={statLabelStyle("critical")}>Overdue Total</div>
+            <div style={statValueStyle("critical")}>
+              ${Number(stats.overdueTotal).toLocaleString()}
+            </div>
+          </div>
+        </div>
 
-            <InlineStack gap="400" wrap>
-              <Box minWidth="240px" maxWidth="360px">
+        {/* ── Row 2: AR Aging + Plan Quota ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16,
+          }}
+        >
+          {/* AR Aging */}
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  AR Aging
+                </Text>
+                <Link to="/app/invoices">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    View all →
+                  </Text>
+                </Link>
+              </InlineStack>
+              <InlineStack gap="300" wrap>
+                {aging.buckets.map((bucket) => (
+                  <Box key={bucket.label} minWidth="100px">
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {bucket.label}
+                      </Text>
+                      <Text
+                        as="p"
+                        variant="headingLg"
+                        fontWeight="bold"
+                        tone={bucket.label === "90+ Days" ? "critical" : undefined}
+                      >
+                        ${Number(bucket.totalAmount).toLocaleString()}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {bucket.count} inv
+                      </Text>
+                    </BlockStack>
+                  </Box>
+                ))}
+              </InlineStack>
+              <div
+                style={{
+                  height: 1,
+                  background: "var(--p-color-border-secondary)",
+                  margin: "4px 0",
+                }}
+              />
+              <InlineStack gap="400" wrap>
+                <BlockStack gap="050">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Outstanding
+                  </Text>
+                  <Text as="span" variant="headingMd" fontWeight="bold">
+                    ${Number(aging.totalOutstanding).toLocaleString()}
+                  </Text>
+                </BlockStack>
+                <BlockStack gap="050">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Overdue
+                  </Text>
+                  <Text
+                    as="span"
+                    variant="headingMd"
+                    fontWeight="bold"
+                    tone="critical"
+                  >
+                    ${Number(aging.totalOverdue).toLocaleString()}
+                  </Text>
+                </BlockStack>
+                <BlockStack gap="050">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    DSO
+                  </Text>
+                  <Text as="span" variant="headingMd" fontWeight="bold">
+                    {aging.dso ?? "—"} days
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+
+          {/* Plan Quota */}
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="h2" variant="headingMd">
+                    Plan
+                  </Text>
+                  <Badge tone="info">{planName}</Badge>
+                  {quota.needsUpgrade && (
+                    <Badge tone="warning">Upgrade Available</Badge>
+                  )}
+                </InlineStack>
+                <Button url="/app/billing" variant="plain">
+                  Manage
+                </Button>
+              </InlineStack>
+              <BlockStack gap="300">
                 <BlockStack gap="200">
                   <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd">
-                      Customers ({quota.customerCount} / {quota.customerQuota})
+                    <Text as="span" variant="bodyMd" fontWeight="medium">
+                      Customers
                     </Text>
                     <Text
                       as="span"
                       variant="bodySm"
-                      tone={
-                        quota.customerQuotaPercent >= 90
-                          ? "critical"
-                          : "subdued"
-                      }
+                      tone={quota.customerQuotaPercent >= 90 ? "critical" : "subdued"}
                     >
-                      {quota.customerQuotaPercent}%
+                      {quota.customerCount} / {quota.customerQuota}
                     </Text>
                   </InlineStack>
                   <ProgressBar
@@ -179,24 +308,17 @@ export default function Dashboard() {
                     tone={progressTone(quota.customerQuotaPercent)}
                   />
                 </BlockStack>
-              </Box>
-
-              <Box minWidth="240px" maxWidth="360px">
                 <BlockStack gap="200">
                   <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd">
-                      Invoices ({quota.invoiceCount} / {quota.invoiceQuota})
+                    <Text as="span" variant="bodyMd" fontWeight="medium">
+                      Invoices
                     </Text>
                     <Text
                       as="span"
                       variant="bodySm"
-                      tone={
-                        quota.invoiceQuotaPercent >= 90
-                          ? "critical"
-                          : "subdued"
-                      }
+                      tone={quota.invoiceQuotaPercent >= 90 ? "critical" : "subdued"}
                     >
-                      {quota.invoiceQuotaPercent}%
+                      {quota.invoiceCount} / {quota.invoiceQuota}
                     </Text>
                   </InlineStack>
                   <ProgressBar
@@ -204,210 +326,146 @@ export default function Dashboard() {
                     tone={progressTone(quota.invoiceQuotaPercent)}
                   />
                 </BlockStack>
-              </Box>
-            </InlineStack>
+              </BlockStack>
+              {quota.needsUpgrade && (
+                <Button url="/app/billing" tone="success">
+                  Upgrade Plan
+                </Button>
+              )}
+            </BlockStack>
+          </Card>
+        </div>
 
-            {quota.needsUpgrade && (
-              <Button url="/app/billing" tone="success">
-                Upgrade Plan
-              </Button>
+        {/* ── Row 3: Collections + Quick Actions ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16,
+          }}
+        >
+          {/* Collections */}
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Collections
+                </Text>
+                <Link to="/app/tasks">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    View tasks →
+                  </Text>
+                </Link>
+              </InlineStack>
+              <div style={statCardStyle("warning")}>
+                <div style={statLabelStyle("warning")}>Active Tasks</div>
+                <div style={statValueStyle("warning")}>
+                  {collectionStats.activeTasks}
+                </div>
+              </div>
+              <InlineStack gap="300" wrap>
+                <Button url="/app/collections">Sequences</Button>
+                <Button url="/app/tasks">All Tasks</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Quick Actions
+              </Text>
+              <BlockStack gap="200">
+                <Button url="/app/customers" fullWidth>
+                  Manage Customers
+                </Button>
+                <Button url="/app/customers/new" fullWidth>
+                  Add Customer
+                </Button>
+                <Button url="/app/invoices" fullWidth>
+                  View Invoices
+                </Button>
+              </BlockStack>
+            </BlockStack>
+          </Card>
+        </div>
+
+        {/* ── Recent Customers ── */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h2" variant="headingMd">
+                Recent Customers
+              </Text>
+              <Link to="/app/customers">
+                <Text as="span" variant="bodySm" tone="subdued">
+                  View all →
+                </Text>
+              </Link>
+            </InlineStack>
+            {recentCustomers.length === 0 ? (
+              <Box padding="400">
+                <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                  No customers yet. Sync from Shopify to get started.
+                </Text>
+              </Box>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {recentCustomers.map((c) => (
+                  <Link
+                    key={c.id}
+                    to={`/app/customers/${c.id}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <Box
+                      borderColor="border-secondary"
+                      borderWidth="025"
+                      borderRadius="200"
+                      padding="300"
+                    >
+                      <BlockStack gap="100">
+                        <Text as="span" variant="bodyMd" fontWeight="bold">
+                          {c.name}
+                        </Text>
+                        {c.company && (
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {c.company}
+                          </Text>
+                        )}
+                        <InlineStack gap="200">
+                          {c.creditGrade && (
+                            <Badge size="small">
+                              {c.creditGrade.replace("_", "+")}
+                            </Badge>
+                          )}
+                          <Badge
+                            size="small"
+                            tone={
+                              c.status === "ACTIVE"
+                                ? "success"
+                                : c.status === "FROZEN"
+                                  ? "warning"
+                                  : "new"
+                            }
+                          >
+                            {c.status}
+                          </Badge>
+                        </InlineStack>
+                      </BlockStack>
+                    </Box>
+                  </Link>
+                ))}
+              </div>
             )}
           </BlockStack>
         </Card>
-
-        {/* AR Aging Snapshot */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                AR Aging
-              </Text>
-              <Link to="/app/invoices">
-                <Text as="span" variant="bodySm" tone="subdued">
-                  View all invoices →
-                </Text>
-              </Link>
-            </InlineStack>
-
-            <InlineStack gap="300" wrap>
-              {aging.buckets.map((bucket) => (
-                <Box key={bucket.label} minWidth="130px">
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {bucket.label}
-                    </Text>
-                    <Text
-                      as="p"
-                      variant="headingLg"
-                      fontWeight="bold"
-                      tone={bucket.label === "90+ Days" ? "critical" : undefined}
-                    >
-                      ${Number(bucket.totalAmount).toLocaleString()}
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {bucket.count} invoice{bucket.count !== 1 ? "s" : ""}
-                    </Text>
-                  </BlockStack>
-                </Box>
-              ))}
-            </InlineStack>
-
-            <InlineStack gap="400" wrap>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodySm" tone="subdued">Total Outstanding</Text>
-                <Text as="span" variant="headingMd" fontWeight="bold">
-                  ${Number(aging.totalOutstanding).toLocaleString()}
-                </Text>
-              </BlockStack>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodySm" tone="subdued">Total Overdue</Text>
-                <Text as="span" variant="headingMd" fontWeight="bold" tone="critical">
-                  ${Number(aging.totalOverdue).toLocaleString()}
-                </Text>
-              </BlockStack>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodySm" tone="subdued">DSO</Text>
-                <Text as="span" variant="headingMd" fontWeight="bold">
-                  {aging.dso ?? "—"} days
-                </Text>
-              </BlockStack>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodySm" tone="subdued">Customers</Text>
-                <Text as="span" variant="headingMd" fontWeight="bold">
-                  {aging.totalCustomers}
-                </Text>
-              </BlockStack>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        {/* Collection Status */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                Collections
-              </Text>
-              <Link to="/app/tasks">
-                <Text as="span" variant="bodySm" tone="subdued">
-                  View all tasks →
-                </Text>
-              </Link>
-            </InlineStack>
-            <InlineStack gap="400" wrap>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodySm" tone="subdued">
-                  Active Tasks
-                </Text>
-                <Text as="span" variant="headingMd" fontWeight="bold">
-                  {collectionStats.activeTasks}
-                </Text>
-              </BlockStack>
-            </InlineStack>
-            <InlineStack gap="300" wrap>
-              <Button url="/app/collections">Manage Sequences</Button>
-              <Button url="/app/tasks">View Tasks</Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        {/* Stats Grid */}
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">
-              Overview
-            </Text>
-            <InlineStack gap="400" wrap>
-              {statCards.map((stat) => (
-                <Box key={stat.label} minWidth="130px">
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {stat.label}
-                    </Text>
-                    <Text as="p" variant="heading2xl" fontWeight="bold">
-                      {stat.value}
-                    </Text>
-                  </BlockStack>
-                </Box>
-              ))}
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        <InlineStack gap="400" blockAlign="start" wrap>
-          {/* Quick Links */}
-          <Box minWidth="280px" maxWidth="400px">
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">
-                  Quick Actions
-                </Text>
-                <InlineStack gap="300" wrap>
-                  <Button url="/app/customers">Manage Customers</Button>
-                  <Button url="/app/customers/new">Add Customer</Button>
-                  <Button url="/app/invoices">View Invoices</Button>
-                </InlineStack>
-              </BlockStack>
-            </Card>
-          </Box>
-
-          {/* Recent Customers */}
-          <Box minWidth="280px" maxWidth="400px">
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Recent Customers
-                  </Text>
-                  <Link to="/app/customers">
-                    <Text as="span" variant="bodySm" tone="subdued">
-                      View all →
-                    </Text>
-                  </Link>
-                </InlineStack>
-                {recentCustomers.length === 0 ? (
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    No customers yet. Sync from Shopify to get started.
-                  </Text>
-                ) : (
-                  <BlockStack gap="200">
-                    {recentCustomers.map((c) => (
-                      <Link key={c.id} to={`/app/customers/${c.id}`}>
-                        <Box
-                          borderColor="border-secondary"
-                          borderWidth="025"
-                          borderRadius="200"
-                          padding="300"
-                        >
-                          <BlockStack gap="100">
-                            <Text as="span" variant="bodyMd" fontWeight="bold">
-                              {c.name}
-                            </Text>
-                            {c.company && (
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                {c.company}
-                              </Text>
-                            )}
-                            <InlineStack gap="200">
-                              {c.creditGrade && (
-                                <Text as="span" variant="bodySm" tone="subdued">
-                                  Grade: {c.creditGrade.replace("_", "+")}
-                                </Text>
-                              )}
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                {c.status}
-                              </Text>
-                            </InlineStack>
-                          </BlockStack>
-                        </Box>
-                      </Link>
-                    ))}
-                  </BlockStack>
-                )}
-              </BlockStack>
-            </Card>
-          </Box>
-        </InlineStack>
       </BlockStack>
     </Page>
   );

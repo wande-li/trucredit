@@ -4,7 +4,6 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page,
-  Layout,
   Card,
   IndexTable,
   Text,
@@ -13,8 +12,9 @@ import {
   Banner,
   EmptyState,
   InlineStack,
+  BlockStack,
   Box,
-  Spinner,
+  Pagination,
   Select,
 } from "@shopify/polaris";
 import { useCallback, useState } from "react";
@@ -264,8 +264,12 @@ export default function TasksPage() {
     { label: "Stopped", value: "STOPPED" },
   ];
 
+  const actionError = actionData?.error;
+  const [errorDismissed, setErrorDismissed] = useState(false);
+
   return (
     <Page
+      fullWidth
       title="Collection Tasks"
       subtitle={`${summary.active} active, ${summary.paused} paused, ${summary.escalated} escalated`}
       secondaryActions={[
@@ -275,212 +279,193 @@ export default function TasksPage() {
         },
       ]}
     >
-      <Layout>
-        <Layout.Section>
-          {actionData?.error && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="critical" onDismiss={() => {}}>
-                {actionData.error}
-              </Banner>
-            </Box>
-          )}
+      <BlockStack gap="400">
+        {actionError && !errorDismissed && (
+          <Banner tone="critical" onDismiss={() => setErrorDismissed(true)}>
+            {actionError}
+          </Banner>
+        )}
 
-          {isSubmitting && (
-            <Box paddingBlockEnd="400">
-              <InlineStack align="center" gap="200">
-                <Spinner size="small" />
-                <Text as="span" tone="subdued">
-                  Updating...
-                </Text>
-              </InlineStack>
-            </Box>
-          )}
+        <Box>
+          <Select
+            label="Status"
+            labelInline
+            options={statusOptions}
+            value={statusFilter || "ALL"}
+            onChange={handleStatusFilter}
+          />
+        </Box>
 
-          <Box paddingBlockEnd="400">
-            <Select
-              label="Status"
-              labelInline
-              options={statusOptions}
-              value={statusFilter || "ALL"}
-              onChange={handleStatusFilter}
-            />
-          </Box>
+        {tasks.length === 0 ? (
+          <Card>
+            <EmptyState
+              heading="No collection tasks"
+              image=""
+              action={{ content: "Set Up Sequences", url: "/app/collections" }}
+            >
+              <p>Active collection sequences will automatically create tasks for overdue invoices.</p>
+            </EmptyState>
+          </Card>
+        ) : (
+          <Card padding="0">
+            <IndexTable
+              resourceName={{ singular: "task", plural: "tasks" }}
+              itemCount={tasks.length}
+              selectable={false}
+              headings={[
+                { title: "Invoice" },
+                { title: "Customer" },
+                { title: "Sequence" },
+                { title: "Step" },
+                { title: "Status" },
+                { title: "Reply" },
+                { title: "Next Action" },
+                { title: "Controls" },
+              ]}
+            >
+              {tasks.map((task, idx) => {
+                const st = STATUS_MAP[task.status] ?? { label: task.status, tone: "info" as const };
+                const replyIntent = task.lastReplyIntent;
+                const ri = replyIntent ? INTENT_MAP[replyIntent] : null;
 
-          {tasks.length === 0 ? (
-            <Card>
-              <EmptyState
-                heading="No collection tasks"
-                image=""
-                action={{ content: "Set Up Sequences", url: "/app/collections" }}
-              >
-                <p>Active collection sequences will automatically create tasks for overdue invoices.</p>
-              </EmptyState>
-            </Card>
-          ) : (
-            <Card padding="0">
-              <IndexTable
-                resourceName={{ singular: "task", plural: "tasks" }}
-                itemCount={tasks.length}
-                selectable={false}
-                headings={[
-                  { title: "Invoice" },
-                  { title: "Customer" },
-                  { title: "Sequence" },
-                  { title: "Step" },
-                  { title: "Status" },
-                  { title: "Reply" },
-                  { title: "Next Action" },
-                  { title: "Controls" },
-                ]}
-              >
-                {tasks.map((task, idx) => {
-                  const st = STATUS_MAP[task.status] ?? { label: task.status, tone: "info" as const };
-                  const replyIntent = task.lastReplyIntent;
-                  const ri = replyIntent ? INTENT_MAP[replyIntent] : null;
-
-                  return (
-                    <IndexTable.Row key={task.id} id={task.id} position={idx}>
-                      <IndexTable.Cell>
-                        <InlineStack gap="200" blockAlign="center">
-                          <Button
-                            variant="plain"
-                            onClick={() => navigate(`/app/invoices/${task.invoice.id}`)}
-                          >
-                            {task.invoice.invoiceNumber}
-                          </Button>
-                          <Text as="span" tone="subdued">
-                            {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
-                          </Text>
-                        </InlineStack>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
+                return (
+                  <IndexTable.Row key={task.id} id={task.id} position={idx}>
+                    <IndexTable.Cell>
+                      <InlineStack gap="200" blockAlign="center">
                         <Button
                           variant="plain"
-                          onClick={() => navigate(`/app/customers/${task.customer.id}`)}
+                          onClick={() => navigate(`/app/invoices/${task.invoice.id}`)}
                         >
-                          {task.customer.name}
+                          {task.invoice.invoiceNumber}
                         </Button>
-                        {task.customer.company && (
-                          <Text as="p" tone="subdued" variant="bodySm">
-                            {task.customer.company}
-                          </Text>
-                        )}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span">{task.sequence.name}</Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span">
-                          Step {task.currentStep}
+                        <Text as="span" tone="subdued">
+                          {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
                         </Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={st.tone}>{st.label}</Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {ri ? (
-                          <Badge tone={ri.tone}>{ri.label}</Badge>
-                        ) : (
-                          <Text as="span" tone="subdued">
-                            —
-                          </Text>
-                        )}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {task.nextStepAt ? (
-                          <Text as="span" tone="subdued">
-                            {new Date(task.nextStepAt).toLocaleDateString()}
-                          </Text>
-                        ) : (
-                          <Text as="span" tone="subdued">
-                            —
-                          </Text>
-                        )}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {task.status === "ACTIVE" && (
-                          <InlineStack gap="200">
-                            <Button size="slim" onClick={() => handleSend(task.id)}>
-                              Send
-                            </Button>
-                            <Button size="slim" onClick={() => handlePause(task.id)}>
-                              Pause
-                            </Button>
-                            <Button size="slim" tone="critical" onClick={() => setStopConfirmId(task.id)}>
-                              Stop
-                            </Button>
-                          </InlineStack>
-                        )}
-                        {task.status === "PAUSED" && (
-                          <InlineStack gap="200">
-                            <Button size="slim" onClick={() => handleSend(task.id)}>
-                              Send
-                            </Button>
-                            <Button size="slim" tone="success" onClick={() => handleResume(task.id)}>
-                              Resume
-                            </Button>
-                            <Button size="slim" tone="critical" onClick={() => setStopConfirmId(task.id)}>
-                              Stop
-                            </Button>
-                          </InlineStack>
-                        )}
-                        {task.status === "ESCALATED" && (
-                          <InlineStack gap="200">
-                            <Button size="slim" onClick={() => handleSend(task.id)}>
-                              Send
-                            </Button>
-                            <Button size="slim" onClick={() => handlePause(task.id)}>
-                              Pause
-                            </Button>
-                          </InlineStack>
-                        )}
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  );
-                })}
-              </IndexTable>
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Button
+                        variant="plain"
+                        onClick={() => navigate(`/app/customers/${task.customer.id}`)}
+                      >
+                        {task.customer.name}
+                      </Button>
+                      {task.customer.company && (
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          {task.customer.company}
+                        </Text>
+                      )}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span">{task.sequence.name}</Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span">
+                        Step {task.currentStep}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {ri ? (
+                        <Badge tone={ri.tone}>{ri.label}</Badge>
+                      ) : (
+                        <Text as="span" tone="subdued">
+                          —
+                        </Text>
+                      )}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {task.nextStepAt ? (
+                        <Text as="span" tone="subdued">
+                          {new Date(task.nextStepAt).toLocaleDateString()}
+                        </Text>
+                      ) : (
+                        <Text as="span" tone="subdued">
+                          —
+                        </Text>
+                      )}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {task.status === "ACTIVE" && (
+                        <InlineStack gap="200">
+                          <Button size="slim" onClick={() => handleSend(task.id)}>
+                            Send
+                          </Button>
+                          <Button size="slim" onClick={() => handlePause(task.id)}>
+                            Pause
+                          </Button>
+                          <Button size="slim" tone="critical" onClick={() => setStopConfirmId(task.id)}>
+                            Stop
+                          </Button>
+                        </InlineStack>
+                      )}
+                      {task.status === "PAUSED" && (
+                        <InlineStack gap="200">
+                          <Button size="slim" onClick={() => handleSend(task.id)}>
+                            Send
+                          </Button>
+                          <Button size="slim" tone="success" onClick={() => handleResume(task.id)}>
+                            Resume
+                          </Button>
+                          <Button size="slim" tone="critical" onClick={() => setStopConfirmId(task.id)}>
+                            Stop
+                          </Button>
+                        </InlineStack>
+                      )}
+                      {task.status === "ESCALATED" && (
+                        <InlineStack gap="200">
+                          <Button size="slim" onClick={() => handleSend(task.id)}>
+                            Send
+                          </Button>
+                          <Button size="slim" onClick={() => handlePause(task.id)}>
+                            Pause
+                          </Button>
+                        </InlineStack>
+                      )}
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
 
-              {totalPages > 1 && (
-                <Box padding="400">
-                  <InlineStack align="space-between">
-                    <Button onClick={prevPage} disabled={page <= 1}>
-                      Previous
-                    </Button>
-                    <Text as="span" tone="subdued">
-                      Page {page} of {totalPages}
-                    </Text>
-                    <Button onClick={nextPage} disabled={page >= totalPages}>
-                      Next
-                    </Button>
-                  </InlineStack>
-                </Box>
-              )}
-            </Card>
-          )}
+            {totalPages > 1 && (
+              <Box padding="400">
+                <BlockStack align="center" inlineAlign="center">
+                  <Pagination
+                    label={`Page ${page} of ${totalPages}`}
+                    hasPrevious={page > 1}
+                    onPrevious={prevPage}
+                    hasNext={page < totalPages}
+                    onNext={nextPage}
+                  />
+                </BlockStack>
+              </Box>
+            )}
+          </Card>
+        )}
 
-          {/* Stop confirm banner */}
-          {stopConfirmId && (
-            <Box paddingBlockStart="400">
-              <Banner
-                tone="critical"
-                title="Stop this collection task?"
-                action={{
-                  content: "Yes, Stop",
-                  onAction: () => handleStop(stopConfirmId),
-                }}
-              >
-                <p>
-                  The customer will no longer receive automated reminders for this invoice.
-                  This cannot be undone.
-                </p>
-                <Box paddingBlockStart="200">
-                  <Button onClick={() => setStopConfirmId(null)}>Cancel</Button>
-                </Box>
-              </Banner>
+        {/* Stop confirm banner */}
+        {stopConfirmId && (
+          <Banner
+            tone="critical"
+            title="Stop this collection task?"
+            action={{
+              content: "Yes, Stop",
+              onAction: () => handleStop(stopConfirmId),
+            }}
+          >
+            <p>
+              The customer will no longer receive automated reminders for this invoice.
+              This cannot be undone.
+            </p>
+            <Box paddingBlockStart="200">
+              <Button onClick={() => setStopConfirmId(null)}>Cancel</Button>
             </Box>
-          )}
-        </Layout.Section>
-      </Layout>
+          </Banner>
+        )}
+      </BlockStack>
     </Page>
   );
 }

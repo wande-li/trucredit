@@ -1,4 +1,4 @@
-// TruCredit — app routes layout (Wandex-style top nav)
+// TruCredit — app routes layout (Wandex-style top nav with dropdown groups)
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import type { ShouldRevalidateFunctionArgs } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -9,17 +9,19 @@ import {
   useNavigation,
   Link,
 } from "@remix-run/react";
-import {
-  SkeletonBodyText,
-  Box,
-  BlockStack,
-  InlineStack,
-  Text,
-  Button,
-  Badge,
-} from "@shopify/polaris";
-import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
+import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import {
+  Box,
+  InlineStack,
+  BlockStack,
+  Text,
+  Badge,
+  Button,
+  Popover,
+  ActionList,
+  SkeletonBodyText,
+} from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { useEffect, useRef, useState } from "react";
@@ -210,30 +212,52 @@ export const shouldRevalidate = ({
   return false;
 };
 
-// ── Navigation config ──
-interface NavItem {
+// ── Navigation config with dropdown groups ──
+interface NavChild {
   label: string;
   href: string;
+  match: string;
+}
+interface NavGroup {
+  label: string;
+  href?: string;
   match: string | string[];
+  children?: NavChild[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+const NAV_GROUPS: NavGroup[] = [
   { label: "Dashboard", href: "/app", match: "/app" },
   { label: "Customers", href: "/app/customers", match: "/app/customers" },
-  { label: "Invoices", href: "/app/invoices", match: "/app/invoices" },
-  { label: "Rules", href: "/app/rules", match: "/app/rules" },
-  { label: "Collections", href: "/app/collections", match: "/app/collections" },
-  { label: "Tasks", href: "/app/tasks", match: "/app/tasks" },
-  { label: "Emails", href: "/app/emails", match: "/app/emails" },
-  { label: "Replies", href: "/app/replies", match: "/app/replies" },
+  {
+    label: "Credit",
+    match: ["/app/invoices", "/app/rules", "/app/collections"],
+    children: [
+      { label: "Invoices", href: "/app/invoices", match: "/app/invoices" },
+      { label: "Credit Rules", href: "/app/rules", match: "/app/rules" },
+      { label: "Collections", href: "/app/collections", match: "/app/collections" },
+    ],
+  },
+  {
+    label: "Operations",
+    match: ["/app/tasks", "/app/emails", "/app/replies"],
+    children: [
+      { label: "Tasks", href: "/app/tasks", match: "/app/tasks" },
+      { label: "Emails", href: "/app/emails", match: "/app/emails" },
+      { label: "Replies", href: "/app/replies", match: "/app/replies" },
+    ],
+  },
   { label: "Billing", href: "/app/billing", match: "/app/billing" },
 ];
 
-function isItemActive(item: NavItem, pathname: string): boolean {
-  if (Array.isArray(item.match)) {
-    return item.match.some((m) => pathname === m || (m !== "/app" && pathname.startsWith(m)));
-  }
-  return pathname === item.match || (item.match !== "/app" && pathname.startsWith(item.match));
+function isGroupActive(group: NavGroup, pathname: string): boolean {
+  if (Array.isArray(group.match))
+    return group.match.some(
+      (m) => pathname === m || (m !== "/app" && pathname.startsWith(m)),
+    );
+  return (
+    pathname === group.match ||
+    (group.match !== "/app" && pathname.startsWith(group.match))
+  );
 }
 
 // ── Unauthed Fallback: auto-retry when auth not yet ready ──
@@ -281,6 +305,7 @@ export default function AppLayout() {
   const navigation = useNavigation();
   const isLoading = navigation.state === "loading";
   const [visible, setVisible] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState<string | null>(null);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
@@ -291,16 +316,22 @@ export default function AppLayout() {
     return <UnauthedFallback apiKey={apiKey} />;
   }
 
+  const togglePopover = (label: string) => {
+    setPopoverOpen((prev) => (prev === label ? null : label));
+  };
+
   return (
     <AppProvider isEmbeddedApp={true} apiKey={apiKey}>
       {/* ── Top Navigation Bar ── */}
-      <Box
-        background="bg-surface"
-        borderBlockEndWidth="025"
-        borderColor="border"
-        position="sticky"
-        insetBlockStart="0"
-        style={{ zIndex: 100, padding: "8px 32px" }}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          padding: "8px 32px",
+          background: "var(--p-color-bg-surface)",
+          borderBottom: "1px solid var(--p-color-border)",
+        }}
       >
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <InlineStack gap="600" blockAlign="center" align="space-between" wrap>
@@ -308,13 +339,12 @@ export default function AppLayout() {
             <InlineStack gap="400" blockAlign="center" wrap>
               <Link to="/app" style={{ textDecoration: "none" }}>
                 <InlineStack gap="200" blockAlign="center">
-                  {/* Brand icon */}
                   <Box
                     background="bg-fill-brand"
                     borderRadius="200"
                     padding="050"
                   >
-                    <Text as="span" variant="bodySm" fontWeight="bold" tone="text-on-color">
+                    <Text as="span" variant="bodySm" fontWeight="bold">
                       TC
                     </Text>
                   </Box>
@@ -324,12 +354,42 @@ export default function AppLayout() {
                 </InlineStack>
               </Link>
               <InlineStack gap="100" blockAlign="center">
-                {NAV_ITEMS.map((item) => {
-                  const active = isItemActive(item, location.pathname);
+                {NAV_GROUPS.map((group) => {
+                  const active = isGroupActive(group, location.pathname);
+                  if (group.children) {
+                    return (
+                      <Popover
+                        key={group.label}
+                        active={popoverOpen === group.label}
+                        onClose={() => setPopoverOpen(null)}
+                        activator={
+                          <Button
+                            variant="tertiary"
+                            size="large"
+                            pressed={active}
+                            onClick={() => togglePopover(group.label)}
+                            removeUnderline
+                          >
+                            {group.label}
+                          </Button>
+                        }
+                      >
+                        <ActionList
+                          items={group.children.map((child) => ({
+                            content: child.label,
+                            url: child.href,
+                            active:
+                              location.pathname === child.match ||
+                              location.pathname.startsWith(child.match + "/"),
+                          }))}
+                        />
+                      </Popover>
+                    );
+                  }
                   return (
                     <Link
-                      key={item.label}
-                      to={item.href}
+                      key={group.label}
+                      to={group.href!}
                       style={{ textDecoration: "none" }}
                     >
                       <Button
@@ -338,7 +398,7 @@ export default function AppLayout() {
                         pressed={active}
                         removeUnderline
                       >
-                        {item.label}
+                        {group.label}
                       </Button>
                     </Link>
                   );
@@ -348,7 +408,7 @@ export default function AppLayout() {
             <Badge tone="info">{plan}</Badge>
           </InlineStack>
         </div>
-      </Box>
+      </div>
 
       {/* ── Main Content ── */}
       <Box minHeight="100vh" background="bg-surface-secondary">

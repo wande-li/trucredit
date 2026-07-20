@@ -4,7 +4,6 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page,
-  Layout,
   Card,
   IndexTable,
   Text,
@@ -18,8 +17,9 @@ import {
   Select,
   FormLayout,
   InlineStack,
+  BlockStack,
   Box,
-  Spinner,
+  Pagination,
   Tag,
 } from "@shopify/polaris";
 import { useState, useCallback, useRef } from "react";
@@ -138,6 +138,7 @@ export default function CollectionsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const actionData = fetcher.data as { success?: boolean; error?: string } | undefined;
+  const [errorDismissed, setErrorDismissed] = useState(false);
 
   const toggleCreate = useCallback(() => setShowCreate((v) => !v), []);
   const toggleDelete = useCallback(() => setDeleteId(null), []);
@@ -172,152 +173,138 @@ export default function CollectionsPage() {
 
   return (
     <Page
+      fullWidth
       title="Collection Sequences"
       subtitle="Manage automated collection workflows — configure timing, tone, and channels"
       primaryAction={items.length > 0 ? { content: "Create Sequence", onAction: toggleCreate } : undefined}
     >
-      <Layout>
-        <Layout.Section>
-          {actionData?.error && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="critical" onDismiss={() => {}}>
-                {actionData.error}
-              </Banner>
-            </Box>
-          )}
+      <BlockStack gap="400">
+        {actionData?.error && !errorDismissed && (
+          <Banner tone="critical" onDismiss={() => setErrorDismissed(true)}>
+            {actionData.error}
+          </Banner>
+        )}
 
-          {fetcher.state === "submitting" && (
-            <Box paddingBlockEnd="400">
-              <InlineStack align="center">
-                <Spinner size="small" />
-                <Text as="span" tone="subdued">Saving...</Text>
-              </InlineStack>
-            </Box>
-          )}
+        {items.length === 0 ? (
+          <Card>
+            <EmptyState
+              heading="No collection sequences yet"
+              image=""
+              action={{ content: "Create First Sequence", onAction: toggleCreate }}
+            >
+              <p>Set up automated email reminders to collect payments on time.</p>
+            </EmptyState>
+          </Card>
+        ) : (
+          <Card padding="0">
+            <IndexTable
+              resourceName={{ singular: "sequence", plural: "sequences" }}
+              itemCount={items.length}
+              selectable={false}
+              headings={[
+                { title: "Name" },
+                { title: "Trigger" },
+                { title: "Steps" },
+                { title: "Tone Range" },
+                { title: "Status" },
+                { title: "Actions" },
+              ]}
+            >
+              {items.map((seq, idx) => {
+                const stepOrders = seq.steps.map((s) => s.order).sort();
+                const minTone = stepOrders.length > 0 ? seq.steps[0]!.toneLevel : null;
+                const maxTone = stepOrders.length > 0 ? seq.steps[stepOrders.length - 1]!.toneLevel : null;
 
-          {items.length === 0 ? (
-            <Card>
-              <EmptyState
-                heading="No collection sequences yet"
-                image=""
-                action={{ content: "Create First Sequence", onAction: toggleCreate }}
-              >
-                <p>Set up automated email reminders to collect payments on time.</p>
-              </EmptyState>
-            </Card>
-          ) : (
-            <Card padding="0">
-              <IndexTable
-                resourceName={{ singular: "sequence", plural: "sequences" }}
-                itemCount={items.length}
-                selectable={false}
-                headings={[
-                  { title: "Name" },
-                  { title: "Trigger" },
-                  { title: "Steps" },
-                  { title: "Tone Range" },
-                  { title: "Status" },
-                  { title: "Actions" },
-                ]}
-              >
-                {items.map((seq, idx) => {
-                  const stepOrders = seq.steps.map((s) => s.order).sort();
-                  const minTone = stepOrders.length > 0 ? seq.steps[0]!.toneLevel : null;
-                  const maxTone = stepOrders.length > 0 ? seq.steps[stepOrders.length - 1]!.toneLevel : null;
-
-                  return (
-                    <IndexTable.Row key={seq.id} id={seq.id} position={idx}>
-                      <IndexTable.Cell>
-                        <InlineStack gap="200" blockAlign="center">
-                          <Text as="span" fontWeight="bold">{seq.name}</Text>
-                          {seq.isDefault && <Tag>Default</Tag>}
-                        </InlineStack>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
+                return (
+                  <IndexTable.Row key={seq.id} id={seq.id} position={idx}>
+                    <IndexTable.Cell>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="span" fontWeight="bold">{seq.name}</Text>
+                        {seq.isDefault && <Tag>Default</Tag>}
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="100">
+                        <Badge tone="info">{TRIGGER_LABELS[seq.triggerType] ?? seq.triggerType}</Badge>
+                        <Text as="span" tone="subdued">
+                          {seq.triggerType === "BEFORE_DUE"
+                            ? `${Math.abs(seq.triggerDays)}d before`
+                            : seq.triggerDays === 0
+                              ? "immediately"
+                              : `${seq.triggerDays}d after`}
+                        </Text>
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span">{seq.steps.length} step{seq.steps.length !== 1 ? "s" : ""}</Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {minTone && maxTone ? (
                         <InlineStack gap="100">
-                          <Badge tone="info">{TRIGGER_LABELS[seq.triggerType] ?? seq.triggerType}</Badge>
-                          <Text as="span" tone="subdued">
-                            {seq.triggerType === "BEFORE_DUE"
-                              ? `${Math.abs(seq.triggerDays)}d before`
-                              : seq.triggerDays === 0
-                                ? "immediately"
-                                : `${seq.triggerDays}d after`}
-                          </Text>
+                          <Badge tone={minTone <= 2 ? "success" : minTone <= 4 ? "attention" : "critical"}>
+                            {TONE_LABELS[minTone]}
+                          </Badge>
+                          <Text as="span" tone="subdued">to</Text>
+                          <Badge tone={maxTone <= 2 ? "success" : maxTone <= 4 ? "attention" : "critical"}>
+                            {TONE_LABELS[maxTone]}
+                          </Badge>
                         </InlineStack>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span">{seq.steps.length} step{seq.steps.length !== 1 ? "s" : ""}</Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {minTone && maxTone ? (
-                          <InlineStack gap="100">
-                            <Badge tone={minTone <= 2 ? "success" : minTone <= 4 ? "attention" : "critical"}>
-                              {TONE_LABELS[minTone]}
-                            </Badge>
-                            <Text as="span" tone="subdued">to</Text>
-                            <Badge tone={maxTone <= 2 ? "success" : maxTone <= 4 ? "attention" : "critical"}>
-                              {TONE_LABELS[maxTone]}
-                            </Badge>
-                          </InlineStack>
-                        ) : (
-                          <Text as="span" tone="subdued">—</Text>
+                      ) : (
+                        <Text as="span" tone="subdued">—</Text>
+                      )}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={seq.isActive ? "success" : "critical"}>
+                        {seq.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <ButtonGroup>
+                        <Button
+                          size="slim"
+                          onClick={() => navigate(`/app/collections/${seq.id}`)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="slim"
+                          tone={seq.isActive ? "critical" : "success"}
+                          onClick={() => handleToggle(seq.id, seq.isActive)}
+                        >
+                          {seq.isActive ? "Deactivate" : "Activate"}
+                        </Button>
+                        {!seq.isDefault && (
+                          <Button
+                            size="slim"
+                            tone="critical"
+                            onClick={() => setDeleteId(seq.id)}
+                          >
+                            Delete
+                          </Button>
                         )}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={seq.isActive ? "success" : "critical"}>
-                          {seq.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <ButtonGroup>
-                          <Button
-                            size="slim"
-                            onClick={() => navigate(`/app/collections/${seq.id}`)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="slim"
-                            tone={seq.isActive ? "critical" : "success"}
-                            onClick={() => handleToggle(seq.id, seq.isActive)}
-                          >
-                            {seq.isActive ? "Deactivate" : "Activate"}
-                          </Button>
-                          {!seq.isDefault && (
-                            <Button
-                              size="slim"
-                              tone="critical"
-                              onClick={() => setDeleteId(seq.id)}
-                            >
-                              Delete
-                            </Button>
-                          )}
-                        </ButtonGroup>
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  );
-                })}
-              </IndexTable>
+                      </ButtonGroup>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
 
-              {totalPages > 1 && (
-                <Box padding="400">
-                  <InlineStack align="space-between">
-                    <Button onClick={prevPage} disabled={page <= 1}>
-                      Previous
-                    </Button>
-                    <Text as="span" tone="subdued">
-                      Page {page} of {totalPages}
-                    </Text>
-                    <Button onClick={nextPage} disabled={page >= totalPages}>
-                      Next
-                    </Button>
-                  </InlineStack>
-                </Box>
-              )}
-            </Card>
-          )}
-        </Layout.Section>
-      </Layout>
+            {totalPages > 1 && (
+              <Box padding="400">
+                <BlockStack align="center" inlineAlign="center">
+                  <Pagination
+                    label={`Page ${page} of ${totalPages}`}
+                    hasPrevious={page > 1}
+                    onPrevious={prevPage}
+                    hasNext={page < totalPages}
+                    onNext={nextPage}
+                  />
+                </BlockStack>
+              </Box>
+            )}
+          </Card>
+        )}
+      </BlockStack>
 
       {/* Create Modal */}
       {showCreate && (

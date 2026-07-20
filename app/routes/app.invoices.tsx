@@ -95,6 +95,7 @@ export default function Invoices() {
 
   return (
     <Page
+      fullWidth
       title="Invoices"
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"

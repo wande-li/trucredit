@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 const p = new PrismaClient();
 
-const devShop = process.env.DEV_SHOP || "ai-pilot-dev.myshopify.com";
+const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
 
 const existing = await p.session.findFirst();
 if (existing) {

@@ -4,6 +4,7 @@
 import prisma from "~/db.server";
 import { PLAN_QUOTAS } from "~/lib/constants";
 import { PLAN_MONTHLY, PLAN_ANNUAL } from "~/shopify.server";
+import { logger } from "~/services/logger.server";
 import type { Plan } from "@prisma/client";
 
 // ─── Plan Features ─────────────────────────────────────────
@@ -290,15 +291,24 @@ export async function handleSubscriptionUpdate(
     }
   }
 
-  await prisma.shop.upsert({
-    where: { shopDomain },
-    create: {
-      shopDomain,
-      accessToken: "",
-      ...data,
-    },
-    update: data,
-  });
+  try {
+    await prisma.shop.update({
+      where: { shopDomain },
+      data,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Prisma P2025 = shop not found — webhook may arrive before OAuth completes
+    // Shop will be created by afterAuth hook; silently skip this update
+    if (msg.includes("P2025")) {
+      logger.app("WARN", "Subscription webhook skipped: shop not found", {
+        shopDomain,
+        chargeId: charge.id,
+      });
+      return;
+    }
+    throw e;
+  }
 }
 
 /**

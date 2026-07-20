@@ -110,7 +110,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Dev mode: auto-seed database on cold start
     if (process.env.NODE_ENV === "development") {
-      const devShop = process.env.DEV_SHOP || "ai-pilot-dev.myshopify.com";
+      const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
       try {
         const existingShop = await prisma.shop.findFirst();
         if (!existingShop) {

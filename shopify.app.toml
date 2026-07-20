@@ -11,7 +11,7 @@ handle = "trucredit"
 automatically_update_urls_on_dev = true
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2025-10"
 
   [[webhooks.subscriptions]]
   uri = "/webhooks"

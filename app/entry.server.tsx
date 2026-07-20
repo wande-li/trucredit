@@ -17,7 +17,7 @@ import {
 // Without this, authenticate.admin() has no session to validate and the
 // app shows a blank UnauthedFallback instead of the OAuth login flow.
 if (process.env.NODE_ENV === "development") {
-  const devShop = process.env.DEV_SHOP || "ai-pilot-dev.myshopify.com";
+  const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
   import("~/db.server").then(({ default: prisma }) => {
     prisma.session
       .findFirst()

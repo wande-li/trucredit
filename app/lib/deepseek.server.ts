@@ -2,7 +2,7 @@ import OpenAI from "openai";
 
 export const deepseek = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: "https://api.deepseek.com",
+  baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
 });
 
 interface AiCompleteParams {
@@ -15,7 +15,7 @@ interface AiCompleteParams {
 
 export async function aiComplete(params: AiCompleteParams) {
   return deepseek.chat.completions.create({
-    model: "deepseek-chat",
+    model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
     messages: [
       { role: "system", content: params.system },
       { role: "user", content: params.user },

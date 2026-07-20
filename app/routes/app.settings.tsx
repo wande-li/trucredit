@@ -60,9 +60,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
     return json({ settings: shop });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -88,9 +88,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
     return json({ success: "Settings saved successfully" } satisfies ActionData);
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     return json({ error: `Failed to save settings: ${msg}` } satisfies ActionData);
   }
 };

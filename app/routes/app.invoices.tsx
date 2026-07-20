@@ -45,9 +45,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ]);
 
     return json({ invoiceResult, agingReport, shopDomain });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };

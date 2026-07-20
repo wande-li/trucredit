@@ -32,9 +32,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const template = await getTemplateById(params.id!, session.shop);
     if (!template) throw new Response("Template not found", { status: 404 });
     return json({ template });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -109,9 +109,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     return json({ success: false, error: "Unknown intent" });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Email action failed: ${msg}`, { status: 500 });
   }
 };

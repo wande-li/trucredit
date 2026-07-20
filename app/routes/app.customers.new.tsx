@@ -41,9 +41,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       plan: shop.plan,
       needsUpgrade: billing.needsUpgrade || !quota.allowed,
     });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -103,9 +103,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return redirect(`/app/customers/${customer.id}`);
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to create customer: ${msg}`, { status: 500 });
   }
 };

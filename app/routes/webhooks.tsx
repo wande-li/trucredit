@@ -208,7 +208,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       // Sync metafield for Shopify Function
       if (shopifyAdmin) {
-        await syncCreditMetafield(shopifyAdmin, shopDomain, customer.id).catch(() => {});
+        await syncCreditMetafield(shopifyAdmin, shopDomain, customer.id).catch((e: unknown) => {
+        logger.app("WARN", "Metafield sync failed after order created", (e as Error)?.message ?? String(e));
+      });
       }
 
       logger.app("INFO", "Invoice created from order", {
@@ -256,7 +258,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       // Sync metafield
       if (shopifyAdmin) {
-        await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch(() => {});
+        await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
+          logger.app("WARN", "Metafield sync failed after order paid", (e as Error)?.message ?? String(e));
+        });
       }
     }
 
@@ -290,7 +294,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ]);
 
         if (shopifyAdmin) {
-          await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch(() => {});
+          await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
+            logger.app("WARN", "Metafield sync failed after order updated", (e as Error)?.message ?? String(e));
+          });
         }
       }
     }
@@ -331,7 +337,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ]);
 
       if (shopifyAdmin) {
-        await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch(() => {});
+        await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
+          logger.app("WARN", "Metafield sync failed after order cancelled", (e as Error)?.message ?? String(e));
+        });
       }
     }
 

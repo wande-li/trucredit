@@ -18,6 +18,7 @@ import {
 import { authenticate } from "~/shopify.server";
 import { getInvoice, markInvoicePaid } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
+import { logger } from "~/services/logger.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import prisma from "~/db.server";
@@ -81,9 +82,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       collectionTasks,
       allowedTransitions: INVOICE_TRANSITIONS[invoice.status] as InvoiceStatus[],
     });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -117,7 +118,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
 
         // Sync metafield for Shopify Function checkout validation
-        syncCreditMetafield(admin, shopDomain, invoice.customerId).catch(() => {});
+        syncCreditMetafield(admin, shopDomain, invoice.customerId).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after invoice status change", msg);
+        });
 
         return json({ success: true });
       }
@@ -164,9 +168,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Invoice action failed: ${msg}`, { status: 500 });
   }
 };

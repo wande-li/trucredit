@@ -18,6 +18,7 @@ import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
+import { logger } from "~/services/logger.server";
 import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
 
@@ -57,9 +58,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         { label: "Net 90", value: "90" },
       ],
     });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -109,12 +110,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     // Sync metafield for Shopify Function checkout validation
-    syncCreditMetafield(admin, shopDomain, customerId).catch(() => {});
+    syncCreditMetafield(admin, shopDomain, customerId).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "Metafield sync failed after invoice creation", msg);
+    });
 
     return json({ success: true, redirectTo: `/app/invoices/${invoice.id}` });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     return json({ error: msg }, { status: 500 });
   }
 };

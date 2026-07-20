@@ -111,9 +111,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       summary: { active: activeCount, paused: pausedCount, escalated: escalatedCount },
       statusFilter,
     });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -196,9 +196,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown intent" }, { status: 400 });
     }
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Task action failed: ${msg}`, { status: 500 });
   }
 };
@@ -211,7 +211,6 @@ export default function TasksPage() {
   const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
 
   const actionData = fetcher.data;
-  const isSubmitting = fetcher.state === "submitting";
 
   const handlePause = useCallback(
     (taskId: string) => {

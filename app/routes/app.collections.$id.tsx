@@ -51,9 +51,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!sequence) throw new Response("Not Found", { status: 404 });
 
     return json({ sequence });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -152,9 +152,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown intent" }, { status: 400 });
     }
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     return json({ error: msg }, { status: 500 });
   }
 };

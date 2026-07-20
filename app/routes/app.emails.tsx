@@ -40,9 +40,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const result = await listTemplates(session.shop, { page, pageSize });
     return json(result);
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -85,9 +85,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return json({ success: false, error: "Unknown intent" });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Email action failed: ${msg}`, { status: 500 });
   }
 };
@@ -203,12 +203,12 @@ export default function EmailsPage() {
     >
       <BlockStack gap="400">
         {/* Error banner */}
-        {fetcher.data && !fetcher.data.success && fetcher.data.error && (
+        {fetcher.data && !fetcher.data.success && (fetcher.data as { error?: string }).error && (
           <Banner
             tone="critical"
             onDismiss={() => window.location.reload()}
           >
-            <Text as="p">{fetcher.data.error}</Text>
+            <Text as="p">{(fetcher.data as { error?: string }).error}</Text>
           </Banner>
         )}
 
@@ -272,7 +272,7 @@ export default function EmailsPage() {
         onClose={() => setShowCreate(false)}
         onCreated={() => {
           setShowCreate(false);
-          showToast("Template created");
+          setDismissedSuccess(false);
         }}
       />
 

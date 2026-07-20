@@ -59,9 +59,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
 
     return json({ result, shopDomain, showInactive });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -101,9 +101,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Rule action failed: ${msg}`, { status: 500 });
   }
 };

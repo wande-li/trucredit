@@ -68,9 +68,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!rule) throw new Response("Rule not found", { status: 404 });
 
     return json({ isNew: false, rule, shopId: shop.id });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -208,9 +208,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     return json({ success: true });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Rule save failed: ${msg}`, { status: 500 });
   }
 };

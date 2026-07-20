@@ -27,6 +27,7 @@ import {
 import { assessCredit } from "~/services/credit.server";
 import { getARAgingByCustomer } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
+import { logger } from "~/services/logger.server";
 import { CustomerStatusBadge } from "~/components/credit/CustomerStatusBadge";
 import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
 import type { CustomerRecord, CreditRecommendation } from "~/types";
@@ -77,9 +78,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
 
     return json({ customer, assessment, creditEvents, aging });
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Failed to load data: ${msg}`, { status: 500 });
   }
 };
@@ -124,7 +125,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
 
         // Sync metafield for Shopify Function checkout validation
-        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after credit limit change", msg);
+        });
 
         return json({ success: true });
       }
@@ -138,7 +142,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           triggeredBy: "USER",
         });
 
-        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after freeze", msg);
+        });
 
         return json({ success: true });
       }
@@ -150,7 +157,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           triggeredBy: "USER",
         });
 
-        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after unfreeze", msg);
+        });
 
         return json({ success: true });
       }
@@ -162,7 +172,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           triggeredBy: "USER",
         });
 
-        syncCreditMetafield(admin, shopDomain, params.id).catch(() => {});
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after score recalc", msg);
+        });
 
         return json({ success: true });
       }
@@ -170,9 +183,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
-  } catch (error: unknown) {
-    if (error instanceof Response) throw error;
-    const msg = error instanceof Error ? error.message : String(error);
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
     throw new Response(`Customer action failed: ${msg}`, { status: 500 });
   }
 };

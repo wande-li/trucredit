@@ -99,11 +99,44 @@ setTimeout(() => {
 
     import("~/workers/collection.worker")
       .then((m) => m.startCollectionWorkers())
-      .catch(() => {});
+      .catch((e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: "ERROR",
+            service: "Startup",
+            message: "Collection worker failed to start",
+            error: (e as Error)?.message ?? String(e),
+          }),
+        );
+      });
     import("~/workers/email.worker")
       .then((m) => m.createEmailWorker())
-      .catch(() => {});
-  }).catch(() => {});
+      .catch((e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: "ERROR",
+            service: "Startup",
+            message: "Email worker failed to start",
+            error: (e as Error)?.message ?? String(e),
+          }),
+        );
+      });
+  }).catch((e: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        service: "Startup",
+        message: "Collection queue import failed",
+        error: (e as Error)?.message ?? String(e),
+      }),
+    );
+  });
 }, 1000);
 
 export default async function handleRequest(

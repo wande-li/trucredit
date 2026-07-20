@@ -90,8 +90,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
-  let body: string;
   let rawBody: string;
+  let body = "";
   try {
     rawBody = await request.text();
   } catch {

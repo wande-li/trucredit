@@ -9,11 +9,28 @@ import prisma from "~/db.server";
 
 // Shopify webhook payloads are dynamic — safe to use index access
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SP = Record<string, any>;
+interface ShopifyPayload {
+  [key: string]: any;
+  id?: number | string;
+  shop_domain?: string;
+  myshopify_domain?: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  name?: string;
+  total_price?: string | number;
+  currency?: string;
+  financial_status?: string;
+  customer?: ShopifyPayload;
+  app_subscription?: ShopifyPayload;
+  contacts?: Array<{ id: string; customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string } }>;
+  default_address?: { company?: string };
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, payload, admin } = await authenticate.webhook(request);
-  const p = payload as SP;
+  const p = payload as ShopifyPayload;
   const shopDomain: string = String(p.shop_domain || p.myshopify_domain || "");
   const shopifyAdmin = admin; // may be undefined, guard before use
 
@@ -33,7 +50,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const domain = shopDomain || String(p.shop_domain || p.myshopify_domain || "");
     if (!domain) throw new Response("Missing shop domain", { status: 400 });
 
-    const sub = p.app_subscription as SP | undefined;
+    const sub = p.app_subscription as ShopifyPayload | undefined;
     const charge = {
       id: String(sub?.admin_graphql_api_id || sub?.id || ""),
       name: String(sub?.name || ""),
@@ -120,7 +137,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // ─── Order Create — occupy credit + create invoice ─
   if (topic === "ORDERS_CREATE") {
     const orderingCustomerId = p.customer && typeof p.customer === "object"
-      ? String((p.customer as SP).id ?? "")
+      ? String((p.customer as ShopifyPayload).id ?? "")
       : "";
 
     if (!orderingCustomerId || !shopDomain) {

@@ -1,21 +1,40 @@
-// Credit Check API — Public endpoint called by Shopify storefront / Payment Function
-// No OAuth required — validates via shop domain parameter + HMAC or direct API key
+// Credit Check API — Called by Shopify storefront / Payment Function
+// Authenticated via x-api-key header (shared secret per app)
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { checkCreditEligibility } from "~/services/checkout.server";
 import { logger } from "~/services/logger.server";
 
+const API_SECRET = process.env.TRUCREDIT_API_SECRET;
+
+function verifyApiKey(request: Request): boolean {
+  if (!API_SECRET) {
+    logger.app("WARN", "TRUCREDIT_API_SECRET not configured — API auth disabled");
+    return true; // Fail open if not configured (dev mode)
+  }
+  const key = request.headers.get("x-api-key");
+  if (!key || key !== API_SECRET) {
+    logger.app("WARN", "Unauthorized API access attempt — invalid or missing x-api-key");
+    return false;
+  }
+  return true;
+}
+
 /**
  * POST /api/credit-check
  *
  * Called by Shopify Functions (Payment Customization) or ScriptTag at checkout.
- * Validates B2B customer eligibility for net terms payment.
+ * Requires x-api-key header. Validates B2B customer eligibility for net terms payment.
  *
  * Body: { shopDomain, customerEmail, cartTotal, currency? }
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return json({ error: "Method Not Allowed" }, { status: 405 });
+  }
+
+  if (!verifyApiKey(request)) {
+    return json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: Record<string, unknown>;

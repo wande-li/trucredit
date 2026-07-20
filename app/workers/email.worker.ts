@@ -10,6 +10,16 @@ import { emailQueue, type EmailJobData } from "~/queues/email.queue";
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 
 export function createEmailWorker(): Worker<EmailJobData> {
+  // Startup SES health check
+  const sesConfigured = !!(
+    (process.env.AWS_REGION || process.env.AWS_SES_REGION) &&
+    process.env.AWS_ACCESS_KEY_ID &&
+    process.env.AWS_SECRET_ACCESS_KEY
+  );
+  if (!sesConfigured) {
+    logger.app("WARN", "SES not configured — emails will be queued but not sent. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SES_REGION.");
+  }
+
   const worker = new Worker<EmailJobData>(
     emailQueue.name,
     async (job) => {

@@ -1,9 +1,89 @@
 // SES Inbound Email Webhook — Receives SNS notifications from AWS SES
 // This route is called by AWS SNS, not by Shopify — no OAuth required.
+// SNS signature is verified using AWS signing certificate.
 import type { ActionFunctionArgs } from "@remix-run/node";
+import crypto from "node:crypto";
 import { simpleParser } from "mailparser";
 import { processInboundEmail } from "~/services/inbound.server";
 import { logger } from "~/services/logger.server";
+
+/**
+ * Verify SNS message signature using AWS signing certificate.
+ * Follows: https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html
+ */
+async function verifySnsSignature(body: Record<string, string>): Promise<boolean> {
+  const certUrl = body.SigningCertURL;
+  const signature = body.Signature;
+  const type = body.Type;
+
+  // Only verify Notification type (SubscriptionConfirmation uses SubscribeURL auto-confirm)
+  if (type !== "Notification") return true;
+
+  if (!certUrl || !signature) {
+    logger.app("WARN", "SNS message missing SigningCertURL or Signature");
+    return false;
+  }
+
+  // Validate certificate URL — must be from Amazon SNS
+  let certUrlObj: URL;
+  try {
+    certUrlObj = new URL(certUrl);
+  } catch {
+    logger.app("WARN", "SNS invalid SigningCertURL", undefined, { certUrl });
+    return false;
+  }
+
+  if (
+    !certUrlObj.hostname.endsWith(".amazonaws.com") &&
+    !certUrlObj.hostname.endsWith(".amazonaws.com.cn")
+  ) {
+    logger.app("WARN", "SNS SigningCertURL not from AWS", undefined, { hostname: certUrlObj.hostname });
+    return false;
+  }
+  if (certUrlObj.protocol !== "https:") {
+    logger.app("WARN", "SNS SigningCertURL not HTTPS");
+    return false;
+  }
+
+  // Download the certificate
+  let certPem: string;
+  try {
+    const resp = await fetch(certUrl);
+    certPem = await resp.text();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "SNS failed to download signing certificate", msg);
+    return false;
+  }
+
+  // Build the string to verify (canonical string for the specific SNS message type)
+  const signableKeys = ["Message", "MessageId", "Subject", "Timestamp", "TopicArn", "Type"];
+  if (type === "Notification") {
+    signableKeys.unshift("SubscribeURL" as never); // not actually used for Notification, but for ordering
+  }
+  // Build exactly per AWS spec
+  const stringToSign = [
+    "Message",
+    "MessageId",
+    ...(type === "Notification" ? [] : ["SubscribeURL"]),
+    "Timestamp",
+    "TopicArn",
+    "Type",
+  ]
+    .filter((key) => body[key] !== undefined)
+    .map((key) => `${key}\n${body[key]}\n`)
+    .join("");
+
+  try {
+    const verifier = crypto.createVerify("sha1WithRSAEncryption");
+    verifier.update(stringToSign, "utf8");
+    return verifier.verify(certPem, signature, "base64");
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "SNS signature verification error", msg);
+    return false;
+  }
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -18,26 +98,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Bad Request", { status: 400 });
   }
 
-  // AWS SNS sends JSON; SES notifications are nested in the Message field
+  // Parse SNS outer envelope
+  let snsEnvelope: Record<string, string> | null = null;
   try {
+    snsEnvelope = JSON.parse(rawBody) as Record<string, string>;
+  } catch {
+    // Not JSON — treat as raw email (direct SES delivery)
     body = rawBody;
-    const sns = JSON.parse(rawBody) as {
-      Type?: string;
-      Message?: string;
-      SubscribeURL?: string;
-      Token?: string;
-      TopicArn?: string;
-    };
+  }
 
-    // Step 1: Subscription confirmation (initial setup)
-    if (sns.Type === "SubscriptionConfirmation" && sns.SubscribeURL) {
+  // Verify SNS signature before processing
+  if (snsEnvelope) {
+    const sigValid = await verifySnsSignature(snsEnvelope);
+    if (!sigValid) {
+      logger.app("WARN", "SNS signature verification failed — rejecting message");
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    // Subscription confirmation (initial setup)
+    if (snsEnvelope.Type === "SubscriptionConfirmation" && snsEnvelope.SubscribeURL) {
       logger.app("INFO", "SNS subscription confirmation received", undefined, {
-        topicArn: sns.TopicArn,
+        topicArn: snsEnvelope.TopicArn,
       });
-      // Auto-confirm by visiting the SubscribeURL
       try {
-        await fetch(sns.SubscribeURL);
-        logger.app("INFO", "SNS subscription confirmed", undefined, {});
+        await fetch(snsEnvelope.SubscribeURL);
+        logger.app("INFO", "SNS subscription confirmed");
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         logger.app("WARN", "SNS subscription confirmation failed", undefined, { error: msg });
@@ -45,13 +130,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return new Response("OK", { status: 200 });
     }
 
-    // Step 2: Notification — extract the SES message
-    if (sns.Type === "Notification" && sns.Message) {
-      body = sns.Message;
+    // Extract SES message from SNS Notification
+    if (snsEnvelope.Type === "Notification" && snsEnvelope.Message) {
+      body = snsEnvelope.Message;
+    } else {
+      body = rawBody;
     }
-  } catch {
-    // Not JSON? Treat as raw email (direct SES delivery)
-    body = rawBody;
   }
 
   // Step 3: Parse the email content

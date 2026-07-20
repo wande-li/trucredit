@@ -79,6 +79,14 @@ export async function sendCollectionEmail(
   let subject: string;
   let body: string;
 
+  // Warn if paymentLink is missing — critical CTA for collection emails
+  if (!params.vars.paymentLink) {
+    logger.app("WARN", "Collection email missing paymentLink — customer won't see pay CTA", undefined, {
+      invoice: params.vars.invoiceNumber,
+      customer: params.vars.customerName,
+    });
+  }
+
   try {
     if (useAI) {
       // AI-generated email

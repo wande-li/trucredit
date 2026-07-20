@@ -1,23 +1,43 @@
 // Storefront credit collect API — Called after order to reserve credit
 // POST /api/storefront-collect
+// Authenticated via x-api-key header (shared secret per app)
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { reserveCredit } from "~/services/checkout.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 
+const API_SECRET = process.env.TRUCREDIT_API_SECRET;
+
+function verifyApiKey(request: Request): boolean {
+  if (!API_SECRET) {
+    logger.app("WARN", "TRUCREDIT_API_SECRET not configured — API auth disabled");
+    return true; // Fail open if not configured (dev mode)
+  }
+  const key = request.headers.get("x-api-key");
+  if (!key || key !== API_SECRET) {
+    logger.app("WARN", "Unauthorized API access attempt — invalid or missing x-api-key");
+    return false;
+  }
+  return true;
+}
+
 /**
  * POST /api/storefront-collect
  *
  * Called by storefront post-checkout to reserve credit and
- * confirm net terms usage. Validates customer identity and
- * deducts from creditUsed.
+ * confirm net terms usage. Requires x-api-key header.
+ * Validates customer identity and deducts from creditUsed.
  *
  * Body: { shopDomain, customerEmail, orderId, orderName, totalPrice }
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return json({ error: "Method Not Allowed" }, { status: 405 });
+  }
+
+  if (!verifyApiKey(request)) {
+    return json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: Record<string, unknown>;

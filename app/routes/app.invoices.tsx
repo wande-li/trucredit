@@ -115,10 +115,10 @@ export default function Invoices() {
             <Text as="h2" variant="headingMd">
               AR Aging Summary
             </Text>
-            <InlineStack gap="300" wrap>
+            <InlineStack gap="500" wrap>
               {agingReport.buckets.map((bucket) => (
-                <Box key={bucket.label} minWidth="140px">
-                  <BlockStack gap="100">
+                <Box key={bucket.label} minWidth="150px" padding="200">
+                  <BlockStack gap="200">
                     <Text as="p" variant="bodySm" tone="subdued">
                       {bucket.label}
                     </Text>
@@ -141,7 +141,7 @@ export default function Invoices() {
                 </Box>
               ))}
             </InlineStack>
-            <InlineStack gap="200">
+            <InlineStack gap="400" align="start">
               <Text as="p" variant="bodyMd" fontWeight="bold">
                 Total Outstanding: ${Number(agingReport.totalOutstanding).toLocaleString()}
               </Text>

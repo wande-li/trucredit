@@ -380,8 +380,8 @@ export default function Dashboard() {
                 </div>
               </div>
               <InlineStack gap="300" wrap>
-                <Button url="/app/collections">Sequences</Button>
-                <Button url="/app/tasks">All Tasks</Button>
+                <Button url="/app/collections" variant="plain">Sequences</Button>
+                <Button url="/app/tasks" variant="plain">All Tasks</Button>
               </InlineStack>
             </BlockStack>
           </Card>
@@ -393,13 +393,13 @@ export default function Dashboard() {
                 Quick Actions
               </Text>
               <BlockStack gap="200">
-                <Button url="/app/customers" fullWidth>
+                <Button url="/app/customers" variant="plain">
                   Manage Customers
                 </Button>
-                <Button url="/app/customers/new" fullWidth>
+                <Button url="/app/customers/new" variant="plain">
                   Add Customer
                 </Button>
-                <Button url="/app/invoices" fullWidth>
+                <Button url="/app/invoices" variant="plain">
                   View Invoices
                 </Button>
               </BlockStack>

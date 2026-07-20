@@ -183,7 +183,7 @@ export default function NewCustomerPage() {
                 Approaching plan limit ({quotaCurrent}/{quotalimit}{" "}
                 customers). Consider upgrading your plan.
               </Text>
-              <Button url="/app/billing" size="slim">
+              <Button url="/app/billing" size="slim" variant="plain">
                 Upgrade
               </Button>
             </InlineStack>

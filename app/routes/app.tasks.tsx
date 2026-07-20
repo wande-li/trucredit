@@ -285,12 +285,6 @@ export default function TasksPage() {
       fullWidth
       title="Collection Tasks"
       subtitle={`${summary.active} active, ${summary.paused} paused, ${summary.escalated} escalated`}
-      secondaryActions={[
-        {
-          content: "New Sequence",
-          onAction: () => navigate("/app/collections"),
-        },
-      ]}
     >
       <BlockStack gap="400">
         {actionError && !errorDismissed && (

@@ -159,7 +159,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: taskId },
           include: {
             customer: { select: { name: true, company: true, email: true } },
-            invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true } },
+            invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, paymentUrl: true, shopifyOrderName: true } },
             sequence: { select: { steps: { orderBy: { order: "asc" }, take: 1 } } },
           },
         });
@@ -185,6 +185,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             currency: task.invoice.currency,
             dueDate: task.invoice.dueDate.toISOString().slice(0, 10),
             daysOverdue,
+            paymentLink: task.invoice.paymentUrl ?? undefined,
           },
           taskId,
           stepOrder: task.currentStep,

@@ -1,0 +1,18 @@
+# Payment Customization Function — required input fields for TruCredit net terms check
+# Requests access to customer metafield and cart buyer identity at checkout time.
+query Input {
+  cart {
+    buyerIdentity {
+      email
+      customer {
+        metafield(namespace: "trucredit", key: "credit_status") {
+          value
+        }
+      }
+    }
+  }
+  paymentMethods {
+    id
+    name
+  }
+}

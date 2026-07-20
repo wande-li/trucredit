@@ -169,9 +169,10 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
         );
         const shopId = invoice.shop?.id ?? "";
         const shopDomain = invoice.shop?.shopDomain ?? "";
-        const paymentLink = shopDomain
-          ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
-          : undefined;
+        const paymentLink = (invoice as Record<string, unknown>).paymentUrl as string
+          || (shopDomain
+            ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
+            : undefined);
         await enqueueEmail({
           shopId,
           toEmail: invoice.customer.email,
@@ -225,9 +226,10 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
         );
         const shopId = invoice.shop?.id ?? "";
         const shopDomain = invoice.shop?.shopDomain ?? "";
-        const paymentLink = shopDomain
-          ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
-          : undefined;
+        const paymentLink = (invoice as Record<string, unknown>).paymentUrl as string
+          || (shopDomain
+            ? `https://${shopDomain}/account/orders/${invoice.shopifyOrderName || invoice.invoiceNumber}`
+            : undefined);
         await enqueueEmail({
           shopId,
           toEmail: invoice.customer.email,

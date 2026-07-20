@@ -159,6 +159,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + dueDays);
 
+      // Construct payment URL — the customer can pay via their Shopify account order page
+      const paymentUrl = shopDomain
+        ? `https://${shopDomain}/account/orders/${orderName.replace("#", "")}`
+        : undefined;
+
       await prisma.invoice.create({
         data: {
           shopId: dbShop.id,
@@ -171,6 +176,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           status: "PENDING",
           shopifyOrderId: orderId,
           shopifyOrderName: orderName,
+          paymentUrl,
         },
       });
 

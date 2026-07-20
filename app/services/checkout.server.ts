@@ -157,8 +157,8 @@ export async function checkCreditEligibility(input: CreditCheckInput): Promise<C
 }
 
 /**
- * Reserve credit for a pending checkout (optimistic lock).
- * Called before order creation to prevent race conditions.
+ * Reserve credit for a pending checkout (atomic, race-condition safe).
+ * Uses a conditional UPDATE WHERE to prevent double-spending under concurrency.
  */
 export async function reserveCredit(params: {
   customerId: string;
@@ -166,27 +166,32 @@ export async function reserveCredit(params: {
   orderName: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const customer = await prisma.customer.findUnique({
-      where: { id: params.customerId },
-      select: { creditLimit: true, creditUsed: true, isFrozen: true },
-    });
+    // Atomic: only UPDATE if creditLimit >= creditUsed + amount AND not frozen
+    // Returns count of updated rows (0 = failed, 1 = success)
+    const result = await prisma.$executeRaw<number>`
+      UPDATE "Customer"
+      SET "creditUsed" = "creditUsed" + ${params.amount},
+          "creditAvailable" = "creditLimit" - ("creditUsed" + ${params.amount}),
+          "updatedAt" = NOW()
+      WHERE "id" = ${params.customerId}
+        AND "isFrozen" = false
+        AND "creditLimit" >= "creditUsed" + ${params.amount}
+    `;
 
-    if (!customer) return { success: false, error: "Customer not found" };
-    if (customer.isFrozen) return { success: false, error: "Account frozen" };
-
-    const available = Number(customer.creditLimit) - Number(customer.creditUsed);
-    if (params.amount > available) {
+    if (result === 0) {
+      // Check why it failed — frozen or insufficient credit
+      const customer = await prisma.customer.findUnique({
+        where: { id: params.customerId },
+        select: { id: true, isFrozen: true, creditLimit: true, creditUsed: true },
+      });
+      if (!customer) return { success: false, error: "Customer not found" };
+      if (customer.isFrozen) return { success: false, error: "Account frozen" };
+      const available = Number(customer.creditLimit) - Number(customer.creditUsed);
       return {
         success: false,
         error: `Insufficient credit: need ${params.amount}, available ${available}`,
       };
     }
-
-    // Atomic credit deduction via increment
-    await prisma.customer.update({
-      where: { id: params.customerId },
-      data: { creditUsed: { increment: params.amount } },
-    });
 
     logger.app("INFO", "Credit reserved for checkout", undefined, {
       customerId: params.customerId,

@@ -264,6 +264,7 @@ export async function createInvoice(params: {
   shopifyOrderId?: string;
   shopifyOrderName?: string;
   shopifyDraftOrderId?: string;
+  paymentUrl?: string;
 }): Promise<InvoiceRecord> {
   const netTerms = params.netTermsDays ?? COLLECTION.DEFAULT_NET_TERMS;
   const issueDate = new Date();
@@ -284,6 +285,7 @@ export async function createInvoice(params: {
       shopifyOrderId: params.shopifyOrderId,
       shopifyOrderName: params.shopifyOrderName,
       shopifyDraftOrderId: params.shopifyDraftOrderId,
+      paymentUrl: params.paymentUrl,
     },
   });
 

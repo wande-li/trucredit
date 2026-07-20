@@ -26,6 +26,7 @@ import { authenticate } from "~/shopify.server";
 import { listReplies, resolveReply } from "~/services/reply.server";
 import type { ReplyIntent } from "@prisma/client";
 import prisma from "~/db.server";
+import { logger } from "~/services/logger.server";
 
 const REPLY_INTENT_LABELS: Record<string, string> = {
   WILL_PAY: "Will Pay",

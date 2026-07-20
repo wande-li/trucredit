@@ -23,6 +23,7 @@ import { getTemplateById, updateTemplate, deleteTemplate } from "~/services/emai
 import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
+import { logger } from "~/services/logger.server";
 
 // ═══════════════════ Loader ═══════════════════
 

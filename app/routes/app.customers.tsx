@@ -20,6 +20,7 @@ import { authenticate } from "~/shopify.server";
 import { listCustomers } from "~/services/customer.server";
 import prisma from "~/db.server";
 import { useCallback } from "react";
+import { logger } from "~/services/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

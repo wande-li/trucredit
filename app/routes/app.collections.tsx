@@ -32,6 +32,7 @@ import {
 } from "~/services/collection.server";
 import type { TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
+import { logger } from "~/services/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

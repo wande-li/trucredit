@@ -18,6 +18,7 @@ import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { checkCustomerQuota, upsertCustomerFromShopify } from "~/services/customer.server";
 import { getShopBilling } from "~/services/billing.server";
+import { logger } from "~/services/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

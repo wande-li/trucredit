@@ -21,6 +21,7 @@ import { authenticate } from "~/shopify.server";
 import { listInvoices, getARAgingReport } from "~/services/invoice.server";
 import prisma from "~/db.server";
 import { useCallback, useMemo } from "react";
+import { logger } from "~/services/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

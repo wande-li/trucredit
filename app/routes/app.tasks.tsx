@@ -23,6 +23,7 @@ import prisma from "~/db.server";
 import { pauseTask, stopTask } from "~/services/collection.server";
 import { enqueueEmail } from "~/queues/email.queue";
 import { PAGINATION } from "~/lib/constants";
+import { logger } from "~/services/logger.server";
 
 const STATUS_MAP: Record<string, { label: string; tone: "success" | "attention" | "critical" | "info" | "new" }> = {
   PENDING: { label: "Pending", tone: "new" },

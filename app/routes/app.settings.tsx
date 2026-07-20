@@ -19,6 +19,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
+import { logger } from "~/services/logger.server";
 
 // ── Constants ──
 const TIMEZONES = [

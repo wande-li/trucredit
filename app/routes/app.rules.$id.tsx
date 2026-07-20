@@ -27,6 +27,7 @@ import {
 import type { RuleConditions, RuleActionValue } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
+import { logger } from "~/services/logger.server";
 
 const ACTION_OPTIONS: Array<{ label: string; value: CreditAction }> = [
   { label: "Set Credit Limit", value: "SET_LIMIT" },

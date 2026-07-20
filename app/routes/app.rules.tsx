@@ -21,6 +21,7 @@ import { authenticate } from "~/shopify.server";
 import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
+import { logger } from "~/services/logger.server";
 
 const ACTION_LABELS: Record<CreditAction, string> = {
   SET_LIMIT: "Set Limit",

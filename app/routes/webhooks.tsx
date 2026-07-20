@@ -8,7 +8,7 @@ import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
 
 // Shopify webhook payloads are dynamic — safe to use index access
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ShopifyPayload {
   [key: string]: any;
   id?: number | string;
@@ -27,6 +27,7 @@ interface ShopifyPayload {
   contacts?: Array<{ id: string; customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string } }>;
   default_address?: { company?: string };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, payload, admin } = await authenticate.webhook(request);
@@ -341,6 +342,125 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after order cancelled", (e as Error)?.message ?? String(e));
         });
       }
+    }
+
+    return new Response(null, { status: 200 });
+  }
+
+  // ─── GDPR: Customers Data Request ─────────────────
+  if (topic === "CUSTOMERS_DATA_REQUEST") {
+    const customerId = String(p.id ?? "");
+    if (!shopDomain) return new Response(null, { status: 400 });
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: shopDomain.trim() },
+      select: { id: true },
+    });
+    if (!shop) return new Response(null, { status: 200 });
+
+    const customers = await prisma.customer.findMany({
+      where: { shopId: shop.id, shopifyCustomerId: customerId },
+      select: {
+        email: true,
+        name: true,
+        company: true,
+        phone: true,
+        shopifyCustomerId: true,
+        creditLimit: true,
+        creditUsed: true,
+        creditScore: true,
+        creditGrade: true,
+        invoices: {
+          select: {
+            invoiceNumber: true,
+            amount: true,
+            currency: true,
+            status: true,
+            issueDate: true,
+            dueDate: true,
+            paidDate: true,
+            shopifyOrderName: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        },
+      },
+    });
+
+    logger.app("INFO", "GDPR CUSTOMERS_DATA_REQUEST processed", {
+      shopId: shop.id,
+      customerId,
+      recordCount: customers.length,
+    });
+
+    return Response.json(
+      { shopDomain: shopDomain.trim(), customers },
+      { status: 200 },
+    );
+  }
+
+  // ─── GDPR: Customers Redact ────────────────────────
+  if (topic === "CUSTOMERS_REDACT") {
+    const customerId = String(p.id ?? "");
+    if (!shopDomain) return new Response(null, { status: 400 });
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: shopDomain.trim() },
+      select: { id: true },
+    });
+    if (!shop) return new Response(null, { status: 200 });
+
+    const now = new Date();
+    const redactedTag = `redacted_${now.getTime()}`;
+
+    const result = await prisma.customer.updateMany({
+      where: { shopId: shop.id, shopifyCustomerId: customerId },
+      data: {
+        email: `${redactedTag}@privacy-deleted.example.com`,
+        name: "Redacted Customer",
+        company: null,
+        phone: null,
+        shopifyCustomerId: `REDACTED_${customerId}_${redactedTag}`,
+      },
+    });
+
+    logger.app("INFO", "GDPR CUSTOMERS_REDACT processed", {
+      shopId: shop.id,
+      customerId,
+      updatedCount: result.count,
+    });
+
+    return new Response(null, { status: 200 });
+  }
+
+  // ─── GDPR: Shop Redact ─────────────────────────────
+  if (topic === "SHOP_REDACT") {
+    if (!shopDomain) return new Response(null, { status: 400 });
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: shopDomain.trim() },
+      select: { id: true },
+    });
+
+    if (shop) {
+      await prisma.$transaction([
+        // Remove child records first (reverse dependency order)
+        prisma.collectionEvent.deleteMany({ where: { task: { customer: { shopId: shop.id } } } }),
+        prisma.collectionTask.deleteMany({ where: { customer: { shopId: shop.id } } }),
+        prisma.collectionStep.deleteMany({ where: { sequence: { shopId: shop.id } } }),
+        prisma.collectionSequence.deleteMany({ where: { shopId: shop.id } }),
+        prisma.creditEvent.deleteMany({ where: { customer: { shopId: shop.id } } }),
+        prisma.invoice.deleteMany({ where: { shopId: shop.id } }),
+        prisma.customer.deleteMany({ where: { shopId: shop.id } }),
+        prisma.emailTemplate.deleteMany({ where: { shopId: shop.id } }),
+        prisma.creditRule.deleteMany({ where: { shopId: shop.id } }),
+        prisma.shop.delete({ where: { id: shop.id } }),
+      ]);
+
+      // Session records (standalone — no cascade from Shop)
+      await prisma.session.deleteMany({ where: { shop: shopDomain.trim() } });
+
+      logger.app("INFO", "GDPR SHOP_REDACT complete", { shopDomain: shopDomain.trim() });
     }
 
     return new Response(null, { status: 200 });

@@ -32,6 +32,7 @@ import {
 import { COLLECTION } from "~/lib/constants";
 import type { Channel, TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
+import { logger } from "~/services/logger.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {

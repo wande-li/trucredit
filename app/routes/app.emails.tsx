@@ -25,6 +25,7 @@ import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates }
 import { PAGINATION } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
+import { logger } from "~/services/logger.server";
 
 // ═══════════════════ Loader ═══════════════════
 

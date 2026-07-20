@@ -7,6 +7,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { SHOPIFY_API_VERSION } from "~/lib/constants";
 
 // Fail fast on missing critical env vars
 const apiKey = process.env.SHOPIFY_API_KEY;
@@ -16,6 +17,16 @@ const appUrl = process.env.SHOPIFY_APP_URL;
 if (!apiKey) throw new Error("FATAL: SHOPIFY_API_KEY environment variable is required");
 if (!apiSecret) throw new Error("FATAL: SHOPIFY_API_SECRET environment variable is required");
 if (!appUrl) throw new Error("FATAL: SHOPIFY_APP_URL environment variable is required");
+
+// Verify API Version consistency between constants and shopify.server.ts
+const expectedApiVersion = ApiVersion.October25;
+if (SHOPIFY_API_VERSION !== expectedApiVersion) {
+  throw new Error(
+    `FATAL: SHOPIFY_API_VERSION mismatch — constants.ts has "${SHOPIFY_API_VERSION}" ` +
+    `but shopify.server.ts uses ApiVersion.October25 = "${expectedApiVersion}". ` +
+    `Update both to the same version.`,
+  );
+}
 
 // Billing Plans
 export const PLAN_MONTHLY = "TruCredit Pro";

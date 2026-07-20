@@ -8,7 +8,7 @@ embedded = true
 handle = "trucredit"
 
 [build]
-automatically_update_urls_on_dev = false
+automatically_update_urls_on_dev = true
 
 [webhooks]
 api_version = "2026-07"

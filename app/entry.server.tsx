@@ -6,49 +6,105 @@ import {
   type EntryContext,
 } from "@remix-run/node";
 import { isbot } from "isbot";
-import cron from "node-cron";
 import { addDocumentResponseHeaders } from "./shopify.server";
-import { withRequestContext, logger } from "~/services/logger.server";
-import { enqueueSweep } from "~/queues/collection.queue";
+import {
+  withRequestContext,
+  setRequestContext,
+  logger,
+} from "~/services/logger.server";
+
+// Dev cold-start: auto-seed session + shop if DB is empty.
+// Without this, authenticate.admin() has no session to validate and the
+// app shows a blank UnauthedFallback instead of the OAuth login flow.
+if (process.env.NODE_ENV === "development") {
+  const devShop = process.env.DEV_SHOP || "ai-pilot-dev.myshopify.com";
+  import("~/db.server").then(({ default: prisma }) => {
+    prisma.session
+      .findFirst()
+      .then((s) => {
+        if (!s) {
+          // eslint-disable-next-line no-console
+          console.log(
+            JSON.stringify({
+              timestamp: new Date().toISOString(),
+              level: "INFO",
+              service: "Startup",
+              message: "Cold start — auto-seeding dev data",
+            }),
+          );
+          return Promise.all([
+            prisma.session.create({
+              data: {
+                id: "dev-session",
+                shop: devShop,
+                state: "dev",
+                isOnline: false,
+                accessToken: "dev-token",
+                scope:
+                  "read_orders,write_orders,read_customers,write_customers",
+                expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+              },
+            }),
+            prisma.shop.upsert({
+              where: { shopDomain: devShop },
+              create: {
+                shopDomain: devShop,
+                accessToken: "dev-token",
+                plan: "FREE",
+              },
+              update: { accessToken: "dev-token" },
+            }),
+          ]);
+        }
+      })
+      .then(() => {
+        // eslint-disable-next-line no-console
+        console.log(
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: "INFO",
+            service: "Startup",
+            message: "Dev data ready",
+          }),
+        );
+      })
+      .catch((e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: "ERROR",
+            service: "Startup",
+            message: "Auto-seed failed",
+            error: (e as Error)?.message ?? String(e),
+          }),
+        );
+      });
+  });
+}
 
 export const streamTimeout = 5000;
 
-// Start collection workers once (not per-request)
-let _workersStarted = false;
-async function ensureWorkers() {
-  if (_workersStarted) return;
-  _workersStarted = true;
+// Fire-and-forget: start background services without blocking SSR
+setTimeout(() => {
+  import("~/queues/collection.queue").then(async ({ enqueueSweep }) => {
+    try {
+      const cron = (await import("node-cron")).default;
+      cron.schedule("0 9 * * *", async () => {
+        await enqueueSweep();
+      });
+    } catch {
+      // node-cron optional — background sweep will be handled by manual trigger
+    }
 
-  try {
-    const { startCollectionWorkers } = await import("~/workers/collection.worker");
-    const { createEmailWorker } = await import("~/workers/email.worker");
-    startCollectionWorkers();
-    createEmailWorker();
-    logger.app("INFO", "All background workers started");
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Background workers not started (expected in dev without Redis)", msg);
-  }
-}
-
-// Register daily sweep cron (9:00 AM UTC = 5:00 AM EST)
-let _cronStarted = false;
-function ensureCron() {
-  if (_cronStarted) return;
-  _cronStarted = true;
-
-  // Check if cron job already registered (dev hot-reload guard)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- node-cron types
-  const existing = (cron as any)._tasks?.size ?? 0;
-  if (existing > 0) return;
-
-  cron.schedule("0 9 * * *", async () => {
-    logger.app("INFO", "Daily collection sweep triggered via cron");
-    await enqueueSweep();
-  });
-
-  logger.app("INFO", "Collection sweep cron registered (daily at 09:00 UTC)");
-}
+    import("~/workers/collection.worker")
+      .then((m) => m.startCollectionWorkers())
+      .catch(() => {});
+    import("~/workers/email.worker")
+      .then((m) => m.createEmailWorker())
+      .catch(() => {});
+  }).catch(() => {});
+}, 1000);
 
 export default async function handleRequest(
   request: Request,
@@ -56,10 +112,7 @@ export default async function handleRequest(
   responseHeaders: Headers,
   remixContext: EntryContext,
 ) {
-  // Start background services on first request
-  ensureWorkers();
-  ensureCron();
-
+  const startTime = Date.now();
   const url = new URL(request.url);
   const requestId =
     Math.random().toString(36).slice(2, 10) +
@@ -71,6 +124,11 @@ export default async function handleRequest(
   return withRequestContext(
     { requestId, path: pathname, method: request.method },
     () => {
+      // Log request start
+      if (shouldLog) {
+        logger.request("INFO", `→ ${request.method} ${pathname}`);
+      }
+
       addDocumentResponseHeaders(request, responseHeaders);
       const userAgent = request.headers.get("user-agent");
       const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
@@ -85,6 +143,19 @@ export default async function handleRequest(
 
               responseHeaders.set("Content-Type", "text/html");
 
+              // Extract shop from session header if available
+              const shop = responseHeaders.get("x-shopify-shop-domain");
+              if (shop) setRequestContext({ shop });
+
+              const duration = Date.now() - startTime;
+              if (shouldLog) {
+                logger.request(
+                  "INFO",
+                  `← ${responseStatusCode} ${pathname}`,
+                  duration,
+                );
+              }
+
               resolve(
                 new Response(stream, {
                   headers: responseHeaders,
@@ -94,20 +165,13 @@ export default async function handleRequest(
               pipe(body);
             },
             onShellError(error) {
-              const duration = Date.now();
+              const duration = Date.now() - startTime;
               if (shouldLog) {
-                // eslint-disable-next-line no-console
-                console.error(
-                  JSON.stringify({
-                    timestamp: new Date().toISOString(),
-                    level: "ERROR",
-                    service: "Request",
-                    requestId,
-                    path: pathname,
-                    message: "SSR shell error",
-                    error: (error as Error)?.message,
-                    durationMs: duration,
-                  }),
+                logger.request(
+                  "ERROR",
+                  `SSR shell error ${pathname}`,
+                  duration,
+                  { error: (error as Error)?.message },
                 );
               }
               reject(error);

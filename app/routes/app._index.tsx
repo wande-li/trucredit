@@ -125,25 +125,23 @@ function progressTone(pct: number): "success" | "highlight" | "critical" {
   return "success";
 }
 
-const statCardAccent = (tone?: "critical" | "warning" | "success"): string => {
-  switch (tone) {
-    case "success": return "var(--p-color-bg-success-strong)";
-    case "warning": return "var(--p-color-bg-warning-strong)";
-    case "critical": return "var(--p-color-bg-critical-strong)";
-    default: return "var(--p-color-border-secondary)";
-  }
+type StatTone = "neutral" | "success" | "warning" | "critical";
+
+const statColors: Record<StatTone, { bg: string; accent: string; border: string }> = {
+  neutral:  { bg: "#F8FAFC", accent: "#94A3B8", border: "#E2E8F0" },
+  success:  { bg: "#F0FDF4", accent: "#22C55E", border: "#BBF7D0" },
+  warning:  { bg: "#FFFBEB", accent: "#F59E0B", border: "#FDE68A" },
+  critical: { bg: "#FEF2F2", accent: "#EF4444", border: "#FECACA" },
 };
 
-const statCardStyle = (tone?: "critical" | "warning" | "success"): React.CSSProperties => ({
-  background: "var(--p-color-bg-surface)",
-  borderRadius: 10,
-  padding: "20px 24px",
+const statCardStyle = (tone: StatTone): React.CSSProperties => ({
+  background: statColors[tone].bg,
+  borderRadius: 12,
+  padding: "22px 24px",
   flex: "1 1 160px",
   minWidth: 160,
-  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-  border: "1px solid var(--p-color-border-secondary)",
-  borderLeft: `4px solid ${statCardAccent(tone)}`,
-  position: "relative" as const,
+  border: `1px solid ${statColors[tone].border}`,
+  borderTop: `3px solid ${statColors[tone].accent}`,
 });
 
 const statLabelStyle: React.CSSProperties = {
@@ -151,16 +149,16 @@ const statLabelStyle: React.CSSProperties = {
   fontWeight: 500,
   textTransform: "uppercase" as const,
   letterSpacing: "0.05em",
-  color: "var(--p-color-text-subdued)",
-  marginBottom: 6,
+  color: "#64748B",
+  marginBottom: 8,
 };
 
-const statValueStyle: React.CSSProperties = {
+const statValueStyle = (tone: StatTone): React.CSSProperties => ({
   fontSize: 28,
   fontWeight: 700,
-  color: "var(--p-color-text)",
+  color: tone === "neutral" ? "#1E293B" : statColors[tone].accent,
   lineHeight: 1.2,
-};
+});
 
 export default function Dashboard() {
   const { stats, quota, planName, aging, collectionStats, recentCustomers } =
@@ -178,29 +176,29 @@ export default function Dashboard() {
             gap: 20,
           }}
         >
-          <div style={statCardStyle()}>
+          <div style={statCardStyle("neutral")}>
             <div style={statLabelStyle}>Total Customers</div>
-            <div style={statValueStyle}>{stats.totalCustomers}</div>
+            <div style={statValueStyle("neutral")}>{stats.totalCustomers}</div>
           </div>
           <div style={statCardStyle("success")}>
             <div style={statLabelStyle}>Active</div>
-            <div style={statValueStyle}>{stats.activeCustomers}</div>
+            <div style={statValueStyle("success")}>{stats.activeCustomers}</div>
           </div>
           <div style={statCardStyle("warning")}>
             <div style={statLabelStyle}>Frozen</div>
-            <div style={statValueStyle}>{stats.frozenCustomers}</div>
+            <div style={statValueStyle("warning")}>{stats.frozenCustomers}</div>
           </div>
-          <div style={statCardStyle()}>
+          <div style={statCardStyle("neutral")}>
             <div style={statLabelStyle}>Total Invoices</div>
-            <div style={statValueStyle}>{stats.totalInvoices}</div>
+            <div style={statValueStyle("neutral")}>{stats.totalInvoices}</div>
           </div>
           <div style={statCardStyle("critical")}>
             <div style={statLabelStyle}>Overdue</div>
-            <div style={statValueStyle}>{stats.overdueInvoices}</div>
+            <div style={statValueStyle("critical")}>{stats.overdueInvoices}</div>
           </div>
           <div style={statCardStyle("critical")}>
             <div style={statLabelStyle}>Overdue Total</div>
-            <div style={statValueStyle}>
+            <div style={statValueStyle("critical")}>
               ${Number(stats.overdueTotal).toLocaleString()}
             </div>
           </div>
@@ -377,7 +375,7 @@ export default function Dashboard() {
               </InlineStack>
               <div style={statCardStyle("warning")}>
                 <div style={statLabelStyle}>Active Tasks</div>
-                <div style={statValueStyle}>
+                <div style={statValueStyle("warning")}>
                   {collectionStats.activeTasks}
                 </div>
               </div>

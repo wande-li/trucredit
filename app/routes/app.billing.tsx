@@ -20,7 +20,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
-import { PLAN_QUOTAS, type PlanKey } from "~/lib/constants";
+import { type PlanKey } from "~/lib/constants";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
 
@@ -28,7 +28,7 @@ import { RouteError } from "~/services/error-boundary.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session, billing } = await authenticate.admin(request);
+    const { session } = await authenticate.admin(request);
     const shopDomain = session.shop.trim();
 
     const shop = await prisma.shop.findUnique({
@@ -80,7 +80,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ─── Action: handle plan selection → Shopify checkout ───────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent")?.toString();
   const planKey = formData.get("planKey")?.toString() as PlanKey | undefined;
@@ -131,9 +131,6 @@ export default function BillingPage() {
       { method: "POST" },
     );
   };
-
-  // Quota for current plan display
-  const quotas = PLAN_QUOTAS[currentPlan as PlanKey] ?? PLAN_QUOTAS.FREE;
 
   return (
     <Page title="Pricing Plans" backAction={{ url: "/app" }} fullWidth>
@@ -306,7 +303,7 @@ function PlanCard({
               </InlineStack>
               {plan.annualPrice && plan.monthlyEquivalent ? (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  ${plan.annualPrice}/yr — ${plan.monthlyEquivalent.toFixed(2)}/mo (save {annualSavings}%)
+                  ${plan.annualPrice}/yr — ${plan.monthlyEquivalent.toFixed(2)}/mo (save {String(annualSavings)}%)
                 </Text>
               ) : null}
             </>
@@ -372,7 +369,7 @@ function PlanCard({
                 onClick={() => onSubscribe(plan.key, "annual")}
                 disabled={loading}
               >
-                Save {annualSavings}% with annual billing
+                Save {String(Math.round(annualSavings))}% with annual billing
               </Button>
             )}
           </BlockStack>

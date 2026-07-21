@@ -2,7 +2,7 @@
 // Server-only, follows Wandex pattern: pure data in, pure data out
 
 import prisma from "~/db.server";
-import { PLAN_QUOTAS, PLAN_ORDER, resolvePlan, type PlanKey } from "~/lib/constants";
+import { PLAN_QUOTAS, resolvePlan, type PlanKey } from "~/lib/constants";
 import {
   PLAN_STARTER_MONTHLY,
   PLAN_STARTER_ANNUAL,
@@ -13,10 +13,6 @@ import {
 } from "~/shopify.server";
 import { logger } from "~/services/logger.server";
 import type { Plan } from "@prisma/client";
-
-// ─── Plan display ordering ──────────────────────────────────
-
-const PLAN_DISPLAY_ORDER: Plan[] = ["FREE", "STARTER", "PRO", "ENTERPRISE"];
 
 // ─── Plan Definition (for billing page UI) ──────────────────
 
@@ -293,9 +289,9 @@ export async function checkPlanAccess(shopId: string): Promise<{
     shop._count.invoices >= quota.invoices;
 
   return {
-    plan: shop.plan,
-    isPaid: shop.plan !== "FREE" && shop.subscriptionStatus === "ACTIVE",
-    quotaBlocked: isQuotaExceeded && shop.plan === "FREE",
+    plan: resolvedPlan,
+    isPaid: resolvedPlan !== "FREE" && shop.subscriptionStatus === "ACTIVE",
+    quotaBlocked: isQuotaExceeded && resolvedPlan === "FREE",
     reason: isQuotaExceeded
       ? `Quota exceeded: ${shop._count.customers}/${quota.customers} customers, ${shop._count.invoices}/${quota.invoices} invoices`
       : null,

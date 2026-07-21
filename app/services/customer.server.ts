@@ -7,7 +7,7 @@ import {
   determineCustomerStatus,
   calcAvailableCredit,
 } from "~/services/credit.server";
-import { PLAN_QUOTAS, PAGINATION, CREDIT_SCORE } from "~/lib/constants";
+import { PLAN_QUOTAS, PAGINATION, CREDIT_SCORE, resolvePlan } from "~/lib/constants";
 import type { Plan, CreditGrade, RiskLevel, CustomerStatus } from "@prisma/client";
 import type {
   CustomerRecord,
@@ -319,7 +319,8 @@ export async function checkCustomerQuota(
   shopId: string,
   plan: Plan,
 ): Promise<QuotaCheck> {
-  const limit = PLAN_QUOTAS[plan].customers;
+  const resolved = resolvePlan(plan);
+  const limit = PLAN_QUOTAS[resolved as keyof typeof PLAN_QUOTAS].customers;
   const current = await prisma.customer.count({ where: { shopId } });
 
   return {

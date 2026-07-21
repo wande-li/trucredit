@@ -10,7 +10,7 @@ import {
   PAYMENT_TERMS_CREATE,
   GET_PAYMENT_TERMS_TEMPLATES,
 } from "~/lib/graphql-queries";
-import { encryptToken, decryptToken } from "~/lib/crypto.server";
+import { decryptToken } from "~/lib/crypto.server";
 
 interface GraphQLResult<T = unknown> {
   data?: T;

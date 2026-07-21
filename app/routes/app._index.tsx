@@ -2,6 +2,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link } from "@remix-run/react";
+import { useState } from "react";
 import {
   Page,
   Card,
@@ -11,6 +12,7 @@ import {
   Box,
   Button,
   Badge,
+  Divider,
 } from "@shopify/polaris";
 import {
   PersonIcon,
@@ -188,9 +190,9 @@ function KpiCard({
 // ── AR Aging bar ──
 function agingBarColor(label: string): string {
   if (label.includes("90"))   return "var(--p-color-bg-fill-critical)";
-  if (label.includes("61–90") || label.includes("61-90")) return "var(--p-color-bg-fill-caution)";
-  if (label.includes("31–60") || label.includes("31-60")) return "#f59e0b";
-  if (label.includes("1–30")  || label.includes("1-30"))  return "var(--p-color-bg-fill-brand)";
+  if (label.includes("61"))   return "var(--p-color-bg-fill-critical)";
+  if (label.includes("31"))   return "var(--p-color-bg-fill-caution)";
+  if (label.includes("1"))    return "var(--p-color-bg-fill-brand)";
   return "var(--p-color-bg-fill-success)";
 }
 
@@ -217,7 +219,11 @@ function QuotaRing({ pct, label, used, total }: { pct: number; label: string; us
   return (
     <InlineStack gap="300" blockAlign="center">
       <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
-        <svg width="80" height="80" viewBox="0 0 80 80">
+        <svg
+          width="80" height="80" viewBox="0 0 80 80"
+          role="img"
+          aria-label={`${label} usage: ${Math.round(clamped)}% — ${used} of ${total}`}
+        >
           <circle cx="40" cy="40" r="32" fill="none" stroke={trackColor} strokeWidth="6" />
           <circle
             cx="40" cy="40" r="32"
@@ -257,6 +263,7 @@ function QuotaRing({ pct, label, used, total }: { pct: number; label: string; us
 
 // ── Action Tile ──
 function ActionTile({ icon, label, url, primary }: { icon: React.ReactNode; label: string; url: string; primary?: boolean }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <Link to={url} style={{ textDecoration: "none", flex: 1, minWidth: 140 }}>
       <div
@@ -270,13 +277,10 @@ function ActionTile({ icon, label, url, primary }: { icon: React.ReactNode; labe
           gap: "var(--p-space-300)",
           cursor: "pointer",
           transition: "box-shadow 0.15s ease",
+          boxShadow: hovered ? "var(--p-shadow-card-sm)" : "none",
         }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--p-shadow-card-sm)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
         <div style={{ color: primary ? "var(--p-color-text-on-color)" : "var(--p-color-text-brand)", flexShrink: 0, display: "flex" }}>
           {icon}
@@ -302,6 +306,64 @@ function customerAvatarColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length] ?? "#4f46e5";
+}
+
+function CustomerCard({ customer }: { customer: { id: string; name: string; company?: string | null; status: string; creditGrade?: string | null } }) {
+  const [hovered, setHovered] = useState(false);
+  const initials = customerAvatarInitials(customer.name);
+  const avatarBg = customerAvatarColor(customer.name);
+  return (
+    <Link to={`/app/customers/${customer.id}`} style={{ textDecoration: "none" }}>
+      <div
+        style={{
+          padding: "var(--p-space-400)",
+          borderRadius: "var(--p-border-radius-200)",
+          border: "1px solid var(--p-color-border-secondary)",
+          background: "var(--p-color-bg-surface)",
+          transition: "box-shadow 0.15s ease",
+          boxShadow: hovered ? "var(--p-shadow-card-sm)" : "none",
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <InlineStack gap="300" blockAlign="center" wrap={false}>
+          <div
+            style={{
+              width: 40, height: 40,
+              borderRadius: "var(--p-border-radius-full)",
+              background: avatarBg, color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, fontWeight: 600, flexShrink: 0,
+            }}
+          >
+            {initials}
+          </div>
+          <BlockStack gap="050" inlineAlign="start">
+            <Text as="span" variant="bodyMd" fontWeight="bold" truncate>{customer.name}</Text>
+            {customer.company && (
+              <Text as="span" variant="bodySm" tone="subdued" truncate>{customer.company}</Text>
+            )}
+          </BlockStack>
+        </InlineStack>
+        <div style={{ marginTop: "var(--p-space-300)", display: "flex", gap: "var(--p-space-200)", flexWrap: "wrap" }}>
+          {customer.creditGrade && (
+            <Badge size="small">{customer.creditGrade.replace("_", "+")}</Badge>
+          )}
+          <Badge
+            size="small"
+            tone={
+              customer.status === "ACTIVE" ? "success" :
+              customer.status === "FROZEN" ? "warning" :
+              customer.status === "INACTIVE" ? "attention" :
+              "new"
+            }
+          >
+            {customer.status}
+          </Badge>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 // ── Dashboard ──
@@ -375,7 +437,7 @@ export default function Dashboard() {
                   })}
                 </BlockStack>
 
-                <div style={{ height: 1, background: "var(--p-color-border-secondary)" }} />
+                <Divider />
 
                 {/* Summary */}
                 <InlineStack gap="400" wrap>
@@ -490,72 +552,9 @@ export default function Dashboard() {
                 </Box>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-                  {recentCustomers.map((c) => {
-                    const initials = customerAvatarInitials(c.name);
-                    const avatarBg = customerAvatarColor(c.name);
-                    return (
-                      <Link key={c.id} to={`/app/customers/${c.id}`} style={{ textDecoration: "none" }}>
-                        <div
-                          style={{
-                            padding: "var(--p-space-400)",
-                            borderRadius: "var(--p-border-radius-200)",
-                            border: "1px solid var(--p-color-border-secondary)",
-                            background: "var(--p-color-bg-surface)",
-                            transition: "box-shadow 0.15s ease",
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--p-shadow-card-sm)";
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-                          }}
-                        >
-                          <InlineStack gap="300" blockAlign="center" wrap={false}>
-                            {/* Avatar */}
-                            <div
-                              style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: "var(--p-border-radius-full)",
-                                background: avatarBg,
-                                color: "#fff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 14,
-                                fontWeight: 600,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {initials}
-                            </div>
-                            <BlockStack gap="050" inlineAlign="start">
-                              <Text as="span" variant="bodyMd" fontWeight="bold" truncate>{c.name}</Text>
-                              {c.company && (
-                                <Text as="span" variant="bodySm" tone="subdued" truncate>{c.company}</Text>
-                              )}
-                            </BlockStack>
-                          </InlineStack>
-                          <div style={{ marginTop: "var(--p-space-300)", display: "flex", gap: "var(--p-space-200)", flexWrap: "wrap" }}>
-                            {c.creditGrade && (
-                              <Badge size="small">{c.creditGrade.replace("_", "+")}</Badge>
-                            )}
-                            <Badge
-                              size="small"
-                              tone={
-                                c.status === "ACTIVE" ? "success" :
-                                c.status === "FROZEN" ? "warning" :
-                                c.status === "INACTIVE" ? "attention" :
-                                "new"
-                              }
-                            >
-                              {c.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
+                  {recentCustomers.map((c) => (
+                    <CustomerCard key={c.id} customer={c} />
+                  ))}
                 </div>
               )}
             </BlockStack>

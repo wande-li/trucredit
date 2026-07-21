@@ -181,29 +181,5 @@ export const GET_CUSTOMER_METAFIELD = `#graphql
   }
 `;
 
-// ─── App Billing ──────────────────────────────────────────
-
-export const APP_SUBSCRIPTION_CREATE = `#graphql
-  mutation AppSubscriptionCreate(
-    $name: String!,
-    $lineItems: [AppSubscriptionLineItemInput!]!,
-    $returnUrl: URL!
-  ) {
-    appSubscriptionCreate(name: $name, lineItems: $lineItems, returnUrl: $returnUrl) {
-      appSubscription { id status }
-      confirmationUrl
-      userErrors { field message }
-    }
-  }
-`;
-
-// ─── Webhook Registration ─────────────────────────────────
-
-export const WEBHOOK_SUBSCRIPTION_CREATE = `#graphql
-  mutation WebhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
-    webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
-      webhookSubscription { id topic endpoint { ... on WebhookHttpEndpoint { callbackUrl } } }
-      userErrors { field message }
-    }
-  }
-`;
+// APP_SUBSCRIPTION_CREATE removed — replaced by Shopify Managed Pricing (shopify.app.toml)
+// WEBHOOK_SUBSCRIPTION_CREATE removed — replaced by shopify.app.toml webhooks config

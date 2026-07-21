@@ -21,6 +21,7 @@ api_version = "2025-10"
     "orders/create",
     "orders/updated",
     "orders/cancelled",
+    "refunds/create",
     "customers/update",
     "companies/create",
     "companies/update",

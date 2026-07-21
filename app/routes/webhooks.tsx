@@ -353,6 +353,84 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response(null, { status: 200 });
   }
 
+  // ─── Refund Created — release credit proportionally ─
+  if (topic === "REFUNDS_CREATE") {
+    const orderId = String(p.order_id ?? "");
+    const refundLineItems: Array<{ quantity?: number; subtotal?: number | string }> =
+      Array.isArray(p.refund_line_items) ? p.refund_line_items : [];
+    let refundTotal = 0;
+    // Sum from refund_line_items
+    for (const item of refundLineItems) {
+      refundTotal += Number(item.subtotal ?? 0);
+    }
+    // Fallback: sum from transactions
+    if (refundTotal === 0) {
+      const txs: Array<{ amount?: string | number; kind?: string }> =
+        Array.isArray(p.transactions) ? p.transactions : [];
+      for (const tx of txs) {
+        if (tx.kind === "refund") refundTotal += Number(tx.amount ?? 0);
+      }
+    }
+
+    if (orderId && refundTotal > 0) {
+      const invoice = await prisma.invoice.findFirst({
+        where: { shopifyOrderId: orderId },
+        select: { id: true, customerId: true, amount: true, status: true },
+      });
+
+      if (invoice && invoice.status !== "VOID") {
+        const invoiceAmount = Number(invoice.amount);
+        const releasedAmount = Math.min(refundTotal, invoiceAmount);
+        const remainingAfter = invoiceAmount - releasedAmount;
+        const isFullyRefunded = remainingAfter <= 0.01;
+
+        await prisma.$transaction([
+          prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              ...(isFullyRefunded
+                ? { status: "VOID", voidedAt: new Date() }
+                : { amount: remainingAfter }),
+            },
+          }),
+          prisma.customer.update({
+            where: { id: invoice.customerId },
+            data: {
+              creditUsed: { decrement: releasedAmount },
+              creditAvailable: { increment: releasedAmount },
+            },
+          }),
+          // Stop active collection tasks if fully refunded
+          ...(isFullyRefunded
+            ? [
+                prisma.collectionTask.updateMany({
+                  where: { invoiceId: invoice.id, status: "ACTIVE" },
+                  data: { status: "COMPLETED" },
+                }),
+              ]
+            : []),
+        ]);
+
+        if (shopifyAdmin) {
+          await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Metafield sync failed after refund", msg);
+          });
+        }
+
+        logger.app("INFO", "Refund processed", {
+          orderId,
+          refundTotal,
+          releasedAmount,
+          isFullyRefunded,
+          invoiceId: invoice.id,
+        });
+      }
+    }
+
+    return new Response(null, { status: 200 });
+  }
+
   // ─── GDPR: Customers Data Request ─────────────────
   if (topic === "CUSTOMERS_DATA_REQUEST") {
     const customerId = String(p.id ?? "");

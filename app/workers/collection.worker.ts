@@ -14,6 +14,7 @@ import {
   freezeCheckQueue,
 } from "~/queues/collection.queue";
 import { enqueueEmail } from "~/queues/email.queue";
+import { createCollectionDraftOrder } from "~/services/invoice-ordering.server";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 
@@ -199,6 +200,23 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           stepOrder,
         });
 
+        // P1: Create Shopify native draft order at later collection stages (30+ days)
+        if (stepOrder >= 4 && invoice.shop?.id && invoice.customer.shopifyCustomerId) {
+          void createCollectionDraftOrder({
+            shopId: invoice.shop.id,
+            customerId: invoice.customerId,
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            amount: Number(invoice.amount),
+            currency: invoice.currency,
+            customerEmail: invoice.customer.email,
+            shopifyCustomerId: invoice.customer.shopifyCustomerId,
+          }).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Collection draft order failed (new task)", msg, logCtx);
+          });
+        }
+
         logger.app("INFO", "Invoice worker: task created + email queued", undefined, {
           ...logCtx,
           customerName: invoice.customer.name,
@@ -261,6 +279,23 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           taskId: existingTask.id,
           stepOrder,
         });
+
+        // P1: Create Shopify native draft order at later collection stages (30+ days)
+        if (stepOrder >= 4 && shopId && invoice.customer.shopifyCustomerId) {
+          void createCollectionDraftOrder({
+            shopId,
+            customerId: invoice.customerId,
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            amount: Number(invoice.amount),
+            currency: invoice.currency,
+            customerEmail: invoice.customer.email,
+            shopifyCustomerId: invoice.customer.shopifyCustomerId,
+          }).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Collection draft order failed (task advance)", msg, logCtx);
+          });
+        }
 
         logger.app("INFO", "Invoice worker: task advanced + email queued", undefined, {
           ...logCtx,

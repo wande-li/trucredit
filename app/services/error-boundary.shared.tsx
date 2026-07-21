@@ -47,7 +47,7 @@ export function RouteError({ error }: { error?: unknown }) {
             borderRadius: 8,
             textDecoration: "none",
             background: "var(--p-color-bg-fill-brand)",
-            color: "var(--p-color-text-on-color)",
+            color: "#ffffff",
             fontSize: 14,
             fontWeight: 600,
           }}

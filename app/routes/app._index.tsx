@@ -1,4 +1,4 @@
-// TruCredit Dashboard — v2 Redesign: icon-driven KPI tiles, gradient bars, action grid
+// TruCredit Dashboard — v3 Clean redesign
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link } from "@remix-run/react";
@@ -26,7 +26,6 @@ import {
   CalendarCheckIcon,
   GaugeIcon,
   TargetIcon,
-  ClipboardChecklistIcon,
   ChartLineIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "~/shopify.server";
@@ -123,14 +122,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ── Styling helpers ──
+// ── KPI card — clean white card with colored accent border ──
 type KpiTone = "default" | "success" | "warning" | "critical";
 
-const kpiPalette: Record<KpiTone, { bg: string; iconBg: string; iconColor: string; border: string }> = {
-  default:   { bg: "var(--p-color-bg-surface)",             iconBg: "var(--p-color-bg-fill-brand-subdued)",  iconColor: "var(--p-color-text-brand)",       border: "var(--p-color-border-secondary)" },
-  success:   { bg: "var(--p-color-bg-surface-success)",      iconBg: "var(--p-color-bg-fill-success)",         iconColor: "var(--p-color-text-success)",      border: "var(--p-color-border-success)" },
-  warning:   { bg: "var(--p-color-bg-surface-caution)",      iconBg: "var(--p-color-bg-fill-caution)",         iconColor: "var(--p-color-text-caution)",      border: "var(--p-color-border-caution)" },
-  critical:  { bg: "var(--p-color-bg-surface-critical)",     iconBg: "var(--p-color-bg-fill-critical)",        iconColor: "var(--p-color-text-critical)",     border: "var(--p-color-border-critical)" },
+const kpiAccent: Record<KpiTone, { borderColor: string; iconBg: string; iconColor: string }> = {
+  default:  { borderColor: "transparent",      iconBg: "var(--p-color-bg-fill-secondary)", iconColor: "var(--p-color-text-brand)" },
+  success:  { borderColor: "var(--p-color-text-success)",  iconBg: "var(--p-color-bg-fill-success)",  iconColor: "var(--p-color-text-success)" },
+  warning:  { borderColor: "var(--p-color-text-caution)", iconBg: "var(--p-color-bg-fill-caution)",  iconColor: "var(--p-color-text-caution)" },
+  critical: { borderColor: "var(--p-color-text-critical)",  iconBg: "var(--p-color-bg-fill-critical)", iconColor: "var(--p-color-text-critical)" },
 };
 
 function KpiCard({
@@ -144,46 +143,48 @@ function KpiCard({
   value: string | number;
   tone?: KpiTone;
 }) {
-  const c = kpiPalette[tone];
+  const a = kpiAccent[tone];
   return (
-    <div
+    <Box
+      background="bg-surface"
+      borderWidth="025"
+      borderColor="border-secondary"
+      borderRadius="200"
+      padding="400"
+      minWidth="160px"
       style={{
-        background: c.bg,
-        borderRadius: "var(--p-border-radius-300)",
-        border: `1px solid ${c.border}`,
-        minWidth: 170,
         flex: 1,
-        overflow: "hidden",
+        borderLeftWidth: tone !== "default" ? "3px" : undefined,
+        borderLeftStyle: tone !== "default" ? "solid" : undefined,
+        borderLeftColor: tone !== "default" ? a.borderColor : undefined,
       }}
     >
-      <div style={{ padding: "var(--p-space-400)" }}>
-        <InlineStack gap="300" blockAlign="center" wrap={false}>
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: "var(--p-border-radius-200)",
-              background: c.iconBg,
-              color: c.iconColor,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </div>
-          <BlockStack gap="050">
-            <Text as="p" variant="headingXl" fontWeight="bold">
-              {value}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
-              {label}
-            </Text>
-          </BlockStack>
-        </InlineStack>
-      </div>
-    </div>
+      <InlineStack gap="300" blockAlign="center" wrap={false}>
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: "var(--p-border-radius-200)",
+            background: a.iconBg,
+            color: a.iconColor,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+        <BlockStack gap="050">
+          <Text as="p" variant="headingLg" fontWeight="bold">
+            {value}
+          </Text>
+          <Text as="p" variant="bodySm" tone="subdued">
+            {label}
+          </Text>
+        </BlockStack>
+      </InlineStack>
+    </Box>
   );
 }
 
@@ -261,38 +262,6 @@ function QuotaRing({ pct, label, used, total }: { pct: number; label: string; us
   );
 }
 
-// ── Action Tile ──
-function ActionTile({ icon, label, url, primary }: { icon: React.ReactNode; label: string; url: string; primary?: boolean }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Link to={url} style={{ textDecoration: "none", flex: 1, minWidth: 140 }}>
-      <div
-        style={{
-          padding: "var(--p-space-400)",
-          borderRadius: "var(--p-border-radius-200)",
-          border: "1px solid var(--p-color-border-secondary)",
-          background: primary ? "var(--p-color-bg-fill-brand)" : "var(--p-color-bg-surface)",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--p-space-300)",
-          cursor: "pointer",
-          transition: "box-shadow 0.15s ease",
-          boxShadow: hovered ? "var(--p-shadow-card-sm)" : "none",
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        <div style={{ color: primary ? "var(--p-color-text-on-color)" : "var(--p-color-text-brand)", flexShrink: 0, display: "flex" }}>
-          {icon}
-        </div>
-        <Text as="span" variant="bodyMd" fontWeight="medium">
-          <span style={primary ? { color: "var(--p-color-text-on-color)" } : undefined}>{label}</span>
-        </Text>
-      </div>
-    </Link>
-  );
-}
-
 // ── Recent Customer card ──
 function customerAvatarInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -321,7 +290,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
           border: "1px solid var(--p-color-border-secondary)",
           background: "var(--p-color-bg-surface)",
           transition: "box-shadow 0.15s ease",
-          boxShadow: hovered ? "var(--p-shadow-card-sm)" : "none",
+          boxShadow: hovered ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -487,38 +456,32 @@ export default function Dashboard() {
 
           {/* ═══ Collections Overview + Quick Actions (merged) ═══ */}
           <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
+            <BlockStack gap="500">
+              {/* Active Tasks Counter */}
+              <InlineStack align="space-between" blockAlign="center" wrap={false}>
                 <InlineStack gap="200" blockAlign="center">
-                  <ClipboardChecklistIcon style={{ width: 20, height: 20, color: "var(--p-color-text-brand)" }} />
-                  <Text as="h2" variant="headingMd">Collections &amp; Quick Actions</Text>
+                  <TargetIcon style={{ width: 20, height: 20, color: "var(--p-color-text-caution)" }} />
+                  <BlockStack gap="050">
+                    <Text as="span" variant="bodySm" tone="subdued">Active tasks</Text>
+                    <Text as="span" variant="headingLg" fontWeight="bold">{collectionStats.activeTasks}</Text>
+                  </BlockStack>
                 </InlineStack>
                 <Link to="/app/tasks" style={{ textDecoration: "none" }}>
                   <Text as="span" variant="bodySm" tone="success" fontWeight="medium">All tasks →</Text>
                 </Link>
               </InlineStack>
 
-              <InlineStack gap="300" wrap>
-                <Box
-                  borderColor="border-secondary"
-                  borderWidth="025"
-                  borderRadius="200"
-                  padding="400"
-                  minWidth="120px"
-                >
-                  <InlineStack gap="300" blockAlign="center" wrap={false}>
-                    <TargetIcon style={{ width: 20, height: 20, color: "var(--p-color-text-caution)" }} />
-                    <BlockStack gap="050">
-                      <Text as="p" variant="headingLg" fontWeight="bold">{collectionStats.activeTasks}</Text>
-                      <Text as="p" variant="bodySm">Active tasks</Text>
-                    </BlockStack>
-                  </InlineStack>
-                </Box>
+              <Divider />
 
-                <ActionTile icon={<PersonAddIcon style={{ width: 20, height: 20 }} />} label="Add Customer" url="/app/customers/new" primary />
-                <ActionTile icon={<OrderIcon style={{ width: 20, height: 20 }} />} label="Create Invoice" url="/app/invoices/new" />
-                <ActionTile icon={<CalendarCheckIcon style={{ width: 20, height: 20 }} />} label="Collections" url="/app/collections" />
-              </InlineStack>
+              {/* Quick Action Buttons */}
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingSm" tone="subdued">QUICK ACTIONS</Text>
+                <InlineStack gap="300" wrap>
+                  <Button url="/app/customers/new" icon={PersonAddIcon} variant="primary">Add Customer</Button>
+                  <Button url="/app/invoices/new" icon={OrderIcon}>Create Invoice</Button>
+                  <Button url="/app/collections" icon={CalendarCheckIcon}>Collections</Button>
+                </InlineStack>
+              </BlockStack>
             </BlockStack>
           </Card>
 

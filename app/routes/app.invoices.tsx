@@ -22,6 +22,8 @@ import { listInvoices, getARAgingReport } from "~/services/invoice.server";
 import prisma from "~/db.server";
 import { useCallback, useMemo } from "react";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -341,4 +343,14 @@ export default function Invoices() {
       </BlockStack>
     </Page>
   );
+}
+
+// P2-9: Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+
+// P2-10: Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

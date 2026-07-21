@@ -116,128 +116,143 @@ async function syncHistoricalOrders(
   let skipped = 0;
   let cursor: string | null = null;
   let hasNextPage = true;
+  let errors = 0; // P1-4: error counter for melt-fuse
 
   while (hasNextPage) {
-    const result: GraphQLResponse<OrdersPageData> = await adminGraphQL<OrdersPageData>(
-      admin,
-      shopDomain,
-      GET_ORDERS,
-      { first: 50, query: dateFilter, after: cursor },
-    );
+    // P1-4: Per-page try-catch isolation — one failed page doesn't abort entire sync
+    try {
+      const result: GraphQLResponse<OrdersPageData> = await adminGraphQL<OrdersPageData>(
+        admin,
+        shopDomain,
+        GET_ORDERS,
+        { first: 50, query: dateFilter, after: cursor },
+      );
 
-    if (!result.data?.orders) {
-      logger.app("WARN", "Sync orders: no data", { shopDomain, cursor });
-      break;
-    }
-
-    // Collect eligible B2B orders (no DB queries yet)
-    const validOrders: Array<{
-      order: typeof result.data.orders.edges[number]["node"];
-      shopifyCustomerId: string;
-      shopifyOrderId: string;
-    }> = [];
-
-    for (const { node: order } of result.data.orders.edges) {
-      // Only process B2B orders (with purchasingEntity)
-      if (!order.purchasingEntity?.company) continue;
-
-      const customerId = order.customer?.id;
-      if (!customerId) continue;
-
-      // --- Batch lookup preparation ---
-      // Collect all customer + invoice identifiers from this page first,
-      // then batch-query to avoid N+1 per order.
-      validOrders.push({
-        order,
-        shopifyCustomerId: String(customerId),
-        shopifyOrderId: String(order.id),
-      });
-    }
-
-    // --- Batch: find existing customers ---
-    const customerIds = [...new Set(validOrders.map(o => o.shopifyCustomerId))];
-    const existingCustomers = await prisma.customer.findMany({
-      where: {
-        shopId,
-        shopifyCustomerId: { in: customerIds },
-      },
-      select: { id: true, shopifyCustomerId: true },
-    });
-    const customerMap = new Map(existingCustomers.map(c => [c.shopifyCustomerId, c.id]));
-
-    // --- Batch: find existing invoices ---
-    const orderIds = validOrders.map(o => o.shopifyOrderId);
-    const existingInvoices = await prisma.invoice.findMany({
-      where: {
-        shopId,
-        shopifyOrderId: { in: orderIds },
-      },
-      select: { shopifyOrderId: true },
-    });
-    const invoiceSet = new Set(existingInvoices.map(i => i.shopifyOrderId));
-
-    // --- Process with pre-loaded maps ---
-    const newInvoices: Array<{
-      shopId: string;
-      customerId: string;
-      shopifyOrderId: string;
-      shopifyOrderName: string;
-      invoiceNumber: string;
-      amount: number;
-      currency: string;
-      issueDate: Date;
-      dueDate: Date;
-      status: InvoiceStatus;
-      netTermsDays: number;
-      paidDate?: Date;
-    }> = [];
-
-    for (const { order, shopifyCustomerId, shopifyOrderId } of validOrders) {
-      const dbCustomerId = customerMap.get(shopifyCustomerId);
-      if (!dbCustomerId) continue;
-
-      if (invoiceSet.has(shopifyOrderId)) {
-        skipped++;
-        continue;
+      if (!result.data?.orders) {
+        logger.app("WARN", "Sync orders: no data", { shopDomain, cursor });
+        break;
       }
 
-      const amount = parseFloat(order.totalPriceSet.shopMoney.amount);
-      const currency = order.totalPriceSet.shopMoney.currencyCode;
-      const status = mapFinancialStatus(order.displayFinancialStatus);
-      const netTermsDays = order.paymentTerms?.dueInDays || 30;
+      // Collect eligible B2B orders (no DB queries yet)
+      const validOrders: Array<{
+        order: typeof result.data.orders.edges[number]["node"];
+        shopifyCustomerId: string;
+        shopifyOrderId: string;
+      }> = [];
 
-      const dueDate = new Date(order.createdAt);
-      dueDate.setDate(dueDate.getDate() + netTermsDays);
+      for (const { node: order } of result.data.orders.edges) {
+        // Only process B2B orders (with purchasingEntity)
+        if (!order.purchasingEntity?.company) continue;
 
-      const paidDate =
-        status === "PAID" && order.paymentTerms?.paymentSchedules?.edges?.[0]?.node?.completedAt
-          ? new Date(order.paymentTerms.paymentSchedules.edges[0].node.completedAt)
-          : undefined;
+        const customerId = order.customer?.id;
+        if (!customerId) continue;
 
-      newInvoices.push({
-        shopId,
-        customerId: dbCustomerId,
-        shopifyOrderId,
-        shopifyOrderName: order.name,
-        invoiceNumber: order.name.replace("#", ""),
-        amount,
-        currency,
-        issueDate: new Date(order.createdAt),
-        dueDate,
-        status,
-        netTermsDays,
-        ...(paidDate ? { paidDate } : {}),
+        validOrders.push({
+          order,
+          shopifyCustomerId: String(customerId),
+          shopifyOrderId: String(order.id),
+        });
+      }
+
+      // --- Batch: find existing customers ---
+      const customerIds = [...new Set(validOrders.map(o => o.shopifyCustomerId))];
+      const existingCustomers = await prisma.customer.findMany({
+        where: {
+          shopId,
+          shopifyCustomerId: { in: customerIds },
+        },
+        select: { id: true, shopifyCustomerId: true },
       });
-      created++;
-    }
+      const customerMap = new Map(existingCustomers.map(c => [c.shopifyCustomerId, c.id]));
 
-    // Batch insert all new invoices in a single query
-    if (newInvoices.length > 0) {
-      await prisma.invoice.createMany({ data: newInvoices });
-    }
+      // --- Batch: find existing invoices ---
+      const orderIds = validOrders.map(o => o.shopifyOrderId);
+      const existingInvoices = await prisma.invoice.findMany({
+        where: {
+          shopId,
+          shopifyOrderId: { in: orderIds },
+        },
+        select: { shopifyOrderId: true },
+      });
+      const invoiceSet = new Set(existingInvoices.map(i => i.shopifyOrderId));
 
-    hasNextPage = result.data.orders.pageInfo.hasNextPage;
-    cursor = result.data.orders.pageInfo.endCursor;
+      // --- Process with pre-loaded maps ---
+      const newInvoices: Array<{
+        shopId: string;
+        customerId: string;
+        shopifyOrderId: string;
+        shopifyOrderName: string;
+        invoiceNumber: string;
+        amount: number;
+        currency: string;
+        issueDate: Date;
+        dueDate: Date;
+        status: InvoiceStatus;
+        netTermsDays: number;
+        paidDate?: Date;
+      }> = [];
+
+      for (const { order, shopifyCustomerId, shopifyOrderId } of validOrders) {
+        const dbCustomerId = customerMap.get(shopifyCustomerId);
+        if (!dbCustomerId) continue;
+
+        if (invoiceSet.has(shopifyOrderId)) {
+          skipped++;
+          continue;
+        }
+
+        const amount = parseFloat(order.totalPriceSet.shopMoney.amount);
+        const currency = order.totalPriceSet.shopMoney.currencyCode;
+        const status = mapFinancialStatus(order.displayFinancialStatus);
+        const netTermsDays = order.paymentTerms?.dueInDays || 30;
+
+        const dueDate = new Date(order.createdAt);
+        dueDate.setDate(dueDate.getDate() + netTermsDays);
+
+        const paidDate =
+          status === "PAID" && order.paymentTerms?.paymentSchedules?.edges?.[0]?.node?.completedAt
+            ? new Date(order.paymentTerms.paymentSchedules.edges[0].node.completedAt)
+            : undefined;
+
+        newInvoices.push({
+          shopId,
+          customerId: dbCustomerId,
+          shopifyOrderId,
+          shopifyOrderName: order.name,
+          invoiceNumber: order.name.replace("#", ""),
+          amount,
+          currency,
+          issueDate: new Date(order.createdAt),
+          dueDate,
+          status,
+          netTermsDays,
+          ...(paidDate ? { paidDate } : {}),
+        });
+        created++;
+      }
+
+      // Batch insert all new invoices in a single query
+      if (newInvoices.length > 0) {
+        await prisma.invoice.createMany({ data: newInvoices });
+      }
+
+      hasNextPage = result.data.orders.pageInfo.hasNextPage;
+      cursor = result.data.orders.pageInfo.endCursor;
+      errors = 0; // reset error counter on successful page
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors++;
+      logger.app("WARN", `Sync: page failed (error ${errors}/10)`, msg, { shopDomain, cursor });
+
+      // P1-4: Melt-fuse — abort after 10 consecutive page failures
+      if (errors >= 10) {
+        logger.app("ERROR", "Sync: too many page errors, aborting", undefined, { shopDomain, errors });
+        hasNextPage = false;
+      }
+      // otherwise continue to next page (cursor stays same, may get partial coverage)
+      hasNextPage = errors < 10 && result?.data?.orders?.pageInfo?.hasNextPage;
+      if (hasNextPage) cursor = result?.data?.orders?.pageInfo?.endCursor ?? cursor;
+    }
   }
 
   logger.app("INFO", "Historical order sync complete", { shopId, created, skipped });

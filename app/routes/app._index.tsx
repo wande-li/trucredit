@@ -22,6 +22,8 @@ import { getARAgingReport } from "~/services/invoice.server";
 import { logger } from "~/services/logger.server";
 import OnboardingGuide from "~/components/OnboardingGuide";
 import QuickTips from "~/components/QuickTips";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -442,4 +444,14 @@ export default function Dashboard() {
       </Page>
     </div>
   );
+}
+
+// P2-9: Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+
+// P2-10: Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

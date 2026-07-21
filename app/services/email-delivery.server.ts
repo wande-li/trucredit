@@ -7,6 +7,10 @@ import { getTemplate, fillTemplate, stageToTemplateKey } from "~/services/email.
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { TemplateType } from "@prisma/client";
 import type { CollectionStage, ToneLevel } from "~/types/collection";
+import redis from "~/lib/redis.server";
+
+// P2-7: Rate limit — 1 test email per 60s per recipient
+const TEST_EMAIL_RATE = { max: 1, window: 60, prefix: "b2b:test-email-rate:" };
 
 // ═══════════════════ SES Client ═══════════════════
 
@@ -181,6 +185,18 @@ export async function sendCollectionEmail(
  * Send a test email to verify SES configuration
  */
 export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
+  // P2-7: Rate limit — 1 test email per 60s per recipient
+  const rateKey = `${TEST_EMAIL_RATE.prefix}${toEmail}`;
+  try {
+    const recent = await redis.get(rateKey);
+    if (recent) {
+      return { sent: false, error: `Rate limited. Please wait ${TEST_EMAIL_RATE.window}s before sending another test email.` };
+    }
+    await redis.set(rateKey, "1", "EX", TEST_EMAIL_RATE.window);
+  } catch {
+    // Redis unavailable — allow through (fail-open)
+  }
+
   const ses = getSESClient();
   const fromEmail = process.env.FROM_EMAIL || "noreply@example.com";
 

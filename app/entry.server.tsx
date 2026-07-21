@@ -277,6 +277,17 @@ export default async function handleRequest(
   const pathname = url.pathname;
   const shouldLog = !pathname.startsWith("/build/") && !pathname.startsWith("/assets/");
 
+  // P2-4: Health check endpoint — bypass Remix rendering for uptime monitoring
+  if (pathname === "/health") {
+    return new Response(
+      JSON.stringify({ status: "ok", uptime: process.uptime() }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
   return withRequestContext(
     { requestId, path: pathname, method: request.method },
     () => {

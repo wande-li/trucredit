@@ -152,16 +152,22 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           },
         });
 
-        await prisma.collectionEvent.create({
-          data: {
-            taskId: created.id,
-            type: "EMAIL_SENT",
-            channel: step.channel,
-            stepOrder,
-            toneLevel: step.toneLevel,
-            aiGenerated: step.useAI,
-          },
+        // P1-2: Dedup — check if event for this task+step already exists (retry safety)
+        const existingEvent = await prisma.collectionEvent.findFirst({
+          where: { taskId: created.id, stepOrder, type: "EMAIL_SENT" },
         });
+        if (!existingEvent) {
+          await prisma.collectionEvent.create({
+            data: {
+              taskId: created.id,
+              type: "EMAIL_SENT",
+              channel: step.channel,
+              stepOrder,
+              toneLevel: step.toneLevel,
+              aiGenerated: step.useAI,
+            },
+          });
+        }
 
         // Enqueue actual email delivery
         const daysOverdue = Math.floor(
@@ -209,16 +215,22 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           },
         });
 
-        await prisma.collectionEvent.create({
-          data: {
-            taskId: existingTask.id,
-            type: "EMAIL_SENT",
-            channel: step.channel,
-            stepOrder,
-            toneLevel: step.toneLevel,
-            aiGenerated: step.useAI,
-          },
+        // P1-2: Dedup — check before creating advance event
+        const existingAdvanceEvent = await prisma.collectionEvent.findFirst({
+          where: { taskId: existingTask.id, stepOrder, type: "EMAIL_SENT" },
         });
+        if (!existingAdvanceEvent) {
+          await prisma.collectionEvent.create({
+            data: {
+              taskId: existingTask.id,
+              type: "EMAIL_SENT",
+              channel: step.channel,
+              stepOrder,
+              toneLevel: step.toneLevel,
+              aiGenerated: step.useAI,
+            },
+          });
+        }
 
         // Enqueue actual email delivery
         const daysOverdue = Math.floor(

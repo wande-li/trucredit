@@ -7,6 +7,41 @@ import { logger } from "~/services/logger.server";
 import type { CollectionStage, ToneLevel, GeneratedEmail, ParsedReply } from "~/types";
 import type { ReplyIntent } from "@prisma/client";
 
+// P2-1: Input length limits
+const MAX_FIELD_LENGTH = {
+  customerName: 200,
+  companyName: 200,
+  invoiceNumber: 100,
+  amount: 20,
+  currency: 10,
+  dueDate: 20,
+  paymentLink: 2000,
+  fromEmail: 320,
+  subject: 1000,
+  body: 50_000,
+} as const;
+
+/** P2-2: Strip potential prompt injection markers */
+function sanitizeInput(input: string): string {
+  return input
+    .replace(/<\|[^|]*\|>/g, "")  // Strip special tokens like <|im_start|>
+    .replace(/\[SYSTEM\]|\[INST\]|\[\\INST\]/gi, "") // Strip instruction markers
+    .replace(/ignore (all )?(previous|prior|above) instructions/gi, "[filtered]")
+    .replace(/you are now|new persona|roleplay/gi, "[filtered]");
+}
+
+/** P2-1 + P2-2: Validate and sanitize string input */
+function checkInput(value: string, fieldName: string, maxLen: number): string {
+  if (value.length > maxLen) {
+    logger.app("WARN", `AI input truncated: ${fieldName}`, undefined, {
+      originalLen: value.length,
+      maxLen,
+    });
+    return sanitizeInput(value.slice(0, maxLen));
+  }
+  return sanitizeInput(value);
+}
+
 // ═══════════════════ System Prompts ═══════════════════
 // Reused from CollectFlow
 
@@ -67,16 +102,26 @@ export async function generateCollectionEmail(params: {
 }): Promise<GeneratedEmail> {
   const tone = STAGE_TONES[params.stage] || "Professional and polite.";
 
+  const safe = {
+    customerName: checkInput(params.customerName, "customerName", MAX_FIELD_LENGTH.customerName),
+    companyName: checkInput(params.companyName, "companyName", MAX_FIELD_LENGTH.companyName),
+    invoiceNumber: checkInput(params.invoiceNumber, "invoiceNumber", MAX_FIELD_LENGTH.invoiceNumber),
+    amount: checkInput(params.amount, "amount", MAX_FIELD_LENGTH.amount),
+    currency: checkInput(params.currency, "currency", MAX_FIELD_LENGTH.currency),
+    dueDate: checkInput(params.dueDate, "dueDate", MAX_FIELD_LENGTH.dueDate),
+    paymentLink: checkInput(params.paymentLink, "paymentLink", MAX_FIELD_LENGTH.paymentLink),
+  };
+
   const systemPrompt = `${EMAIL_SYSTEM_PROMPT}\n\nTone for this email: ${tone}. Stage: ${params.stage}. Tone level: ${params.toneLevel}/7.`;
 
   const userPrompt = `Generate a B2B collection email with the following context:
-- Customer: ${params.customerName}
-- Company: ${params.companyName}
-- Invoice: ${params.invoiceNumber}
-- Amount: ${params.currency} ${params.amount}
-- Due Date: ${params.dueDate}
+- Customer: ${safe.customerName}
+- Company: ${safe.companyName}
+- Invoice: ${safe.invoiceNumber}
+- Amount: ${safe.currency} ${safe.amount}
+- Due Date: ${safe.dueDate}
 - Days Overdue: ${params.daysOverdue > 0 ? params.daysOverdue + " days" : "Not yet due"}
-- Payment Link: ${params.paymentLink}
+- Payment Link: ${safe.paymentLink}
 
 Keep it to 3-4 paragraphs. Use the payment link placeholder naturally in the email body.`;
 
@@ -87,6 +132,7 @@ Keep it to 3-4 paragraphs. Use the payment link placeholder naturally in the ema
       temperature: 0.7,
       maxTokens: 2048,
       responseFormat: "json_object",
+      timeout: 30_000, // P1-3: 30s timeout
     });
 
     const content = response.choices[0]?.message?.content || "{}";
@@ -121,10 +167,10 @@ export async function parseCustomerReply(params: {
     customerName: string;
   };
 }): Promise<ParsedReply> {
-  let context = `Email from: ${params.fromEmail}\nSubject: ${params.subject}\nBody: ${params.body}`;
+  let context = `Email from: ${checkInput(params.fromEmail, "fromEmail", MAX_FIELD_LENGTH.fromEmail)}\nSubject: ${checkInput(params.subject, "subject", MAX_FIELD_LENGTH.subject)}\nBody: ${checkInput(params.body, "body", MAX_FIELD_LENGTH.body)}`;
 
   if (params.invoiceContext) {
-    context = `Context: This reply is about invoice ${params.invoiceContext.invoiceNumber} (${params.invoiceContext.amount}, due ${params.invoiceContext.dueDate}) for customer ${params.invoiceContext.customerName}.\n\n${context}`;
+    context = `Context: This reply is about invoice ${checkInput(params.invoiceContext.invoiceNumber, "invoiceNumber", MAX_FIELD_LENGTH.invoiceNumber)} (${checkInput(params.invoiceContext.amount, "amount", MAX_FIELD_LENGTH.amount)}, due ${checkInput(params.invoiceContext.dueDate, "dueDate", MAX_FIELD_LENGTH.dueDate)}) for customer ${checkInput(params.invoiceContext.customerName, "customerName", MAX_FIELD_LENGTH.customerName)}.\n\n${context}`;
   }
 
   try {

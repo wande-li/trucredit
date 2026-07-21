@@ -84,7 +84,7 @@ export async function syncCreditMetafield(
 /**
  * Bulk sync metafields for all customers of a shop.
  * Called after initial sync or recovery scenarios.
- * Respects rate limits by batching.
+ * P2-3: Uses limited concurrency (5 per batch) instead of sequential or unlimited.
  */
 export async function syncAllCreditMetafields(
   admin: AdminApiContext,
@@ -105,22 +105,33 @@ export async function syncAllCreditMetafields(
     },
   });
 
+  const validCustomers = customers.filter((c) => c.shopifyCustomerId);
   let synced = 0;
   let failed = 0;
 
-  for (const customer of customers) {
-    if (!customer.shopifyCustomerId) continue;
+  // P2-3: Process in batches of 5 for limited concurrency
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < validCustomers.length; i += BATCH_SIZE) {
+    const batch = validCustomers.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((customer) =>
+        syncCreditMetafield(admin, shopDomain, customer.id),
+      ),
+    );
 
-    try {
-      await syncCreditMetafield(admin, shopDomain, customer.id);
-      synced++;
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.app("ERROR", "Bulk metafield sync failed for customer", {
-        customerId: customer.id,
-        error: msg,
-      });
-      failed++;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        synced++;
+      } else {
+        const msg =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+        logger.app("ERROR", "Bulk metafield sync failed for customer", {
+          error: msg,
+        });
+        failed++;
+      }
     }
   }
 

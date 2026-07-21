@@ -84,14 +84,18 @@ const shopify = shopifyApp({
   hooks: {
     afterAuth: async ({ session, admin }) => {
       const shopDomain = session.shop.trim();
+      // P2-11: Encrypt access token before storing
+      const encryptedToken = session.accessToken
+        ? (await import("~/lib/crypto.server")).encryptToken(session.accessToken)
+        : "";
       const upserted = await prisma.shop.upsert({
         where: { shopDomain },
         create: {
           shopDomain,
-          accessToken: session.accessToken || "",
+          accessToken: encryptedToken,
         },
         update: {
-          accessToken: session.accessToken || "",
+          accessToken: encryptedToken,
         },
         select: { id: true, uninstalledAt: true },
       });

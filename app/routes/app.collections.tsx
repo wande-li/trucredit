@@ -34,6 +34,8 @@ import type { TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -444,4 +446,14 @@ function CreateSequenceModal({
       </Modal.Section>
     </Modal>
   );
+}
+
+// P2-9: Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+
+// P2-10: Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

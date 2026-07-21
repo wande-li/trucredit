@@ -20,6 +20,8 @@ import {
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 // ── Constants ──
 const TIMEZONES = [
@@ -80,13 +82,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Invalid intent" } satisfies ActionData);
     }
 
+    // P2-6: Validate emailReplyTo format
+    const emailReplyTo = (formData.get("emailReplyTo") as string)?.trim() || null;
+    if (emailReplyTo) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(emailReplyTo)) {
+        return json({
+          error: "Invalid email format for Reply-To address",
+        } satisfies ActionData);
+      }
+      if (emailReplyTo.length > 320) {
+        return json({
+          error: "Email address is too long (max 320 characters)",
+        } satisfies ActionData);
+      }
+    }
+
+    // P2-6: Validate timezone against allowed list
+    const timezone = (formData.get("timezone") as string) || "America/New_York";
+    if (!TIMEZONES.some((tz) => tz.value === timezone)) {
+      return json({
+        error: `Invalid timezone: ${timezone}`,
+      } satisfies ActionData);
+    }
+
     await prisma.shop.update({
       where: { shopDomain: session.shop.trim() },
       data: {
         currency: (formData.get("currency") as string) || "USD",
-        timezone: (formData.get("timezone") as string) || "America/New_York",
+        timezone,
         emailFromName: (formData.get("emailFromName") as string) || null,
-        emailReplyTo: (formData.get("emailReplyTo") as string) || null,
+        emailReplyTo,
       },
     });
     return json({ success: "Settings saved successfully" } satisfies ActionData);
@@ -212,4 +238,14 @@ export default function SettingsPage() {
       </BlockStack>
     </Page>
   );
+}
+
+// P2-9: Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+
+// P2-10: Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

@@ -447,11 +447,38 @@ export async function escalateTask(params: {
 // ═══════════════════ Sweep Engine ═══════════════════
 // Adapted from CollectFlow's runCollectionSweep()
 
+// P1-1: Redis distributed lock to prevent overlapping sweeps
+const SWEEP_LOCK_KEY = "b2b:sweep:lock";
+const SWEEP_LOCK_TTL = 300; // 5-minute lock
+
 /**
  * Run a full collection sweep — match overdue invoices to sequences, create/advance tasks
- * This is the core engine called by cron/queue
+ * This is the core engine called by cron/queue.
+ * P1-1: Protected by Redis distributed lock to prevent concurrent sweeps.
  */
 export async function runCollectionSweep(): Promise<SweepResult> {
+  // P1-1: Acquire distributed lock
+  let lockAcquired = false;
+  try {
+    lockAcquired = (await redis.set(SWEEP_LOCK_KEY, Date.now().toString(), "EX", SWEEP_LOCK_TTL, "NX")) === "OK";
+  } catch (e: unknown) {
+    logger.app("WARN", "Sweep lock check failed, proceeding without lock", e instanceof Error ? e.message : String(e));
+  }
+
+  if (!lockAcquired) {
+    logger.app("INFO", "Sweep already running (lock held), skipping");
+    return {
+      shopsProcessed: 0,
+      invoicesMatched: 0,
+      emailsSent: 0,
+      emailsSkipped: 0,
+      tasksCreated: 0,
+      tasksAdvanced: 0,
+      errors: 1,
+      errorsList: ["Sweep already in progress — lock held"],
+    };
+  }
+
   const result: SweepResult = {
     shopsProcessed: 0,
     invoicesMatched: 0,
@@ -463,31 +490,42 @@ export async function runCollectionSweep(): Promise<SweepResult> {
     errorsList: [],
   };
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  try {
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
 
-  // Find all shops with active sequences
-  const activeSequences = await prisma.collectionSequence.findMany({
-    where: { isActive: true },
-    select: { shopId: true },
-    distinct: ["shopId"],
-  });
+    // Find all shops with active sequences
+    const activeSequences = await prisma.collectionSequence.findMany({
+      where: { isActive: true },
+      select: { shopId: true },
+      distinct: ["shopId"],
+    });
 
-  for (const { shopId } of activeSequences) {
-    try {
-      const shopResult = await sweepShop(shopId, todayStr, today);
-      result.shopsProcessed++;
-      result.invoicesMatched += shopResult.invoicesMatched;
-      result.emailsSent += shopResult.emailsSent;
-      result.emailsSkipped += shopResult.emailsSkipped;
-      result.tasksCreated += shopResult.tasksCreated;
-      result.tasksAdvanced += shopResult.tasksAdvanced;
-      result.errors += shopResult.errors;
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", `Shop ${shopId} sweep failed`, msg);
-      result.errors++;
-      result.errorsList.push(msg);
+    for (const { shopId } of activeSequences) {
+      try {
+        const shopResult = await sweepShop(shopId, todayStr, today);
+        result.shopsProcessed++;
+        result.invoicesMatched += shopResult.invoicesMatched;
+        result.emailsSent += shopResult.emailsSent;
+        result.emailsSkipped += shopResult.emailsSkipped;
+        result.tasksCreated += shopResult.tasksCreated;
+        result.tasksAdvanced += shopResult.tasksAdvanced;
+        result.errors += shopResult.errors;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", `Shop ${shopId} sweep failed`, msg);
+        result.errors++;
+        result.errorsList.push(msg);
+      }
+    }
+  } finally {
+    // Release lock — only if we acquired it
+    if (lockAcquired) {
+      try {
+        await redis.del(SWEEP_LOCK_KEY);
+      } catch {
+        // Lock release failure is non-critical (TTL will expire)
+      }
     }
   }
 

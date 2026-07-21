@@ -23,6 +23,8 @@ import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 const ACTION_LABELS: Record<CreditAction, string> = {
   SET_LIMIT: "Set Limit",
@@ -376,4 +378,14 @@ function RuleRow({
       </IndexTable.Cell>
     </IndexTable.Row>
   );
+}
+
+// P2-9: Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+
+// P2-10: Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

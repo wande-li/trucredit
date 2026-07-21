@@ -201,7 +201,9 @@ async function syncHistoricalOrders(
           continue;
         }
 
-        const amount = parseFloat(order.totalPriceSet.shopMoney.amount);
+        const rawAmount = order.totalPriceSet.shopMoney.amount;
+        const amount = parseFloat(rawAmount);
+        if (Number.isNaN(amount) || amount <= 0) continue; // P1-1: NaN/zero guard — skip malformed orders
         const currency = order.totalPriceSet.shopMoney.currencyCode;
         const status = mapFinancialStatus(order.displayFinancialStatus);
         const netTermsDays = order.paymentTerms?.dueInDays || 30;

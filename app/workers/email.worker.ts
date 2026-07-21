@@ -27,6 +27,26 @@ export function createEmailWorker(): Worker<EmailJobData> {
       const data = job.data;
       const logCtx = { invoice: data.vars.invoiceNumber, to: data.toEmail };
 
+      // P0-1: Dedup — check if email for this task+step was already sent (retry safety)
+      if (data.taskId) {
+        const existingEvent = await prisma.collectionEvent.findFirst({
+          where: {
+            taskId: data.taskId,
+            stepOrder: data.stepOrder ?? 1,
+            type: "EMAIL_SENT",
+            emailMessageId: { not: null },
+          },
+          select: { id: true },
+        });
+        if (existingEvent) {
+          logger.app("INFO", "Email worker: already sent, skipping (dedup)", undefined, {
+            ...logCtx,
+            existingEventId: existingEvent.id,
+          });
+          return { skipped: true, reason: "Already sent (dedup)" };
+        }
+      }
+
       logger.app("INFO", "Email worker: processing", undefined, logCtx);
 
       const result = await sendCollectionEmail({

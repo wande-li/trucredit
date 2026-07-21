@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { simpleParser } from "mailparser";
 import { processInboundEmail } from "~/services/inbound.server";
 import { logger } from "~/services/logger.server";
+import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
 
 /**
  * Verify SNS message signature using AWS signing certificate.
@@ -88,6 +89,12 @@ async function verifySnsSignature(body: Record<string, string>): Promise<boolean
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
+  }
+
+  // P1-4: Rate limit to prevent abuse (SNS validates in AWS, but defense-in-depth)
+  const rateAllowed = await checkRateLimit(getRateLimitKey(request, "email-inbound"));
+  if (!rateAllowed) {
+    return new Response("Too Many Requests", { status: 429 });
   }
 
   let rawBody: string;

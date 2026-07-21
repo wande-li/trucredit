@@ -3,6 +3,7 @@
 // Authenticated via x-api-key header (shared secret per app)
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { reserveCredit } from "~/services/checkout.server";
 import prisma from "~/db.server";
@@ -43,10 +44,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Too Many Requests" }, { status: 429 });
   }
 
+  // Read raw body for signature verification + JSON parsing
+  const rawBody = await request.text();
+
+  // P1-5: HMAC-SHA256 request signature verification (replay protection)
+  const signingSecret = process.env.TRUCREDIT_API_SECRET;
+  if (signingSecret) {
+    const signature = request.headers.get("x-signature");
+    const timestamp = request.headers.get("x-timestamp");
+    if (!signature || !timestamp) {
+      return json({ error: "Missing signature headers" }, { status: 401 });
+    }
+    // Replay window: ±5 minutes
+    const ts = parseInt(timestamp, 10);
+    if (Number.isNaN(ts) || Math.abs(Date.now() - ts * 1000) > 5 * 60 * 1000) {
+      return json({ error: "Request expired or invalid timestamp" }, { status: 401 });
+    }
+    const expected = crypto.createHmac("sha256", signingSecret).update(`${timestamp}.${rawBody}`).digest("hex");
+    if (!timingSafeEqualHex(signature, expected)) {
+      return json({ error: "Invalid signature" }, { status: 401 });
+    }
+  }
+
   // Parse + validate body with Zod
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -105,3 +128,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   return json({ success: true, orderId });
 };
+
+/** Constant-time hex string comparison (P1-5: timing attack protection) */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}

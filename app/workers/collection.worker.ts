@@ -365,88 +365,94 @@ export function createFreezeCheckWorker(): Worker<FreezeJob> {
     async (job) => {
       const { customerId, shopId } = job.data;
 
-      const customer = await prisma.customer.findUnique({
-        where: { id: customerId, shopId },
-      });
-      if (!customer) return { skipped: true, reason: "Customer not found" };
-      if (customer.isFrozen) return { skipped: true, reason: "Already frozen" };
+      try {
+        const customer = await prisma.customer.findUnique({
+          where: { id: customerId, shopId },
+        });
+        if (!customer) return { skipped: true, reason: "Customer not found" };
+        if (customer.isFrozen) return { skipped: true, reason: "Already frozen" };
 
-      // Load credit rules — conditions are stored as JSON
-      const rules = await prisma.creditRule.findMany({
-        where: { shopId, isActive: true },
-      });
+        // Load credit rules — conditions are stored as JSON
+        const rules = await prisma.creditRule.findMany({
+          where: { shopId, isActive: true },
+        });
 
-      let shouldFreeze = false;
-      let freezeReason = "";
+        let shouldFreeze = false;
+        let freezeReason = "";
 
-      for (const rule of rules) {
-        const conditions = rule.conditions as Record<string, unknown> | null;
-        if (!conditions) continue;
+        for (const rule of rules) {
+          const conditions = rule.conditions as Record<string, unknown> | null;
+          if (!conditions) continue;
 
-        let ruleMatch = false;
+          let ruleMatch = false;
 
-        // Parse conditions JSON — supports "overdueAmountExceeds" and "maxOverdueDays"
-        if (conditions.overdueAmountExceeds !== undefined) {
-          const threshold = Number(conditions.overdueAmountExceeds);
-          const totalOverdue = await prisma.invoice.aggregate({
-            where: { customerId, shopId, status: "OVERDUE" },
-            _sum: { amount: true },
-          });
-          const overdueAmt = Number(totalOverdue._sum.amount ?? 0);
-          if (threshold > 0 && overdueAmt > threshold) {
-            ruleMatch = true;
-            freezeReason = `Overdue amount $${overdueAmt.toFixed(2)} exceeds threshold $${threshold.toFixed(2)}`;
-          }
-        }
-
-        if (!ruleMatch && conditions.maxOverdueDays !== undefined) {
-          const threshold = Number(conditions.maxOverdueDays);
-          const oldestOverdue = await prisma.invoice.findFirst({
-            where: { customerId, shopId, status: "OVERDUE" },
-            orderBy: { dueDate: "asc" },
-          });
-          if (oldestOverdue) {
-            const daysOverdue = Math.floor(
-              (Date.now() - oldestOverdue.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-            );
-            if (threshold > 0 && daysOverdue > threshold) {
+          // Parse conditions JSON — supports "overdueAmountExceeds" and "maxOverdueDays"
+          if (conditions.overdueAmountExceeds !== undefined) {
+            const threshold = Number(conditions.overdueAmountExceeds);
+            const totalOverdue = await prisma.invoice.aggregate({
+              where: { customerId, shopId, status: "OVERDUE" },
+              _sum: { amount: true },
+            });
+            const overdueAmt = Number(totalOverdue._sum.amount ?? 0);
+            if (threshold > 0 && overdueAmt > threshold) {
               ruleMatch = true;
-              freezeReason = `Max overdue ${daysOverdue} days exceeds threshold ${threshold}`;
+              freezeReason = `Overdue amount $${overdueAmt.toFixed(2)} exceeds threshold $${threshold.toFixed(2)}`;
             }
           }
+
+          if (!ruleMatch && conditions.maxOverdueDays !== undefined) {
+            const threshold = Number(conditions.maxOverdueDays);
+            const oldestOverdue = await prisma.invoice.findFirst({
+              where: { customerId, shopId, status: "OVERDUE" },
+              orderBy: { dueDate: "asc" },
+            });
+            if (oldestOverdue) {
+              const daysOverdue = Math.floor(
+                (Date.now() - oldestOverdue.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+              );
+              if (threshold > 0 && daysOverdue > threshold) {
+                ruleMatch = true;
+                freezeReason = `Max overdue ${daysOverdue} days exceeds threshold ${threshold}`;
+              }
+            }
+          }
+
+          if (ruleMatch) {
+            shouldFreeze = true;
+            break;
+          }
         }
 
-        if (ruleMatch) {
-          shouldFreeze = true;
-          break;
-        }
-      }
-
-      if (shouldFreeze) {
-        await freezeCustomer({
-          shopId,
-          customerId,
-          reason: freezeReason,
-          triggeredBy: "freeze-check-worker",
-        });
-
-        await prisma.creditEvent.create({
-          data: {
+        if (shouldFreeze) {
+          await freezeCustomer({
+            shopId,
             customerId,
-            type: "FROZEN",
             reason: freezeReason,
             triggeredBy: "freeze-check-worker",
-          },
-        });
+          });
 
-        logger.app("INFO", "Freeze worker: customer frozen", undefined, {
-          customerId,
-          reason: freezeReason,
-        });
-        return { frozen: true, reason: freezeReason };
+          await prisma.creditEvent.create({
+            data: {
+              customerId,
+              type: "FROZEN",
+              reason: freezeReason,
+              triggeredBy: "freeze-check-worker",
+            },
+          });
+
+          logger.app("INFO", "Freeze worker: customer frozen", undefined, {
+            customerId,
+            reason: freezeReason,
+          });
+          return { frozen: true, reason: freezeReason };
+        }
+
+        return { frozen: false };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("ERROR", "Freeze check worker failed for customer", msg, { customerId, shopId });
+        return { error: true, message: msg };
       }
-
-      return { frozen: false };
     },
     {
       connection: { url: REDIS_URL },

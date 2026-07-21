@@ -78,12 +78,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     switch (intent) {
       case "create": {
-        // Auto sequences require GROWTH+ plan
+        // Auto sequences require STARTER+ plan
         const { isPaid } = await checkPlanAccess(shop.id);
         if (!isPaid) {
           return json(
             {
-              error: "Automated collection sequences require a Growth or Pro plan. Please upgrade.",
+              error: "Automated collection sequences require a Starter, Pro, or Enterprise plan. Please upgrade.",
               needsUpgrade: true,
             },
             { status: 402 },

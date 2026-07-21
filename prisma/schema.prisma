@@ -13,9 +13,11 @@ datasource db {
 // ═══════════════════ Enums ═══════════════════
 
 enum Plan {
-  FREE    // 5 customers
-  GROWTH  // 50 customers
-  PRO     // Unlimited
+  FREE       // 5 customers / 10 invoices
+  STARTER    // 50 customers / 100 invoices — $29/mo or $290/yr
+  PRO        // 200 customers / 500 invoices — $79/mo or $790/yr
+  ENTERPRISE // Unlimited — $149/mo or $1490/yr
+  GROWTH     // @deprecated — auto-migrated to STARTER on next login
 }
 
 enum CreditGrade {

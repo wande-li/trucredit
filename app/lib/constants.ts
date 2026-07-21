@@ -18,21 +18,43 @@ export function pricingPageUrl(shopDomain: string): string {
   return `https://admin.shopify.com/store/${storeHandle}/charges/${APP_HANDLE}/pricing_plans`;
 }
 
-// Plan quotas
+// Plan quotas — maps to Prisma Plan enum
 export const PLAN_QUOTAS = {
-  FREE: { customers: 5, invoices: 10 },
-  GROWTH: { customers: 50, invoices: 200 },
-  PRO: { customers: Infinity, invoices: Infinity },
+  FREE:       { customers: 5,  invoices: 10 },
+  STARTER:    { customers: 50, invoices: 100 },
+  PRO:        { customers: 200, invoices: 500 },
+  ENTERPRISE: { customers: Infinity, invoices: Infinity },
+  // @deprecated — retained for backward compat, maps to STARTER quotas
+  GROWTH:     { customers: 50, invoices: 100 },
+} as const;
+
+// Type-safe plan helper
+export type PlanKey = keyof typeof PLAN_QUOTAS;
+
+/** Feature flags per plan — keys match features in plan comparison UI */
+export const PLAN_FEATURES = {
+  basicCreditScoring:   { FREE: true, STARTER: true, PRO: true, ENTERPRISE: true, GROWTH: true },
+  advancedCreditScoring:{ FREE: false, STARTER: true, PRO: true, ENTERPRISE: true, GROWTH: true },
+  manualCollections:    { FREE: true, STARTER: true, PRO: true, ENTERPRISE: true, GROWTH: true },
+  automatedCollections: { FREE: false, STARTER: true, PRO: true, ENTERPRISE: true, GROWTH: true },
+  aiEmailGeneration:    { FREE: false, STARTER: true, PRO: true, ENTERPRISE: true, GROWTH: true },
+  replyClassification:  { FREE: false, STARTER: false, PRO: true, ENTERPRISE: true, GROWTH: false },
+  autoSequences:        { FREE: false, STARTER: false, PRO: true, ENTERPRISE: true, GROWTH: false },
+  customRules:          { FREE: false, STARTER: false, PRO: false, ENTERPRISE: true, GROWTH: false },
+  prioritySupport:      { FREE: false, STARTER: false, PRO: true, ENTERPRISE: true, GROWTH: false },
+  dedicatedSupport:     { FREE: false, STARTER: false, PRO: false, ENTERPRISE: true, GROWTH: false },
+  customPaymentGateway: { FREE: false, STARTER: false, PRO: false, ENTERPRISE: true, GROWTH: false },
 } as const;
 
 // ── Plans (Managed Pricing — Shopify hosts payment) ──
-// displayFeatures are user-facing strings rendered in List.Item
-// Pattern matches Wandex: PLANS.FREE.displayFeatures / PLANS.PAID.displayFeatures
+// displayFeatures are user-facing strings rendered in plan cards
 export const PLANS = {
   FREE: {
-    name: "Starter",
+    name: "Free",
     price: 0,
+    annualPrice: 0,
     period: null,
+    billingPlanName: null as string | null,
     displayFeatures: [
       "Up to 5 customers",
       "Up to 10 invoices",
@@ -40,36 +62,63 @@ export const PLANS = {
       "Manual collections",
     ],
   },
-  GROWTH: {
-    name: "Growth",
-    price: 49,
+  STARTER: {
+    name: "Starter",
+    price: 29,
+    annualPrice: 290,
     period: "month",
+    billingPlanName: "TruCredit Starter",
     displayFeatures: [
       "Up to 50 customers",
-      "Up to 200 invoices",
-      "Advanced credit scoring",
+      "Up to 100 invoices",
+      "Advanced AI credit scoring",
       "Automated collections",
       "AI email generation",
-      "Reply classification",
-      "Auto sequences",
     ],
   },
   PRO: {
     name: "Pro",
-    price: 470.40,
-    period: "year",
+    price: 79,
+    annualPrice: 790,
+    period: "month",
+    billingPlanName: "TruCredit Pro",
     displayFeatures: [
-      "Unlimited customers",
-      "Unlimited invoices",
-      "Advanced credit scoring",
-      "Automated collections",
-      "AI email generation",
+      "Up to 200 customers",
+      "Up to 500 invoices",
+      "Everything in Starter, plus:",
       "Reply classification",
       "Auto sequences",
       "Priority support",
     ],
   },
+  ENTERPRISE: {
+    name: "Enterprise",
+    price: 149,
+    annualPrice: 1490,
+    period: "month",
+    billingPlanName: "TruCredit Enterprise",
+    displayFeatures: [
+      "Unlimited customers",
+      "Unlimited invoices",
+      "Everything in Pro, plus:",
+      "Custom rules engine",
+      "Custom payment gateway",
+      "Dedicated support",
+    ],
+  },
 } as const;
+
+// Plan ordering for UI
+export const PLAN_ORDER: PlanKey[] = ["FREE", "STARTER", "PRO", "ENTERPRISE"];
+
+// @deprecated — backward compat for GROWTH plan
+export const PLAN_ALIASES: Record<string, PlanKey> = {
+  GROWTH: "STARTER",
+} as const;
+
+export function resolvePlan(raw: string): PlanKey {
+  return (PLAN_ALIASES[raw] ?? raw) as PlanKey;
+}
 
 // Credit scoring
 export const CREDIT_SCORE = {

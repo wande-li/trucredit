@@ -28,32 +28,84 @@ if (SHOPIFY_API_VERSION !== expectedApiVersion) {
   );
 }
 
-// Billing Plans
-export const PLAN_MONTHLY = "TruCredit Pro";
-export const PLAN_ANNUAL = "TruCredit Pro Annual";
+// ── Billing Plans (4 tiers × 2 intervals = 8 entries, 6 active) ──
+// Monthly plans
+export const PLAN_STARTER_MONTHLY = "TruCredit Starter";
+export const PLAN_PRO_MONTHLY = "TruCredit Pro";
+export const PLAN_ENTERPRISE_MONTHLY = "TruCredit Enterprise";
+// Annual plans (17% discount vs monthly)
+export const PLAN_STARTER_ANNUAL = "TruCredit Starter Annual";
+export const PLAN_PRO_ANNUAL = "TruCredit Pro Annual";
+export const PLAN_ENTERPRISE_ANNUAL = "TruCredit Enterprise Annual";
+
+// Legacy plan names for webhook handler
+export const PLAN_MONTHLY = PLAN_PRO_MONTHLY;
+export const PLAN_ANNUAL = PLAN_PRO_ANNUAL;
 
 const shopify = shopifyApp({
   apiKey,
   apiSecretKey: apiSecret,
   apiVersion: ApiVersion.October25,
   billing: {
-    [PLAN_MONTHLY]: {
+    [PLAN_STARTER_MONTHLY]: {
       lineItems: [
         {
-          amount: 49.0,
+          amount: 29.0,
           currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
       ],
+      trialDays: 14,
     },
-    [PLAN_ANNUAL]: {
+    [PLAN_STARTER_ANNUAL]: {
       lineItems: [
         {
-          amount: 470.4,
+          amount: 290.0,
           currencyCode: "USD",
           interval: BillingInterval.Annual,
         },
       ],
+      trialDays: 14,
+    },
+    [PLAN_PRO_MONTHLY]: {
+      lineItems: [
+        {
+          amount: 79.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+      trialDays: 14,
+    },
+    [PLAN_PRO_ANNUAL]: {
+      lineItems: [
+        {
+          amount: 790.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Annual,
+        },
+      ],
+      trialDays: 14,
+    },
+    [PLAN_ENTERPRISE_MONTHLY]: {
+      lineItems: [
+        {
+          amount: 149.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+      trialDays: 14,
+    },
+    [PLAN_ENTERPRISE_ANNUAL]: {
+      lineItems: [
+        {
+          amount: 1490.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Annual,
+        },
+      ],
+      trialDays: 14,
     },
   },
   scopes: [

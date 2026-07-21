@@ -30,6 +30,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "~/services/logger.server";
 import { RouteError } from "~/services/error-boundary.shared";
 
+// Plan display name mapping
+const PLAN_DISPLAY: Record<string, string> = {
+  FREE: "Free",
+  STARTER: "Starter",
+  PRO: "Pro",
+  ENTERPRISE: "Enterprise",
+};
+
 export const links = () => [
   { rel: "preload", href: polarisStyles, as: "style" },
   { rel: "stylesheet", href: polarisStyles },
@@ -471,7 +479,7 @@ export default function AppLayout() {
                 ))}
               </InlineStack>
             </InlineStack>
-            <Badge tone="info">{plan}</Badge>
+            <Badge tone="info">{PLAN_DISPLAY[plan as keyof typeof PLAN_DISPLAY] ?? plan}</Badge>
           </InlineStack>
         </div>
       </div>

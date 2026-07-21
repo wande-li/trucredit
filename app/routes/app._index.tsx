@@ -403,13 +403,13 @@ export default function Dashboard() {
                   </Link>
                 </InlineStack>
 
-                <BlockStack gap="250">
+                <BlockStack gap="400">
                   {aging.buckets.map((bucket) => {
                     const maxAmount = Math.max(...aging.buckets.map((b) => Number(b.totalAmount)), 1);
                     const pct = Math.round((Number(bucket.totalAmount) / maxAmount) * 100) || 2;
                     const color = agingBarColor(bucket.label);
                     return (
-                      <div key={bucket.label}>
+                      <BlockStack key={bucket.label} gap="100">
                         <InlineStack align="space-between" gap="200">
                           <InlineStack gap="200" blockAlign="center">
                             <Badge size="small" tone={agingBadgeTone(bucket.label)}>{bucket.label}</Badge>
@@ -419,20 +419,18 @@ export default function Dashboard() {
                             ${Number(bucket.totalAmount).toLocaleString()}
                           </Text>
                         </InlineStack>
-                        <div style={{ marginTop: 6 }}>
-                          <div style={{ height: 6, width: "100%", background: "var(--p-color-bg-fill-tertiary)", borderRadius: 999 }}>
-                            <div
-                              style={{
-                                height: 6,
-                                width: `${pct}%`,
-                                background: color,
-                                borderRadius: 999,
-                                transition: "width 0.5s ease",
-                              }}
-                            />
-                          </div>
+                        <div style={{ height: 6, width: "100%", background: "var(--p-color-bg-fill-tertiary)", borderRadius: 999 }}>
+                          <div
+                            style={{
+                              height: 6,
+                              width: `${pct}%`,
+                              background: color,
+                              borderRadius: 999,
+                              transition: "width 0.5s ease",
+                            }}
+                          />
                         </div>
-                      </div>
+                      </BlockStack>
                     );
                   })}
                 </BlockStack>
@@ -501,26 +499,21 @@ export default function Dashboard() {
               </InlineStack>
 
               <InlineStack gap="300" wrap>
-                <div
-                  style={{
-                    background: "var(--p-color-bg-surface-caution)",
-                    borderRadius: "var(--p-border-radius-200)",
-                    border: "1px solid var(--p-color-border-caution)",
-                    padding: "var(--p-space-300) var(--p-space-400)",
-                    minWidth: 120,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--p-space-300)",
-                  }}
+                <Box
+                  borderColor="border-secondary"
+                  borderWidth="025"
+                  borderRadius="200"
+                  padding="400"
+                  minWidth="120px"
                 >
-                  <div style={{ display: "flex", alignItems: "center" }}>
+                  <InlineStack gap="300" blockAlign="center" wrap={false}>
                     <TargetIcon style={{ width: 20, height: 20, color: "var(--p-color-text-caution)" }} />
-                  </div>
-                  <BlockStack gap="050">
-                    <Text as="p" variant="headingLg" fontWeight="bold" tone="caution">{collectionStats.activeTasks}</Text>
-                    <Text as="p" variant="bodySm">Active tasks</Text>
-                  </BlockStack>
-                </div>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="headingLg" fontWeight="bold">{collectionStats.activeTasks}</Text>
+                      <Text as="p" variant="bodySm">Active tasks</Text>
+                    </BlockStack>
+                  </InlineStack>
+                </Box>
 
                 <ActionTile icon={<PersonAddIcon style={{ width: 20, height: 20 }} />} label="Add Customer" url="/app/customers/new" primary />
                 <ActionTile icon={<OrderIcon style={{ width: 20, height: 20 }} />} label="Create Invoice" url="/app/invoices/new" />

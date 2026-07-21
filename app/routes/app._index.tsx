@@ -20,6 +20,8 @@ import prisma from "~/db.server";
 import { getShopBilling } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
 import { logger } from "~/services/logger.server";
+import OnboardingGuide from "~/components/OnboardingGuide";
+import QuickTips from "~/components/QuickTips";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -163,6 +165,9 @@ export default function Dashboard() {
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
       <Page fullWidth>
         <BlockStack gap="600">
+          {/* ═══ Onboarding Guide (first-time users) ═══ */}
+          {stats.totalCustomers === 0 && <OnboardingGuide />}
+
           {/* ═══ KPI Stat Cards ═══ */}
           <InlineStack gap="400" wrap>
             <StatCard label="Total Customers" value={stats.totalCustomers} />
@@ -366,6 +371,9 @@ export default function Dashboard() {
               </BlockStack>
             </Card>
           </div>
+
+          {/* ═══ Quick Tips (returning users) ═══ */}
+          {stats.totalCustomers > 0 && <QuickTips />}
 
           {/* ═══ Recent Customers ═══ */}
           <Card>

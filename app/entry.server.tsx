@@ -76,7 +76,7 @@ if (process.env.NODE_ENV === "development") {
             level: "ERROR",
             service: "Startup",
             message: "Auto-seed failed",
-            error: (e as Error)?.message ?? String(e),
+            error: e instanceof Error ? e.message : String(e),
           }),
         );
       });
@@ -110,7 +110,7 @@ setTimeout(() => {
             level: "ERROR",
             service: "Startup",
             message: "Collection worker failed to start",
-            error: (e as Error)?.message ?? String(e),
+            error: e instanceof Error ? e.message : String(e),
           }),
         );
       });
@@ -127,7 +127,7 @@ setTimeout(() => {
             level: "ERROR",
             service: "Startup",
             message: "Email worker failed to start",
-            error: (e as Error)?.message ?? String(e),
+            error: e instanceof Error ? e.message : String(e),
           }),
         );
       });
@@ -139,7 +139,7 @@ setTimeout(() => {
         level: "ERROR",
         service: "Startup",
         message: "Collection queue import failed",
-        error: (e as Error)?.message ?? String(e),
+        error: e instanceof Error ? e.message : String(e),
       }),
     );
   });
@@ -186,7 +186,7 @@ async function gracefulShutdown(signal: string) {
               level: "ERROR",
               service: "Shutdown",
               message: `Failed to close worker: ${name}`,
-              error: (e as Error)?.message ?? String(e),
+              error: e instanceof Error ? e.message : String(e),
             }),
           );
         }),
@@ -206,7 +206,7 @@ async function gracefulShutdown(signal: string) {
                   level: "ERROR",
                   service: "Shutdown",
                   message: `Failed to close worker: ${name}/${subName}`,
-                  error: (e as Error)?.message ?? String(e),
+                  error: e instanceof Error ? e.message : String(e),
                 }),
               );
             }),
@@ -327,7 +327,7 @@ export default async function handleRequest(
                   "ERROR",
                   `SSR shell error ${pathname}`,
                   duration,
-                  { error: (error as Error)?.message },
+                  { error: error instanceof Error ? error.message : String(error) },
                 );
               }
               reject(error);

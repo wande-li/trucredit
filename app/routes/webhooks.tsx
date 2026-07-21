@@ -182,36 +182,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ? `https://${shopDomain}/account/orders/${orderName.replace("#", "")}`
         : undefined;
 
-      await prisma.invoice.create({
-        data: {
-          shopId: dbShop.id,
-          customerId: customer.id,
-          invoiceNumber: orderName.replace("#", ""),
-          amount: totalPrice,
-          currency,
-          issueDate: new Date(),
-          dueDate,
-          status: "PENDING",
-          shopifyOrderId: orderId,
-          shopifyOrderName: orderName,
-          paymentUrl,
-        },
-      });
+      await prisma.$transaction(async (tx) => {
+        await tx.invoice.create({
+          data: {
+            shopId: dbShop.id,
+            customerId: customer.id,
+            invoiceNumber: orderName.replace("#", ""),
+            amount: totalPrice,
+            currency,
+            issueDate: new Date(),
+            dueDate,
+            status: "PENDING",
+            shopifyOrderId: orderId,
+            shopifyOrderName: orderName,
+            paymentUrl,
+          },
+        });
 
-      // Occupy credit
-      await prisma.customer.update({
-        where: { id: customer.id },
-        data: {
-          creditUsed: { increment: totalPrice },
-          creditAvailable: { decrement: totalPrice },
-        },
+        // Occupy credit
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: {
+            creditUsed: { increment: totalPrice },
+            creditAvailable: { decrement: totalPrice },
+          },
+        });
       });
 
       // Sync metafield for Shopify Function
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, customer.id).catch((e: unknown) => {
-        logger.app("WARN", "Metafield sync failed after order created", (e as Error)?.message ?? String(e));
-      });
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after order created", msg);
+        });
       }
 
       logger.app("INFO", "Invoice created from order", {
@@ -231,10 +234,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const invoice = await prisma.invoice.findFirst({
       where: { shopifyOrderId: orderId },
-      select: { id: true, customerId: true, amount: true },
+      select: { id: true, customerId: true, amount: true, status: true },
     });
 
-    if (invoice) {
+    if (invoice && invoice.status !== "PAID") {
       await prisma.$transaction([
         prisma.invoice.update({
           where: { id: invoice.id },
@@ -260,7 +263,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Sync metafield
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
-          logger.app("WARN", "Metafield sync failed after order paid", (e as Error)?.message ?? String(e));
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after order paid", msg);
         });
       }
     }
@@ -296,7 +300,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         if (shopifyAdmin) {
           await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
-            logger.app("WARN", "Metafield sync failed after order updated", (e as Error)?.message ?? String(e));
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Metafield sync failed after order updated", msg);
           });
         }
       }
@@ -339,7 +344,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
-          logger.app("WARN", "Metafield sync failed after order cancelled", (e as Error)?.message ?? String(e));
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after order cancelled", msg);
         });
       }
     }

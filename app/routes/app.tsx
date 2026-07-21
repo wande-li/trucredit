@@ -274,12 +274,10 @@ function NavDropdown({
   group,
   pathname,
   closeToken,
-  onAnyInteraction,
 }: {
   group: NavGroup;
   pathname: string;
   closeToken: number;
-  onAnyInteraction?: () => void;
 }) {
   const [active, setActive] = useState(false);
   const navigate = useNavigate();
@@ -292,7 +290,7 @@ function NavDropdown({
     setActive(false);
   }, [pathname]);
 
-  // Close when sibling dropdown opens (via closeToken)
+  // Close when standalone nav is clicked (closeToken bumped externally)
   useEffect(() => {
     setActive(false);
   }, [closeToken]);
@@ -320,12 +318,8 @@ function NavDropdown({
   }, [active]);
 
   const toggle = useCallback(() => {
-    setActive((prev) => {
-      const next = !prev;
-      if (next && onAnyInteraction) onAnyInteraction();
-      return next;
-    });
-  }, [onAnyInteraction]);
+    setActive((prev) => !prev);
+  }, []);
 
   return (
     <Popover
@@ -473,7 +467,6 @@ export default function AppLayout() {
                     group={group}
                     pathname={location.pathname}
                     closeToken={closeToken}
-                    onAnyInteraction={bumpCloseToken}
                   />
                 ))}
               </InlineStack>

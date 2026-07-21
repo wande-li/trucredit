@@ -30,7 +30,6 @@ import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { CustomerStatusBadge } from "~/components/credit/CustomerStatusBadge";
 import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
-import type { CustomerRecord, CreditRecommendation } from "~/types";
 import prisma from "~/db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -298,15 +297,15 @@ export default function CustomerDetailPage() {
                       >
                         <div
                           style={{
-                            height: "8px",
+                            height: 8,
                             width: `${Math.min(utilizationPct, 100)}%`,
-                            backgroundColor:
+                            background:
                               utilizationPct >= 90
-                                ? "#EF4444"
+                                ? "var(--p-color-bg-fill-critical)"
                                 : utilizationPct >= 70
-                                  ? "#F59E0B"
-                                  : "#10B981",
-                            borderRadius: "4px",
+                                  ? "var(--p-color-bg-fill-caution)"
+                                  : "var(--p-color-bg-fill-success)",
+                            borderRadius: "var(--p-border-radius-full)",
                             transition: "width 0.3s ease",
                           }}
                         />
@@ -683,8 +682,14 @@ export default function CustomerDetailPage() {
       <CreditLimitModal
         open={showLimitModal}
         onClose={() => setShowLimitModal(false)}
-        customer={customer as unknown as CustomerRecord}
-        assessment={assessment as unknown as CreditRecommendation}
+        customerId={customer.id}
+        creditLimit={customer.creditLimit}
+        creditUsed={customer.creditUsed}
+        recommendation={{
+          recommendedLimit: assessment.recommendedLimit,
+          score: assessment.score,
+          grade: assessment.grade,
+        }}
       />
     </Page>
   );

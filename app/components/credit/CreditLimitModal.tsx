@@ -9,43 +9,49 @@ import {
   Banner,
   Select,
 } from "@shopify/polaris";
-import type { CustomerRecord, CreditRecommendation } from "~/types";
-
 interface CreditLimitModalProps {
   open: boolean;
   onClose: () => void;
-  customer: CustomerRecord;
-  assessment: CreditRecommendation;
+  customerId: string;
+  creditLimit: string;
+  creditUsed: string;
+  recommendation: {
+    recommendedLimit: number;
+    score: number;
+    grade: string;
+  };
 }
 
 export function CreditLimitModal({
   open,
   onClose,
-  customer,
-  assessment,
+  customerId,
+  creditLimit,
+  creditUsed,
+  recommendation,
 }: CreditLimitModalProps) {
   const fetcher = useFetcher<{ error?: string }>();
-  const [newLimit, setNewLimit] = useState(String(assessment.recommendedLimit));
+  const [newLimit, setNewLimit] = useState(String(recommendation.recommendedLimit));
   const [reason, setReason] = useState("");
 
   const isBusy = fetcher.state === "submitting";
   const error = fetcher.data?.error;
 
   const numericNewLimit = parseFloat(newLimit);
-  const isOver2x = numericNewLimit > assessment.recommendedLimit * 2;
+  const isOver2x = numericNewLimit > recommendation.recommendedLimit * 2;
   const isOver50pct =
-    assessment.score < 70 &&
-    numericNewLimit > Number(customer.creditLimit) * 1.5;
+    recommendation.score < 70 &&
+    numericNewLimit > Number(creditLimit) * 1.5;
 
   const handleSubmit = () => {
     fetcher.submit(
       {
         intent: "set-credit-limit",
-        customerId: customer.id,
+        customerId,
         newLimit,
-        reason: reason || `Manual adjustment from ${customer.creditLimit} to ${newLimit}`,
+        reason: reason || `Manual adjustment from ${creditLimit} to ${newLimit}`,
       },
-      { method: "post", action: `/app/customers/${customer.id}` },
+      { method: "post", action: `/app/customers/${customerId}` },
     );
   };
 
@@ -79,16 +85,16 @@ export function CreditLimitModal({
 
           <BlockStack gap="200">
             <Text as="p" variant="bodyMd" tone="subdued">
-              Current Limit: ${Number(customer.creditLimit).toLocaleString()}
+              Current Limit: ${Number(creditLimit).toLocaleString()}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
-              Credit Used: ${Number(customer.creditUsed).toLocaleString()}
+              Credit Used: ${Number(creditUsed).toLocaleString()}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
-              AI Recommended: ${assessment.recommendedLimit.toLocaleString()}
+              AI Recommended: ${recommendation.recommendedLimit.toLocaleString()}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
-              Score: {assessment.score} ({assessment.grade.replace("_", "+")})
+              Score: {recommendation.score} ({recommendation.grade.replace("_", "+")})
             </Text>
           </BlockStack>
 

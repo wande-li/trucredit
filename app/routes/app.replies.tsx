@@ -1,6 +1,6 @@
 // TruCredit — Reply Inbox (AI-parsed customer replies)
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
@@ -27,6 +27,7 @@ import { listReplies, resolveReply } from "~/services/reply.server";
 import type { ReplyIntent } from "@prisma/client";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import { checkPlanAccess } from "~/services/billing.server";
 
 const REPLY_INTENT_LABELS: Record<string, string> = {
   WILL_PAY: "Will Pay",
@@ -75,6 +76,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       select: { id: true },
     });
     if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const { isPaid } = await checkPlanAccess(shop.id);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
@@ -247,7 +251,9 @@ export default function RepliesPage() {
                       </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <Text as="span" tone="subdued">—</Text>
+                      <Text as="span">
+                        {evt.task?.customer?.name ?? evt.task?.invoice?.customer?.name ?? "—"}
+                      </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Text as="span" truncate>

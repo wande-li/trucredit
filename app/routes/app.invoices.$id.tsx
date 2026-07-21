@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -200,6 +200,7 @@ const statusLabel: Record<string, string> = {
 export default function InvoiceDetail() {
   const { invoice, customer, collectionTasks, allowedTransitions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const revalidator = useRevalidator();
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
 
   const isPaid = invoice.status === "PAID";
@@ -248,7 +249,7 @@ export default function InvoiceDetail() {
         {fetcher.data?.success && (
           <Banner
             tone="success"
-            onDismiss={() => window.location.reload()}
+            onDismiss={() => revalidator.revalidate()}
           >
             <Text as="p" variant="bodyMd">
               Invoice updated successfully.

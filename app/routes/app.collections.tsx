@@ -33,6 +33,7 @@ import {
 import type { TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import { checkPlanAccess } from "~/services/billing.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -75,6 +76,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     switch (intent) {
       case "create": {
+        // Auto sequences require GROWTH+ plan
+        const { isPaid } = await checkPlanAccess(shop.id);
+        if (!isPaid) {
+          return json(
+            {
+              error: "Automated collection sequences require a Growth or Pro plan. Please upgrade.",
+              needsUpgrade: true,
+            },
+            { status: 402 },
+          );
+        }
+
         const name = formData.get("name")?.toString()?.trim();
         const description = formData.get("description")?.toString()?.trim();
         const triggerType = (formData.get("triggerType")?.toString() ?? "OVERDUE") as TriggerType;

@@ -1,6 +1,6 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
@@ -22,6 +22,7 @@ import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
+import { checkPlanAccess } from "~/services/billing.server";
 
 const ACTION_LABELS: Record<CreditAction, string> = {
   SET_LIMIT: "Set Limit",
@@ -48,6 +49,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       select: { id: true },
     });
     if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const { isPaid } = await checkPlanAccess(shop.id);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);

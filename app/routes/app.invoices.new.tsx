@@ -21,6 +21,7 @@ import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
+import { checkInvoiceQuota } from "~/services/billing.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -73,10 +74,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
-      select: { id: true },
+      select: { id: true, plan: true },
     });
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    // Check invoice quota
+    const quota = await checkInvoiceQuota(shop.id, shop.plan);
+    if (!quota.allowed) {
+      return json(
+        {
+          error: `Invoice quota reached (${quota.current}/${quota.limit}). Please upgrade your plan.`,
+          needsUpgrade: true,
+        },
+        { status: 402 },
+      );
+    }
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();

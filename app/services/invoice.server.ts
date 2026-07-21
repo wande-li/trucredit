@@ -345,83 +345,89 @@ export async function markInvoicePaid(params: {
   invoiceId: string;
   paymentMethod?: string;
 }): Promise<InvoiceRecord> {
-  const invoice = await prisma.invoice.findFirstOrThrow({
-    where: { id: params.invoiceId, shopId: params.shopId },
-  });
-
   const paidDate = new Date();
 
-  const updated = await prisma.invoice.update({
-    where: { id: params.invoiceId },
-    data: {
-      status: "PAID",
-      paidDate,
-      daysOverdue: 0,
-      paymentMethod: params.paymentMethod,
-    },
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirstOrThrow({
+      where: { id: params.invoiceId, shopId: params.shopId },
+    });
+
+    if (invoice.status === "PAID") {
+      return { ...invoice, amount: invoice.amount.toString() };
+    }
+
+    const updated = await tx.invoice.update({
+      where: { id: params.invoiceId },
+      data: {
+        status: "PAID",
+        paidDate,
+        daysOverdue: 0,
+        paymentMethod: params.paymentMethod,
+      },
+    });
+
+    // Update customer credit utilization and payment stats
+    const customer = await tx.customer.findUniqueOrThrow({
+      where: { id: invoice.customerId },
+    });
+
+    const newUsed = Math.max(0, Number(customer.creditUsed) - Number(invoice.amount));
+
+    // Calculate new on-time rate
+    const paidHistory: Array<{ dueDate: Date; paidDate: Date }> = await tx.invoice.findMany({
+      where: {
+        customerId: invoice.customerId,
+        status: "PAID",
+        paidDate: { not: null },
+      },
+      select: { dueDate: true, paidDate: true },
+    }) as Array<{ dueDate: Date; paidDate: Date }>;
+
+    const onTimeCount = paidHistory.filter(
+      (inv) => inv.paidDate <= inv.dueDate,
+    ).length;
+
+    const onTimeRate =
+      paidHistory.length > 0
+        ? onTimeCount / paidHistory.length
+        : null;
+
+    const paymentDays = paidHistory.map(
+      (inv) =>
+        (inv.paidDate.getTime() - inv.dueDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    const avgPaymentDays =
+      paymentDays.length > 0
+        ? paymentDays.reduce((s: number, d: number) => s + d, 0) / paymentDays.length
+        : null;
+
+    await tx.customer.update({
+      where: { id: invoice.customerId },
+      data: {
+        creditUsed: newUsed,
+        creditAvailable: Math.max(0, Number(customer.creditLimit) - newUsed),
+        onTimePaymentRate: onTimeRate,
+        avgPaymentDays,
+        lastPaymentDate: paidDate,
+      },
+    });
+
+    // Auto-complete any related collection tasks
+    await tx.collectionTask.updateMany({
+      where: {
+        invoiceId: params.invoiceId,
+        status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
+      },
+      data: {
+        status: "COMPLETED",
+        completedAt: paidDate,
+        completedReason: "Invoice paid",
+      },
+    });
+
+    return { ...updated, amount: updated.amount.toString() };
   });
-
-  // Update customer credit utilization and payment stats
-  const customer = await prisma.customer.findUniqueOrThrow({
-    where: { id: invoice.customerId },
-  });
-
-  const newUsed = Math.max(0, Number(customer.creditUsed) - Number(invoice.amount));
-
-  // Calculate new on-time rate
-  const paidHistory: Array<{ dueDate: Date; paidDate: Date }> = await prisma.invoice.findMany({
-    where: {
-      customerId: invoice.customerId,
-      status: "PAID",
-      paidDate: { not: null },
-    },
-    select: { dueDate: true, paidDate: true },
-  }) as Array<{ dueDate: Date; paidDate: Date }>;
-
-  const onTimeCount = paidHistory.filter(
-    (inv) => inv.paidDate <= inv.dueDate,
-  ).length;
-
-  const onTimeRate =
-    paidHistory.length > 0
-      ? onTimeCount / paidHistory.length
-      : null;
-
-  const paymentDays = paidHistory.map(
-    (inv) =>
-      (inv.paidDate.getTime() - inv.dueDate.getTime()) /
-      (1000 * 60 * 60 * 24),
-  );
-  const avgPaymentDays =
-    paymentDays.length > 0
-      ? paymentDays.reduce((s: number, d: number) => s + d, 0) / paymentDays.length
-      : null;
-
-  await prisma.customer.update({
-    where: { id: invoice.customerId },
-    data: {
-      creditUsed: newUsed,
-      creditAvailable: Math.max(0, Number(customer.creditLimit) - newUsed),
-      onTimePaymentRate: onTimeRate,
-      avgPaymentDays,
-      lastPaymentDate: paidDate,
-    },
-  });
-
-  // Auto-complete any related collection tasks
-  await prisma.collectionTask.updateMany({
-    where: {
-      invoiceId: params.invoiceId,
-      status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
-    },
-    data: {
-      status: "COMPLETED",
-      completedAt: paidDate,
-      completedReason: "Invoice paid",
-    },
-  });
-
-  return { ...updated, amount: updated.amount.toString() };
 }
 
 /**

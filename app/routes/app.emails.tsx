@@ -1,8 +1,8 @@
 // Email Templates — List, create, and manage templates
 import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { json, redirect } from "@remix-run/node";
+import { useLoaderData, useFetcher, useSearchParams, Link, useRevalidator } from "@remix-run/react";
 import {
   Page,
   IndexTable,
@@ -26,15 +26,27 @@ import { PAGINATION } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
+import prisma from "~/db.server";
+import { checkPlanAccess } from "~/services/billing.server";
 
 // ═══════════════════ Loader ═══════════════════
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
     const pageSize = Math.min(parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10), PAGINATION.MAX_PAGE_SIZE);
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const { isPaid } = await checkPlanAccess(shop.id);
+    if (!isPaid) return redirect("/app/billing");
 
     // Auto-seed default templates
     await ensureDefaultTemplates(session.shop);
@@ -124,6 +136,7 @@ const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
 export default function EmailsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
   const { items, page, total, totalPages } = loaderData;
   const [, setSearchParams] = useSearchParams();
 
@@ -209,7 +222,7 @@ export default function EmailsPage() {
         {fetcher.data && !fetcher.data.success && (fetcher.data as { error?: string }).error && (
           <Banner
             tone="critical"
-            onDismiss={() => window.location.reload()}
+            onDismiss={() => revalidator.revalidate()}
           >
             <Text as="p">{(fetcher.data as { error?: string }).error}</Text>
           </Banner>

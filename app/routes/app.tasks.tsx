@@ -1,6 +1,6 @@
 // TruCredit — Collection Tasks list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page,
@@ -24,6 +24,7 @@ import { pauseTask, stopTask } from "~/services/collection.server";
 import { enqueueEmail } from "~/queues/email.queue";
 import { PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
+import { checkPlanAccess } from "~/services/billing.server";
 
 const STATUS_MAP: Record<string, { label: string; tone: "success" | "attention" | "critical" | "info" | "new" }> = {
   PENDING: { label: "Pending", tone: "new" },
@@ -64,6 +65,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       select: { id: true },
     });
     if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    const { isPaid } = await checkPlanAccess(shop.id);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;

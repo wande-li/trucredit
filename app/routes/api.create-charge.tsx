@@ -1,13 +1,58 @@
 // API endpoint for Shopify charge creation
+// Uses admin.graphql() directly to bypass SDK billing layer and get detailed errors
 import type { ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import { authenticate } from '~/shopify.server';
-import type { BillingPlanName } from '~/shopify.server';
+import {
+  PLAN_STARTER_MONTHLY,
+  PLAN_STARTER_ANNUAL,
+  PLAN_PRO_MONTHLY,
+  PLAN_PRO_ANNUAL,
+  PLAN_ENTERPRISE_MONTHLY,
+  PLAN_ENTERPRISE_ANNUAL,
+} from '~/shopify.server';
 import { PLANS } from '~/services/billing.server';
 import { logger } from '~/services/logger.server';
 
+// Plan name → pricing lookup (mirrors shopify.server.ts billing config)
+const PLAN_PRICING: Record<string, { amount: number; interval: 'EVERY_30_DAYS' | 'ANNUAL'; trialDays: number }> = {
+  [PLAN_STARTER_MONTHLY]: { amount: 29.0, interval: 'EVERY_30_DAYS', trialDays: 14 },
+  [PLAN_STARTER_ANNUAL]: { amount: 290.0, interval: 'ANNUAL', trialDays: 14 },
+  [PLAN_PRO_MONTHLY]: { amount: 79.0, interval: 'EVERY_30_DAYS', trialDays: 14 },
+  [PLAN_PRO_ANNUAL]: { amount: 790.0, interval: 'ANNUAL', trialDays: 14 },
+  [PLAN_ENTERPRISE_MONTHLY]: { amount: 149.0, interval: 'EVERY_30_DAYS', trialDays: 14 },
+  [PLAN_ENTERPRISE_ANNUAL]: { amount: 1490.0, interval: 'ANNUAL', trialDays: 14 },
+};
+
+const APP_SUBSCRIPTION_CREATE_MUTATION = `#graphql
+  mutation AppSubscriptionCreate(
+    $name: String!,
+    $returnUrl: URL!,
+    $lineItems: [AppSubscriptionLineItemInput!]!,
+    $test: Boolean!,
+    $trialDays: Int!
+  ) {
+    appSubscriptionCreate(
+      name: $name,
+      returnUrl: $returnUrl,
+      lineItems: $lineItems,
+      test: $test,
+      trialDays: $trialDays
+    ) {
+      userErrors {
+        field
+        message
+      }
+      confirmationUrl
+      appSubscription {
+        id
+      }
+    }
+  }
+`;
+
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const planKey = formData.get('planKey')?.toString();
   const interval = (formData.get('interval')?.toString() ?? 'monthly') as 'monthly' | 'annual';
@@ -25,71 +70,87 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!billingName) return json({ error: 'No billing plan' }, { status: 400 });
 
-  // BILLING_TEST_MODE: "true" = always test charges (dev stores / before Partner Dashboard setup)
-  // BILLING_TEST_MODE: "false" = real charges (production)
+  const pricing = PLAN_PRICING[billingName];
+  if (!pricing) return json({ error: `No pricing config for "${billingName}"` }, { status: 400 });
+
   const isTest =
     process.env.BILLING_TEST_MODE !== undefined
       ? process.env.BILLING_TEST_MODE === 'true'
       : process.env.NODE_ENV === 'development';
 
-  logger.app('INFO', 'Charge creation requested', {
+  const returnUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost';
+
+  logger.app('INFO', 'Creating charge via admin.graphql()', {
     shop: session.shop,
-    planKey,
     billingName,
-    interval,
-    returnUrl: process.env.SHOPIFY_APP_URL,
+    amount: pricing.amount,
+    interval: pricing.interval,
     isTest,
+    returnUrl,
   });
 
   try {
-    const result = await billing.request({
-      plan: billingName as BillingPlanName,
-      isTest,
-      returnUrl: process.env.SHOPIFY_APP_URL!,
+    const response = await admin.graphql(APP_SUBSCRIPTION_CREATE_MUTATION, {
+      variables: {
+        name: billingName,
+        returnUrl,
+        lineItems: [{
+          plan: {
+            pricingDetails: {
+              amount: pricing.amount,
+              currencyCode: 'USD',
+              interval: pricing.interval,
+            },
+          },
+        }],
+        test: isTest,
+        trialDays: pricing.trialDays,
+      },
     });
-    logger.app('WARN', 'billing.request() returned normally (expected RedirectResponse throw)', {
-      shop: session.shop,
-      billingName,
-      resultType: typeof result,
-      resultKeys: result ? Object.keys(result).join(',') : 'null',
-    });
-    return json({ error: 'Unexpected: billing.request() did not throw' }, { status: 500 });
-  } catch (thrown: unknown) {
-    if (thrown instanceof Response) {
-      logger.app('INFO', 'billing.request() threw Response', {
-        shop: session.shop,
-        status: thrown.status,
-        statusText: thrown.statusText,
-        hasLocation: thrown.headers.has('Location'),
-        headersList: Array.from(thrown.headers.entries()).map(([k, v]) => `${k}=${v}`).join('; '),
-      });
 
-      const location = thrown.headers.get('Location');
-      if (location) {
-        logger.app('INFO', 'Location header found', { location: location.substring(0, 200) });
-        const redirectUrl = new URL(location, process.env.SHOPIFY_APP_URL ?? 'http://localhost');
-        const chargeUrl = redirectUrl.searchParams.get('exitIframe') ?? location;
-        logger.app('INFO', 'Charge URL extracted', { shop: session.shop, plan: billingName });
-        return json({ confirmationUrl: chargeUrl });
-      }
-      logger.app('ERROR', 'Response thrown but no Location header', {
+    const result = await response.json();
+    logger.app('INFO', 'GraphQL response', {
+      shop: session.shop,
+      hasUserErrors: result.data?.appSubscriptionCreate?.userErrors?.length > 0,
+      hasConfirmationUrl: !!result.data?.appSubscriptionCreate?.confirmationUrl,
+    });
+
+    const userErrors = result.data?.appSubscriptionCreate?.userErrors;
+    if (userErrors && userErrors.length > 0) {
+      const messages = userErrors.map((e: { field: string[]; message: string }) => `${e.field.join('.')}: ${e.message}`).join('; ');
+      logger.app('ERROR', 'appSubscriptionCreate userErrors', {
         shop: session.shop,
         billingName,
-        status: thrown.status,
-        body: thrown.statusText,
+        userErrors: messages,
       });
-      return json({ error: `No redirect URL (status=${thrown.status})` }, { status: 500 });
+      return json({ error: messages }, { status: 400 });
     }
+
+    const confirmationUrl = result.data?.appSubscriptionCreate?.confirmationUrl;
+    if (!confirmationUrl) {
+      logger.app('ERROR', 'No confirmationUrl in response', {
+        shop: session.shop,
+        responseData: JSON.stringify(result.data).substring(0, 500),
+      });
+      return json({ error: 'Shopify did not return a confirmation URL' }, { status: 500 });
+    }
+
+    logger.app('INFO', 'Charge created, confirmation URL obtained', {
+      shop: session.shop,
+      billingName,
+    });
+    return json({ confirmationUrl });
+
+  } catch (thrown: unknown) {
     const msg = thrown instanceof Error ? thrown.message : String(thrown);
     const stack = thrown instanceof Error ? thrown.stack?.substring(0, 500) : '';
-    logger.app('ERROR', 'Charge creation failed (non-Response throw)', {
+    logger.app('ERROR', 'admin.graphql() call failed', {
       shop: session.shop,
-      planKey,
       billingName,
       error: msg,
       errorType: thrown?.constructor?.name ?? typeof thrown,
       stack,
     });
-    return json({ error: msg || 'Failed' }, { status: 500 });
+    return json({ error: msg || 'GraphQL request failed' }, { status: 500 });
   }
 };

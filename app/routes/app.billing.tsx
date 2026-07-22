@@ -4,7 +4,7 @@
 
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useRouteError, Form, useNavigation } from "@remix-run/react";
+import { useLoaderData, useRouteError, Form } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -18,7 +18,7 @@ import {
   Divider,
   Button,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate, PLAN_STARTER_MONTHLY } from "~/shopify.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
@@ -75,7 +75,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ─── Action: billing.request() → Shopify subscription confirmation ──
+// ─── Action: billing.request() → throw redirect to exitIframe page ──
+// billing.request() internally:
+//   1. Calls appSubscriptionCreate GraphQL → gets confirmationUrl
+//   2. redirectOutOfApp() checks request type:
+//      - If Authorization header present (XHR/fetcher) → 401 with AppBridge headers (FAILS silently)
+//      - If embedded=1 (normal form submit) → redirect to exitIframe?exitIframe=confirmationUrl ✅
+//      - Else → redirect directly to confirmationUrl
+// Using <Form reloadDocument> ensures traditional form submission (no Authorization header),
+// so redirectOutOfApp takes the embedded → exitIframe path.
+//
+// billing.request() returns Promise<never> — it ALWAYS throws (Redirect or 401).
+// The throw propagates to Remix which responds with the redirect to the browser.
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -101,28 +112,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "No billing plan configured for this selection" }, { status: 400 });
   }
 
-  // billing.request() calls appSubscriptionCreate GraphQL API under the hood.
-  // Returns a redirect to Shopify's subscription confirmation page.
-  // This works WITHOUT Managed Pricing configured in the Partner Dashboard.
-  try {
-    logger.app("INFO", "Billing request initiated", {
-      shop: session.shop,
-      plan: billingName,
-      interval,
-    });
-    return await billing.request({
-      plan: billingName,
-      isTest: process.env.NODE_ENV === "development",
-    });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Billing request failed", {
-      shop: session.shop,
-      plan: billingName,
-      error: msg,
-    });
-    return json({ error: msg }, { status: 500 });
-  }
+  logger.app("INFO", "Billing request initiated", {
+    shop: session.shop,
+    plan: billingName,
+    interval,
+  });
+
+  // billing.request() always throws (Redirect or error). Remix catches the redirect
+  // and responds to the browser. reloadDocument form → no Authorization header →
+  // redirectOutOfApp uses exitIframe path (the correct one for embedded apps).
+  return await billing.request({
+    plan: billingName as typeof PLAN_STARTER_MONTHLY,
+    isTest: process.env.NODE_ENV === "development",
+  });
 };
 
 // ─── Component ──────────────────────────────────────────────
@@ -130,7 +132,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function BillingPage() {
   const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
     useLoaderData<typeof loader>();
-  const navigation = useNavigation();
 
   const isActive = subscriptionStatus === "ACTIVE";
   const isCancelling = subscriptionStatus === "CANCELLED";
@@ -140,12 +141,6 @@ export default function BillingPage() {
         month: "long",
         day: "numeric",
       })
-    : null;
-
-  // Track which specific card:interval is being submitted via <Form>
-  const isSubmitting = navigation.state === "submitting";
-  const submittingKey = isSubmitting && navigation.formData
-    ? `${String(navigation.formData.get("planKey"))}:${String(navigation.formData.get("interval"))}`
     : null;
 
   return (
@@ -191,8 +186,6 @@ export default function BillingPage() {
               currentPlan={currentPlan}
               isActive={isActive}
               annualDiscountPercent={annualDiscountPercent}
-              isSubmitting={isSubmitting}
-              submittingKey={submittingKey}
             />
           ))}
         </div>
@@ -248,22 +241,21 @@ export default function BillingPage() {
   );
 }
 
-// ─── Plan Card Component (uses <Form> for billing.request()) ───
+// ─── Plan Card Component (uses <Form reloadDocument> for full-page submit → no XHR → correct redirect) ───
+// reloadDocument is critical: it makes the browser do a traditional form POST (not XHR),
+// so the request won't have the Authorization header. Without that header,
+// redirectOutOfApp detects isEmbeddedRequest → redirects to exitIframe page → Shopify charge page.
 
 function PlanCard({
   plan,
   currentPlan,
   isActive,
   annualDiscountPercent,
-  isSubmitting,
-  submittingKey,
 }: {
   plan: PlanDefinition;
   currentPlan: string;
   isActive: boolean;
   annualDiscountPercent: number;
-  isSubmitting: boolean;
-  submittingKey: string | null;
 }) {
   const isCurrent = plan.key === currentPlan;
   const isFree = plan.key === "FREE";
@@ -271,8 +263,6 @@ function PlanCard({
     !isFree &&
     !isCurrent &&
     plan.billingPlanName != null;
-
-  const monthlyKey = `${plan.key}:monthly`;
 
   const annualSavings =
     plan.price && plan.annualPrice
@@ -365,35 +355,21 @@ function PlanCard({
           </List>
         </BlockStack>
 
-        {/* CTA */}
+        {/* CTA — reloadDocument: traditional form POST, no Authorization header → correct exitIframe redirect */}
         {canUpgrade && (
           <BlockStack gap="200">
-            {/* Monthly button — uses <Form> to trigger billing.request() */}
-            <Form method="POST" style={{ width: "100%" }}>
+            <Form reloadDocument method="POST" style={{ width: "100%" }}>
               <input type="hidden" name="planKey" value={plan.key} />
               <input type="hidden" name="interval" value="monthly" />
-              <Button
-                variant="primary"
-                size="large"
-                fullWidth
-                submit
-                disabled={isSubmitting && submittingKey !== monthlyKey}
-                loading={isSubmitting && submittingKey === monthlyKey}
-              >
+              <Button variant="primary" size="large" fullWidth submit>
                 {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
               </Button>
             </Form>
             {plan.billingPlanNameAnnual && (
-              <Form method="POST" style={{ width: "100%" }}>
+              <Form reloadDocument method="POST" style={{ width: "100%" }}>
                 <input type="hidden" name="planKey" value={plan.key} />
                 <input type="hidden" name="interval" value="annual" />
-                <Button
-                  variant="plain"
-                  size="medium"
-                  fullWidth
-                  submit
-                  disabled={isSubmitting}
-                >
+                <Button variant="plain" size="medium" fullWidth submit>
                   Save {String(Math.round(annualSavings))}% with annual billing
                 </Button>
               </Form>

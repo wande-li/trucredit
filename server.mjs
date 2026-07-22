@@ -20,6 +20,7 @@ app.disable("x-powered-by");
 // Compression + static assets (mirror @remix-run/serve setup)
 app.use(compression());
 app.use(express.static("public", { maxAge: "1h" }));
+app.use(express.static("build/client", { maxAge: "1h" }));
 
 // Trust proxy for Railway's reverse proxy (x-forwarded-* headers)
 app.set("trust proxy", 1);

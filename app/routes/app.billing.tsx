@@ -224,22 +224,14 @@ function PlanCard({
   const errorMsg = fetcher.data?.error;
   const lastFiredRef = useRef<string | null>(null);
 
-  // Redirect to Shopify charge approval page when confirmationUrl is received
+  // Redirect to Shopify charge approval page when confirmationUrl is received.
+  // window.top.location.href is NOT subject to popup blocking (it's a navigation,
+  // not window.open). Shopify iframe sandbox allows top-navigation.
   useEffect(() => {
     const url = fetcher.data?.confirmationUrl;
     if (!url || url === lastFiredRef.current) return;
     lastFiredRef.current = url;
-    // Use window.open('_top') for reliable iframe breakout (CSP-safe)
-    try {
-      window.open(url, '_top');
-    } catch (_) {
-      // Fallback: assign location directly
-      try {
-        if (window.top) window.top.location.href = url;
-      } catch (__) {
-        window.location.href = url;
-      }
-    }
+    window.top!.location.href = url;
   }, [fetcher.data?.confirmationUrl]);
 
   return (

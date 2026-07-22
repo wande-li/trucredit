@@ -96,9 +96,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         returnUrl,
         lineItems: [{
           plan: {
-            pricingDetails: {
-              amount: pricing.amount,
-              currencyCode: 'USD',
+            appRecurringPricingDetails: {
+              price: {
+                amount: pricing.amount,
+                currencyCode: 'USD',
+              },
               interval: pricing.interval,
             },
           },

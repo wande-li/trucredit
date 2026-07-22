@@ -227,10 +227,18 @@ function PlanCard({
   // Redirect to Shopify charge approval page when confirmationUrl is received
   useEffect(() => {
     const url = fetcher.data?.confirmationUrl;
-    if (url && url !== lastFiredRef.current) {
-      lastFiredRef.current = url;
-      // Navigate top-level window to Shopify's charge confirmation page
-      window.top!.location.href = url;
+    if (!url || url === lastFiredRef.current) return;
+    lastFiredRef.current = url;
+    // Use window.open('_top') for reliable iframe breakout (CSP-safe)
+    try {
+      window.open(url, '_top');
+    } catch (_) {
+      // Fallback: assign location directly
+      try {
+        if (window.top) window.top.location.href = url;
+      } catch (__) {
+        window.location.href = url;
+      }
     }
   }, [fetcher.data?.confirmationUrl]);
 

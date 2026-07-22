@@ -28,6 +28,7 @@ import type { RuleConditions, RuleActionValue } from "~/services/credit-rule.ser
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 const ACTION_OPTIONS: Array<{ label: string; value: CreditAction }> = [
   { label: "Set Credit Limit", value: "SET_LIMIT" },
@@ -611,3 +612,9 @@ export default function RuleEditPage() {
     </Page>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

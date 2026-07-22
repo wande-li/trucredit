@@ -25,6 +25,7 @@ import { enqueueEmail } from "~/queues/email.queue";
 import { PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 const STATUS_MAP: Record<string, { label: string; tone: "success" | "attention" | "critical" | "info" | "new" }> = {
   PENDING: { label: "Pending", tone: "new" },
@@ -486,3 +487,9 @@ export default function TasksPage() {
     </Page>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

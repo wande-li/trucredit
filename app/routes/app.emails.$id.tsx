@@ -24,6 +24,7 @@ import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 // ═══════════════════ Loader ═══════════════════
 
@@ -477,3 +478,9 @@ export default function EmailTemplateDetail() {
     </Page>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

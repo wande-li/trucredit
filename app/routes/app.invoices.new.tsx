@@ -22,6 +22,7 @@ import { logger } from "~/services/logger.server";
 import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
 import { checkInvoiceQuota } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -295,3 +296,9 @@ export default function NewInvoice() {
     </Page>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

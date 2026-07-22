@@ -19,6 +19,7 @@ import prisma from "~/db.server";
 import { checkCustomerQuota, upsertCustomerFromShopify } from "~/services/customer.server";
 import { getShopBilling } from "~/services/billing.server";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -263,3 +264,9 @@ export default function NewCustomerPage() {
     </Page>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

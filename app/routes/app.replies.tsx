@@ -28,6 +28,7 @@ import type { ReplyIntent } from "@prisma/client";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 const REPLY_INTENT_LABELS: Record<string, string> = {
   WILL_PAY: "Will Pay",
@@ -441,3 +442,9 @@ function ReplyDetailModal({
     </Modal>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

@@ -28,6 +28,7 @@ import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 // ═══════════════════ Loader ═══════════════════
 
@@ -419,3 +420,9 @@ function CreateTemplateModal({
     </Modal>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

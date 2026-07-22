@@ -33,6 +33,7 @@ import { COLLECTION } from "~/lib/constants";
 import type { Channel, TriggerType } from "@prisma/client";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -626,3 +627,9 @@ function AddStepModal({
     </Modal>
   );
 }
+
+// Route-level ErrorBoundary
+export function ErrorBoundary() {
+  return <RouteErrorBoundary />;
+}
+

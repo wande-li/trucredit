@@ -30,7 +30,7 @@ api_version = "2025-10"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_customers,write_customers,read_draft_orders,write_draft_orders,read_products,write_products,read_companies,read_metafields,write_metafields,read_payment_terms,write_payment_terms"
+scopes = "read_companies,read_customers,write_customers,read_orders,write_orders,read_draft_orders,write_draft_orders,read_metafields,write_metafields,read_payment_terms,write_payment_terms"
 use_legacy_install_flow = false
 optional_scopes = [ ]
 

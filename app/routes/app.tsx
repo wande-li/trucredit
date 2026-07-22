@@ -139,7 +139,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               isOnline: false,
               accessToken: "dev-token",
               scope:
-                "read_orders,write_orders,read_customers,write_customers,read_products,write_products",
+                "read_companies,read_customers,write_customers,read_orders,write_orders,read_draft_orders,write_draft_orders,read_metafields,write_metafields,read_payment_terms,write_payment_terms",
               expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
             },
           });

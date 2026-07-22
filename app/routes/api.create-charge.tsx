@@ -78,7 +78,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? process.env.BILLING_TEST_MODE === 'true'
       : process.env.NODE_ENV === 'development';
 
-  const returnUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost';
+  // After charge confirmation, Shopify redirects user to returnUrl in top-level window.
+  // We route through /billing/callback to redirect back into Shopify Admin iframe.
+  const appUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost';
+  const returnUrl = `${appUrl}/billing/callback?shop=${encodeURIComponent(session.shop)}`;
 
   logger.app('INFO', 'Creating charge via admin.graphql()', {
     shop: session.shop,

@@ -34,7 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: { shopDomain: shop },
         data: {
           plan: planParam as 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE',
-          subscriptionStatus: 'TRIALING',
+          subscriptionStatus: 'ACTIVE',
           customerQuota: quotas.customers,
           invoiceQuota: quotas.invoices,
           shopifyChargeId: chargeId ?? undefined,

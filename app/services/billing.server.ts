@@ -288,9 +288,18 @@ export async function checkPlanAccess(shopId: string): Promise<{
     shop._count.customers >= quota.customers ||
     shop._count.invoices >= quota.invoices;
 
+  // Self-heal: if plan is non-FREE, the merchant has paid. Auto-correct stale status.
+  if (resolvedPlan !== "FREE" && shop.subscriptionStatus !== "ACTIVE") {
+    await prisma.shop.update({
+      where: { id: shopId },
+      data: { subscriptionStatus: "ACTIVE" },
+    });
+    logger.app("INFO", "checkPlanAccess — auto-healed subscriptionStatus to ACTIVE", { shopId, plan: resolvedPlan });
+  }
+
   return {
     plan: resolvedPlan,
-    isPaid: resolvedPlan !== "FREE" && shop.subscriptionStatus === "ACTIVE",
+    isPaid: resolvedPlan !== "FREE",
     quotaBlocked: isQuotaExceeded && resolvedPlan === "FREE",
     reason: isQuotaExceeded
       ? `Quota exceeded: ${shop._count.customers}/${quota.customers} customers, ${shop._count.invoices}/${quota.invoices} invoices`

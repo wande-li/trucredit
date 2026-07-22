@@ -87,6 +87,20 @@ export async function syncAllCompanies(
       break;
     }
 
+    // Diagnostic: log raw GraphQL response for debugging
+    logger.app("INFO", "Companies GraphQL response", undefined, {
+      shopDomain,
+      cursor,
+      hasData: !!result.data,
+      hasCompanies: !!result.data?.companies,
+      edgesCount: result.data?.companies?.edges?.length ?? 0,
+      hasErrors: !!result.errors?.length,
+      rawErrors: result.errors ? JSON.stringify(result.errors.slice(0, 3)) : undefined,
+      rawDataPreview: result.data
+        ? JSON.stringify(result.data).slice(0, 2000)
+        : "null",
+    });
+
     // Collect GraphQL-level errors (non-throwing)
     if (result.errors?.length) {
       for (const gqlErr of result.errors) {

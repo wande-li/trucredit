@@ -1,10 +1,12 @@
 // TruCredit — Pricing Page (Managed Pricing — Shopify hosts payment)
 // 4-tier: Free / Starter / Pro / Enterprise — monthly & annual with 17% discount
 // Webhook APP_SUBSCRIPTIONS_UPDATE syncs plan changes to DB.
+// Upgrade flow: window.top.location.href → Shopify charges page (same as Wandex)
 
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import { useLoaderData, useRouteError } from "@remix-run/react";
+import { useState } from "react";
 import {
   Page,
   Card,
@@ -20,8 +22,8 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
-import { type PlanKey } from "~/lib/constants";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
+import { pricingPageUrl } from "~/lib/constants";
 import { RouteError } from "~/services/error-boundary.shared";
 
 // ─── Loader ─────────────────────────────────────────────────
@@ -46,6 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return json(
       {
+        shopDomain,
         currentPlan,
         planName,
         subscriptionStatus,
@@ -62,6 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     return json(
       {
+        shopDomain: "",
         currentPlan: "FREE",
         planName: "Free",
         subscriptionStatus: null,
@@ -77,43 +81,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ─── Action: handle plan selection → Shopify checkout ───────
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-  const planKey = formData.get("planKey")?.toString() as PlanKey | undefined;
-  const interval = formData.get("interval")?.toString() as "monthly" | "annual" | undefined;
-
-  if (intent !== "subscribe" || !planKey || planKey === "FREE") {
-    return json({ error: "Invalid plan selection" }, { status: 400 });
-  }
-
-  const plan = PLANS_V2.find((p) => p.key === planKey);
-  if (!plan) {
-    return json({ error: "Plan not found" }, { status: 400 });
-  }
-
-  const billingName =
-    interval === "annual" && plan.billingPlanNameAnnual
-      ? plan.billingPlanNameAnnual
-      : plan.billingPlanName;
-
-  if (!billingName) {
-    return json({ error: "No billing plan configured" }, { status: 400 });
-  }
-
-  // Redirect to Shopify's hosted pricing/checkout page
-  return redirect(`https://admin.shopify.com/store/${session.shop}/settings/plans/${billingName}`);
-};
-
 // ─── Component ──────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
+  const { shopDomain, currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
     useLoaderData<typeof loader>();
-  const fetcher = useFetcher();
+  const [subscribing, setSubscribing] = useState<string | null>(null); // "{planKey}:{interval}"
 
   const isActive = subscriptionStatus === "ACTIVE";
   const isCancelling = subscriptionStatus === "CANCELLED";
@@ -125,11 +98,14 @@ export default function BillingPage() {
       })
     : null;
 
+  // Client-side upgrade: window.top.location.href escapes Shopify Admin iframe.
+  // Server-side redirect() fails because Shopify CSP blocks cross-origin nav inside iframe.
   const handleSubscribe = (planKey: string, interval: string) => {
-    fetcher.submit(
-      { intent: "subscribe", planKey, interval },
-      { method: "POST" },
-    );
+    if (!shopDomain) return;
+    const key = `${planKey}:${interval}`;
+    setSubscribing(key);
+    // Navigate the parent window to Shopify's Managed Pricing page
+    window.top!.location.href = pricingPageUrl(shopDomain);
   };
 
   return (
@@ -176,7 +152,7 @@ export default function BillingPage() {
               isActive={isActive}
               annualDiscountPercent={annualDiscountPercent}
               onSubscribe={handleSubscribe}
-              loading={fetcher.state !== "idle"}
+              subscribing={subscribing}
             />
           ))}
         </div>
@@ -240,14 +216,14 @@ function PlanCard({
   isActive,
   annualDiscountPercent,
   onSubscribe,
-  loading,
+  subscribing,
 }: {
   plan: PlanDefinition;
   currentPlan: string;
   isActive: boolean;
   annualDiscountPercent: number;
   onSubscribe: (planKey: string, interval: string) => void;
-  loading: boolean;
+  subscribing: string | null; // "{planKey}:{interval}"
 }) {
   const isCurrent = plan.key === currentPlan;
   const isFree = plan.key === "FREE";
@@ -255,6 +231,8 @@ function PlanCard({
     !isFree &&
     !isCurrent &&
     plan.billingPlanName != null;
+
+  const monthlyKey = `${plan.key}:monthly`;
 
   // Annual price display
   const annualSavings =
@@ -356,10 +334,10 @@ function PlanCard({
               size="large"
               fullWidth
               onClick={() => onSubscribe(plan.key, "monthly")}
-              disabled={loading}
-              loading={loading}
+              disabled={subscribing !== null}
+              loading={subscribing === monthlyKey}
             >
-              {isCurrent ? "Current Plan" : "Start Free Trial"}
+              {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
             </Button>
             {plan.billingPlanNameAnnual && (
               <Button
@@ -367,7 +345,7 @@ function PlanCard({
                 size="medium"
                 fullWidth
                 onClick={() => onSubscribe(plan.key, "annual")}
-                disabled={loading}
+                disabled={subscribing !== null}
               >
                 Save {String(Math.round(annualSavings))}% with annual billing
               </Button>

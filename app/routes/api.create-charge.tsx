@@ -25,28 +25,64 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!billingName) return json({ error: 'No billing plan' }, { status: 400 });
 
-  logger.app('INFO', 'Charge creation requested', { shop: session.shop, plan: billingName, interval });
+  logger.app('INFO', 'Charge creation requested', {
+    shop: session.shop,
+    planKey,
+    billingName,
+    interval,
+    returnUrl: process.env.SHOPIFY_APP_URL,
+    isTest: process.env.NODE_ENV === 'development',
+  });
 
   try {
-    await billing.request({
+    const result = await billing.request({
       plan: billingName as BillingPlanName,
       isTest: process.env.NODE_ENV === 'development',
       returnUrl: process.env.SHOPIFY_APP_URL!,
     });
-    return json({ error: 'Unexpected' }, { status: 500 });
+    logger.app('WARN', 'billing.request() returned normally (expected RedirectResponse throw)', {
+      shop: session.shop,
+      billingName,
+      resultType: typeof result,
+      resultKeys: result ? Object.keys(result).join(',') : 'null',
+    });
+    return json({ error: 'Unexpected: billing.request() did not throw' }, { status: 500 });
   } catch (thrown: unknown) {
     if (thrown instanceof Response) {
+      logger.app('INFO', 'billing.request() threw Response', {
+        shop: session.shop,
+        status: thrown.status,
+        statusText: thrown.statusText,
+        hasLocation: thrown.headers.has('Location'),
+        headersList: Array.from(thrown.headers.entries()).map(([k, v]) => `${k}=${v}`).join('; '),
+      });
+
       const location = thrown.headers.get('Location');
       if (location) {
+        logger.app('INFO', 'Location header found', { location: location.substring(0, 200) });
         const redirectUrl = new URL(location, process.env.SHOPIFY_APP_URL ?? 'http://localhost');
         const chargeUrl = redirectUrl.searchParams.get('exitIframe') ?? location;
         logger.app('INFO', 'Charge URL extracted', { shop: session.shop, plan: billingName });
         return json({ confirmationUrl: chargeUrl });
       }
-      return json({ error: 'No redirect URL' }, { status: 500 });
+      logger.app('ERROR', 'Response thrown but no Location header', {
+        shop: session.shop,
+        billingName,
+        status: thrown.status,
+        body: thrown.statusText,
+      });
+      return json({ error: `No redirect URL (status=${thrown.status})` }, { status: 500 });
     }
     const msg = thrown instanceof Error ? thrown.message : String(thrown);
-    logger.app('ERROR', 'Charge creation failed', { shop: session.shop, plan: billingName, error: msg });
+    const stack = thrown instanceof Error ? thrown.stack?.substring(0, 500) : '';
+    logger.app('ERROR', 'Charge creation failed (non-Response throw)', {
+      shop: session.shop,
+      planKey,
+      billingName,
+      error: msg,
+      errorType: thrown?.constructor?.name ?? typeof thrown,
+      stack,
+    });
     return json({ error: msg || 'Failed' }, { status: 500 });
   }
 };

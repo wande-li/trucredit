@@ -288,8 +288,8 @@ export default function CustomersPage() {
                 ) => (
                   <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
-                      <Link to={`/app/customers/${id}`}>
-                        <BlockStack gap="100">
+                      <Link to={`/app/customers/${id}`} removeUnderline>
+                        <BlockStack gap="100" as="span">
                           <Text as="span" variant="bodyMd" fontWeight="bold">
                             {name}
                           </Text>

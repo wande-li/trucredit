@@ -78,23 +78,43 @@ export async function initialSync(
   invoices: { created: number; skipped: number };
   metafields: { synced: number; failed: number };
 }> {
-  logger.app("INFO", "Starting initial sync", { shopDomain, shopId });
+  logger.app("INFO", "Starting initial sync", undefined, { shopDomain, shopId });
 
-  // Step 1: Sync B2B companies
-  const companies = await syncAllCompanies(admin, shopDomain, shopId);
+  let companies = { created: 0, updated: 0 };
+  let invoices = { created: 0, skipped: 0 };
+  let metafields = { synced: 0, failed: 0 };
+
+  // Step 1: Sync B2B companies (with error isolation)
+  try {
+    companies = await syncAllCompanies(admin, shopDomain, shopId);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Initial sync Step 1 (companies) failed", msg, { shopDomain, shopId });
+  }
 
   // Step 2: Sync historical orders (last 90 days)
-  const invoices = await syncHistoricalOrders(admin, shopDomain, shopId);
+  try {
+    invoices = await syncHistoricalOrders(admin, shopDomain, shopId);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Initial sync Step 2 (orders) failed", msg, { shopDomain, shopId });
+  }
 
   // Step 3: Write credit metafields for all customers
-  const metafields = await syncAllCreditMetafields(admin, shopDomain, shopId);
+  try {
+    metafields = await syncAllCreditMetafields(admin, shopDomain, shopId);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Initial sync Step 3 (metafields) failed", msg, { shopDomain, shopId });
+  }
 
-  logger.app("INFO", "Initial sync complete", {
+  logger.app("INFO", "Initial sync complete", undefined, {
     shopId,
     companiesCreated: companies.created,
     companiesUpdated: companies.updated,
     invoicesCreated: invoices.created,
     metafieldsSynced: metafields.synced,
+    metafieldsFailed: metafields.failed,
   });
 
   return { companies, invoices, metafields };
@@ -129,7 +149,7 @@ async function syncHistoricalOrders(
       );
 
       if (!result.data?.orders) {
-        logger.app("WARN", "Sync orders: no data", { shopDomain, cursor });
+        logger.app("WARN", "Sync orders: no data", undefined, { shopDomain, cursor });
         break;
       }
 
@@ -251,13 +271,10 @@ async function syncHistoricalOrders(
         logger.app("ERROR", "Sync: too many page errors, aborting", undefined, { shopDomain, errors });
         hasNextPage = false;
       }
-      // otherwise continue to next page (cursor stays same, may get partial coverage)
-      hasNextPage = errors < 10 && result?.data?.orders?.pageInfo?.hasNextPage;
-      if (hasNextPage) cursor = result?.data?.orders?.pageInfo?.endCursor ?? cursor;
     }
   }
 
-  logger.app("INFO", "Historical order sync complete", { shopId, created, skipped });
+  logger.app("INFO", "Historical order sync complete", undefined, { shopId, created, skipped });
   return { created, skipped };
 }
 

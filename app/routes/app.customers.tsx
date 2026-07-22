@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Link, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -65,6 +65,8 @@ export default function CustomersPage() {
   const { result } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
+  const syncFetcher = useFetcher<{ success?: boolean; created?: number; updated?: number; error?: string }>();
+  const isSyncing = syncFetcher.state !== "idle";
 
   const handleSearch = useCallback(
     (value: string) => {
@@ -117,7 +119,38 @@ export default function CustomersPage() {
       title="Customers"
       subtitle={`${total} total`}
       primaryAction={<Button url="/app/customers/new" variant="primary">Add Customer</Button>}
+      secondaryActions={[
+        {
+          content: isSyncing ? "Syncing..." : "Sync from Shopify",
+          accessibilityLabel: "Re-sync customers from Shopify",
+          disabled: isSyncing,
+          onAction: () =>
+            syncFetcher.submit(
+              {},
+              { method: "POST", action: "/api/sync-companies" },
+            ),
+        },
+      ]}
     >
+      {/* Sync result feedback */}
+      {syncFetcher.data?.success && (
+        <Box padding="400">
+          <Card>
+            <Text as="p" tone="success">
+              Sync complete: {syncFetcher.data.created} created, {syncFetcher.data.updated} updated.
+            </Text>
+          </Card>
+        </Box>
+      )}
+      {syncFetcher.data?.success === false && (
+        <Box padding="400">
+          <Card>
+            <Text as="p" tone="critical">
+              Sync failed: {syncFetcher.data.error ?? "Unknown error"}
+            </Text>
+          </Card>
+        </Box>
+      )}
       <BlockStack gap="400">
         {/* Filters */}
         <Card>

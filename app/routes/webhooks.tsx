@@ -35,6 +35,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shopDomain: string = String(p.shop_domain || p.myshopify_domain || "");
   const shopifyAdmin = admin; // may be undefined, guard before use
 
+  logger.app("INFO", `Webhook received: ${topic}`, undefined, { shopDomain, topic });
+
   // ─── App Uninstall ────────────────────────────────
   if (topic === "APP_UNINSTALLED") {
     if (shopDomain) {
@@ -126,7 +128,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-    logger.app("INFO", `Company ${topic} processed`, {
+    logger.app("INFO", `Company ${topic} processed`, undefined, {
       shopId: dbShop.id,
       companyName,
       contactCount: contacts.length,
@@ -217,7 +219,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       }
 
-      logger.app("INFO", "Invoice created from order", {
+      logger.app("INFO", "Invoice created from order", undefined, {
         shopId: dbShop.id,
         customerId: customer.id,
         orderName,
@@ -418,7 +420,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
         }
 
-        logger.app("INFO", "Refund processed", {
+        logger.app("INFO", "Refund processed", undefined, {
           orderId,
           refundTotal,
           releasedAmount,
@@ -471,7 +473,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    logger.app("INFO", "GDPR CUSTOMERS_DATA_REQUEST processed", {
+    logger.app("INFO", "GDPR CUSTOMERS_DATA_REQUEST processed", undefined, {
       shopId: shop.id,
       customerId,
       recordCount: customers.length,
@@ -508,7 +510,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    logger.app("INFO", "GDPR CUSTOMERS_REDACT processed", {
+    logger.app("INFO", "GDPR CUSTOMERS_REDACT processed", undefined, {
       shopId: shop.id,
       customerId,
       updatedCount: result.count,

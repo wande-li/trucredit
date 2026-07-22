@@ -71,15 +71,22 @@ export async function syncAllCompanies(
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const result: GraphQLResponse<CompaniesPageData> = await adminGraphQL<CompaniesPageData>(
-      admin,
-      shopDomain,
-      GET_COMPANIES,
-      { first: 50, after: cursor },
-    );
+    let result: GraphQLResponse<CompaniesPageData>;
+    try {
+      result = await adminGraphQL<CompaniesPageData>(
+        admin,
+        shopDomain,
+        GET_COMPANIES,
+        { first: 50, after: cursor },
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("ERROR", "GraphQL call failed during company sync", msg, { shopDomain, shopId, cursor });
+      break;
+    }
 
     if (!result.data?.companies) {
-      logger.app("WARN", "Sync companies: no data returned", { shopDomain, cursor });
+      logger.app("WARN", "Sync companies: no data returned", undefined, { shopDomain, cursor });
       break;
     }
 
@@ -95,44 +102,49 @@ export async function syncAllCompanies(
         const netTermsDays =
           primaryLocation?.buyerExperienceConfiguration?.paymentTermsTemplate?.dueInDays || 30;
 
-        const existing = await prisma.customer.findUnique({
-          where: {
-            shopId_shopifyCustomerId: { shopId, shopifyCustomerId: String(c.id) },
-          },
-          select: { id: true },
-        });
+        try {
+          const existing = await prisma.customer.findUnique({
+            where: {
+              shopId_shopifyCustomerId: { shopId, shopifyCustomerId: String(c.id) },
+            },
+            select: { id: true },
+          });
 
-        if (existing) {
-          await prisma.customer.update({
-            where: { id: existing.id },
-            data: {
-              name,
-              email: c.email.toLowerCase(),
-              company: company.name,
-              phone: c.phone || undefined,
-              netTermsDays,
-              updatedAt: new Date(),
-            },
-          });
-          updated++;
-        } else {
-          await prisma.customer.create({
-            data: {
-              shopId,
-              shopifyCustomerId: String(c.id),
-              name,
-              email: c.email.toLowerCase(),
-              company: company.name,
-              phone: c.phone || null,
-              netTermsDays,
-              creditLimit: 0,
-              creditUsed: 0,
-              creditAvailable: 0,
-              isFrozen: false,
-              creditGrade: "C",
-            },
-          });
-          created++;
+          if (existing) {
+            await prisma.customer.update({
+              where: { id: existing.id },
+              data: {
+                name,
+                email: c.email.toLowerCase(),
+                company: company.name,
+                phone: c.phone || undefined,
+                netTermsDays,
+                updatedAt: new Date(),
+              },
+            });
+            updated++;
+          } else {
+            await prisma.customer.create({
+              data: {
+                shopId,
+                shopifyCustomerId: String(c.id),
+                name,
+                email: c.email.toLowerCase(),
+                company: company.name,
+                phone: c.phone || null,
+                netTermsDays,
+                creditLimit: 0,
+                creditUsed: 0,
+                creditAvailable: 0,
+                isFrozen: false,
+                creditGrade: "C",
+              },
+            });
+            created++;
+          }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Failed to upsert customer", msg, { shopId, customerId: c.id, email: c.email });
         }
       }
     }
@@ -141,7 +153,7 @@ export async function syncAllCompanies(
     cursor = result.data.companies.pageInfo.endCursor;
   }
 
-  logger.app("INFO", "Company sync complete", { shopId, created, updated });
+  logger.app("INFO", "Company sync complete", undefined, { shopId, created, updated });
   return { created, updated };
 }
 

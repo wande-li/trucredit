@@ -21,19 +21,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: false, error: "Method Not Allowed" }, { status: 405 });
   }
 
+  const { session, admin } = await authenticate.admin(request);
+  const shopDomain = session.shop.trim();
+
+  const shop = await prisma.shop.findUnique({
+    where: { shopDomain },
+    select: { id: true },
+  });
+
+  if (!shop) {
+    return json({ success: false, error: "Shop not found" }, { status: 404 });
+  }
+
   try {
-    const { session, admin } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) {
-      return json({ success: false, error: "Shop not found" }, { status: 404 });
-    }
-
     logger.app("INFO", "Manual sync triggered from Customers page", undefined, { shopDomain, shopId: shop.id });
 
     const result = await syncAllCompanies(admin, shopDomain, shop.id);
@@ -42,17 +42,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       shopId: shop.id,
       created: result.created,
       updated: result.updated,
+      errorCount: result.errors.length,
     });
 
     return json({
       success: true,
       created: result.created,
       updated: result.updated,
+      errors: result.errors.length > 0 ? result.errors : undefined,
     });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Manual sync failed", msg, {});
-    return json({ success: false, error: msg }, { status: 500 });
+    const stack = e instanceof Error ? e.stack : undefined;
+    logger.app("ERROR", "Manual sync failed", msg, { shopDomain, stack: stack?.slice(0, 500) });
+    return json(
+      {
+        success: false,
+        error: msg,
+        detail: stack?.slice(0, 800) ?? "No stack trace available",
+      },
+      { status: 500 },
+    );
   }
 };

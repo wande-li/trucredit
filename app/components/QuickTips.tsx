@@ -37,10 +37,10 @@ const TIPS = [
     linkLabel: "Open Tasks",
   },
   {
-    title: "New Customer Credit Check",
-    body: "Adding a new B2B customer? TruCredit AI recommends an initial credit limit based on Shopify order history.",
-    link: "/app/customers/new",
-    linkLabel: "Add Customer",
+    title: "Customer Credit Overview",
+    body: "Review all synced B2B customers, their credit grades, risk levels, and current credit usage.",
+    link: "/app/customers",
+    linkLabel: "View Customers",
   },
   {
     title: "Email Templates",

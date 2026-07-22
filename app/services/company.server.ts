@@ -64,9 +64,10 @@ export async function syncAllCompanies(
   admin: AdminApiContext,
   shopDomain: string,
   shopId: string,
-): Promise<{ created: number; updated: number }> {
+): Promise<{ created: number; updated: number; errors: string[] }> {
   let created = 0;
   let updated = 0;
+  const errors: string[] = [];
   let cursor: string | null = null;
   let hasNextPage = true;
 
@@ -82,11 +83,24 @@ export async function syncAllCompanies(
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.app("ERROR", "GraphQL call failed during company sync", msg, { shopDomain, shopId, cursor });
+      errors.push(`GraphQL request failed at cursor "${cursor}": ${msg}`);
       break;
+    }
+
+    // Collect GraphQL-level errors (non-throwing)
+    if (result.errors?.length) {
+      for (const gqlErr of result.errors) {
+        const code = gqlErr.extensions?.code ?? "UNKNOWN";
+        errors.push(`GraphQL error [${code}]: ${gqlErr.message}`);
+        logger.app("WARN", "GraphQL error during company sync", gqlErr.message, { shopDomain, code, cursor });
+      }
     }
 
     if (!result.data?.companies) {
       logger.app("WARN", "Sync companies: no data returned", undefined, { shopDomain, cursor });
+      if (!result.errors?.length) {
+        errors.push("No companies data returned from Shopify (empty response)");
+      }
       break;
     }
 
@@ -153,8 +167,8 @@ export async function syncAllCompanies(
     cursor = result.data.companies.pageInfo.endCursor;
   }
 
-  logger.app("INFO", "Company sync complete", undefined, { shopId, created, updated });
-  return { created, updated };
+  logger.app("INFO", "Company sync complete", undefined, { shopId, created, updated, errorCount: errors.length });
+  return { created, updated, errors };
 }
 
 /**

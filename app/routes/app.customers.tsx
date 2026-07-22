@@ -14,6 +14,7 @@ import {
   Select,
   EmptyState,
   Button,
+  Banner,
   Box,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
@@ -118,7 +119,6 @@ export default function CustomersPage() {
       fullWidth
       title="Customers"
       subtitle={`${total} total`}
-      primaryAction={<Button url="/app/customers/new" variant="primary">Add Customer</Button>}
       secondaryActions={[
         {
           content: isSyncing ? "Syncing..." : "Sync from Shopify",
@@ -133,22 +133,30 @@ export default function CustomersPage() {
       ]}
     >
       {/* Sync result feedback */}
-      {syncFetcher.data?.success && (
+      {syncFetcher.data?.success && (syncFetcher.data.created ?? 0) === 0 && (syncFetcher.data.updated ?? 0) === 0 ? (
         <Box padding="400">
-          <Card>
-            <Text as="p" tone="success">
+          <Banner tone="info">
+            <Text as="p" variant="bodyMd">
+              Sync complete: 0 created, 0 updated. No B2B companies found in Shopify. Make sure you have set up B2B companies in Shopify Admin.
+            </Text>
+          </Banner>
+        </Box>
+      ) : syncFetcher.data?.success ? (
+        <Box padding="400">
+          <Banner tone="success">
+            <Text as="p" variant="bodyMd">
               Sync complete: {syncFetcher.data.created} created, {syncFetcher.data.updated} updated.
             </Text>
-          </Card>
+          </Banner>
         </Box>
-      )}
+      ) : null}
       {syncFetcher.data?.success === false && (
         <Box padding="400">
-          <Card>
-            <Text as="p" tone="critical">
+          <Banner tone="critical">
+            <Text as="p" variant="bodyMd">
               Sync failed: {syncFetcher.data.error ?? "Unknown error"}
             </Text>
-          </Card>
+          </Banner>
         </Box>
       )}
       <BlockStack gap="400">
@@ -228,6 +236,16 @@ export default function CustomersPage() {
                   ? "Try adjusting your filters or search terms."
                   : "Sync customers from Shopify to start managing credit."}
               </Text>
+              {!searchParams.toString() && (
+                <Box padding="400">
+                  <Banner tone="info">
+                    <Text as="p" variant="bodyMd">
+                      B2B companies are managed in your Shopify Admin under Customers &gt; Companies.
+                      Use the &ldquo;Sync from Shopify&rdquo; button above to pull them into TruCredit.
+                    </Text>
+                  </Banner>
+                </Box>
+              )}
             </EmptyState>
           </Card>
         ) : (

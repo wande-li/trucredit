@@ -477,7 +477,7 @@ export default function Dashboard() {
               <BlockStack gap="300">
                 <Text as="h2" variant="headingSm" tone="subdued">QUICK ACTIONS</Text>
                 <InlineStack gap="300" wrap>
-                  <Button url="/app/customers/new" icon={PersonAddIcon} variant="primary">Add Customer</Button>
+                  <Button url="/app/customers" icon={PersonAddIcon} variant="primary">View Customers</Button>
                   <Button url="/app/invoices/new" icon={OrderIcon}>Create Invoice</Button>
                   <Button url="/app/collections" icon={CalendarCheckIcon}>Collections</Button>
                 </InlineStack>
@@ -502,8 +502,8 @@ export default function Dashboard() {
                 <Box padding="800">
                   <BlockStack gap="400" align="center">
                     <Text as="p" variant="bodyLg" tone="subdued">No customers yet</Text>
-                    <Text as="p" variant="bodyMd" tone="subdued">Sync customers from Shopify or add them manually.</Text>
-                    <Button url="/app/customers/new" variant="primary">Add First Customer</Button>
+                    <Text as="p" variant="bodyMd" tone="subdued">Customers are synced from Shopify B2B companies. Go to the Customers page to trigger a sync.</Text>
+                    <Button url="/app/customers" variant="primary">Go to Customers</Button>
                   </BlockStack>
                 </Box>
               ) : (

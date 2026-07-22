@@ -5,7 +5,7 @@
 
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -19,6 +19,7 @@ import {
   Banner,
   Divider,
   Button,
+  Modal,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
@@ -220,19 +221,40 @@ function PlanCard({
       : annualDiscountPercent;
 
   const fetcher = useFetcher<{ confirmationUrl?: string; error?: string }>();
-  const isSubmitting = fetcher.state === "submitting";
-  const errorMsg = fetcher.data?.error;
+  const cancelFetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const isUpgradeSubmitting = fetcher.state === "submitting";
+  const isCancelSubmitting = cancelFetcher.state === "submitting";
+  const upgradeErrorMsg = fetcher.data?.error;
+  const cancelErrorMsg = cancelFetcher.data?.error;
+  const cancelSuccess = cancelFetcher.data?.success;
   const lastFiredRef = useRef<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Redirect to Shopify charge approval page when confirmationUrl is received.
-  // window.top.location.href is NOT subject to popup blocking (it's a navigation,
-  // not window.open). Shopify iframe sandbox allows top-navigation.
   useEffect(() => {
     const url = fetcher.data?.confirmationUrl;
     if (!url || url === lastFiredRef.current) return;
     lastFiredRef.current = url;
     window.top!.location.href = url;
   }, [fetcher.data?.confirmationUrl]);
+
+  // Reload page after successful cancel so webhook has time to update DB
+  useEffect(() => {
+    if (cancelSuccess) {
+      const timer = setTimeout(() => window.location.reload(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [cancelSuccess]);
+
+  const handleCancel = useCallback(() => {
+    setShowCancelModal(false);
+    cancelFetcher.submit(
+      null,
+      { method: "POST", action: "/api/cancel-subscription" },
+    );
+  }, [cancelFetcher]);
+
+  const errorMsg = upgradeErrorMsg || cancelErrorMsg;
 
   return (
     <Card>
@@ -327,6 +349,15 @@ function PlanCard({
           </Banner>
         )}
 
+        {/* Success message */}
+        {cancelSuccess && (
+          <Banner tone="success">
+            <Text as="p" variant="bodyMd">
+              Subscription canceled. Reloading…
+            </Text>
+          </Banner>
+        )}
+
         {/* CTA */}
         {canUpgrade && (
           <BlockStack gap="200">
@@ -334,8 +365,8 @@ function PlanCard({
               variant="primary"
               size="large"
               fullWidth
-              loading={isSubmitting}
-              disabled={isSubmitting}
+              loading={isUpgradeSubmitting}
+              disabled={isUpgradeSubmitting || isCancelSubmitting}
               onClick={() => {
                 fetcher.submit(
                   { planKey: plan.key, interval: "monthly" },
@@ -350,7 +381,7 @@ function PlanCard({
                 variant="plain"
                 size="medium"
                 fullWidth
-                disabled={isSubmitting}
+                disabled={isUpgradeSubmitting || isCancelSubmitting}
                 onClick={() => {
                   fetcher.submit(
                     { planKey: plan.key, interval: "annual" },
@@ -365,9 +396,49 @@ function PlanCard({
         )}
 
         {isCurrent && isActive && plan.key !== "FREE" && (
-          <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-            You&apos;re on this plan
-          </Text>
+          <BlockStack gap="200">
+            <Divider />
+            <Button
+              variant="primary"
+              tone="critical"
+              size="large"
+              fullWidth
+              loading={isCancelSubmitting}
+              disabled={isCancelSubmitting || isUpgradeSubmitting}
+              onClick={() => setShowCancelModal(true)}
+            >
+              Cancel Subscription
+            </Button>
+            <Modal
+              open={showCancelModal}
+              onClose={() => setShowCancelModal(false)}
+              title="Cancel Subscription"
+              primaryAction={{
+                content: "Confirm Cancellation",
+                tone: "critical",
+                onAction: handleCancel,
+              }}
+              secondaryActions={[
+                {
+                  content: "Keep Subscription",
+                  onAction: () => setShowCancelModal(false),
+                },
+              ]}
+            >
+              <Modal.Section>
+                <BlockStack gap="400">
+                  <Text as="p" variant="bodyMd">
+                    Are you sure you want to cancel your <strong>{plan.name}</strong> subscription?
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Your subscription will remain active until the end of the current billing period.
+                    After that, your account will be downgraded to the <strong>Free</strong> plan
+                    with reduced quotas and limited features.
+                  </Text>
+                </BlockStack>
+              </Modal.Section>
+            </Modal>
+          </BlockStack>
         )}
         {isFree && !isActive && (
           <Text as="p" variant="bodySm" tone="subdued" alignment="center">

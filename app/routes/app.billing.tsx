@@ -4,7 +4,7 @@
 
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useRouteError, Form } from "@remix-run/react";
+import { useLoaderData, useRouteError } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -18,7 +18,8 @@ import {
   Divider,
   Button,
 } from "@shopify/polaris";
-import { authenticate, PLAN_STARTER_MONTHLY } from "~/shopify.server";
+import { authenticate } from "~/shopify.server";
+import type { BillingPlanName } from "~/shopify.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
@@ -75,18 +76,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ─── Action: billing.request() → throw redirect to exitIframe page ──
-// billing.request() internally:
-//   1. Calls appSubscriptionCreate GraphQL → gets confirmationUrl
-//   2. redirectOutOfApp() checks request type:
-//      - If Authorization header present (XHR/fetcher) → 401 with AppBridge headers (FAILS silently)
-//      - If embedded=1 (normal form submit) → redirect to exitIframe?exitIframe=confirmationUrl ✅
-//      - Else → redirect directly to confirmationUrl
-// Using <Form reloadDocument> ensures traditional form submission (no Authorization header),
-// so redirectOutOfApp takes the embedded → exitIframe path.
+// ─── Action: catch billing.request() redirect → extract URL → HTML redirect ──
+// billing.request() ALWAYS throws (Promise<never>).
+// On success: throws Response(302 Redirect) → Location = /exitiframe?exitIframe=shopifyChargeUrl
+//   → We catch it, extract the Shopify charge URL, return HTML with window.top redirect.
+// On failure: throws Response(400) or Error → we return error HTML.
 //
-// billing.request() returns Promise<never> — it ALWAYS throws (Redirect or 401).
-// The throw propagates to Remix which responds with the redirect to the browser.
+// We use a raw HTML <form> (not Remix <Form>) to ensure traditional browser form POST,
+// which avoids Shopify App Bridge XHR interception.
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -95,12 +92,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const interval = formData.get("interval")?.toString() as "monthly" | "annual" | undefined;
 
   if (!planKey || planKey === "FREE") {
-    return json({ error: "Invalid plan selection" }, { status: 400 });
+    return errHtml("Invalid plan selection");
   }
 
   const plan = PLANS_V2.find((p) => p.key === planKey);
   if (!plan) {
-    return json({ error: "Plan not found" }, { status: 400 });
+    return errHtml("Plan not found");
   }
 
   const billingName =
@@ -109,7 +106,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       : plan.billingPlanName;
 
   if (!billingName) {
-    return json({ error: "No billing plan configured for this selection" }, { status: 400 });
+    return errHtml("No billing plan configured for this selection");
   }
 
   logger.app("INFO", "Billing request initiated", {
@@ -118,14 +115,71 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     interval,
   });
 
-  // billing.request() always throws (Redirect or error). Remix catches the redirect
-  // and responds to the browser. reloadDocument form → no Authorization header →
-  // redirectOutOfApp uses exitIframe path (the correct one for embedded apps).
-  return await billing.request({
-    plan: billingName as typeof PLAN_STARTER_MONTHLY,
-    isTest: process.env.NODE_ENV === "development",
-  });
+  try {
+    // billing.request() always throws. The throw is intentional.
+    return await billing.request({
+      plan: billingName as BillingPlanName,
+      isTest: process.env.NODE_ENV === "development",
+    });
+  } catch (thrown: unknown) {
+    // billing.request() throws a Response (302 redirect) on success.
+    // The redirect goes to {appUrl}/exitiframe?exitIframe={shopifyChargeUrl}
+    if (thrown instanceof Response) {
+      const location = thrown.headers.get("Location");
+      if (location) {
+        // Parse the redirect URL. In embedded mode, the SDK redirects to our
+        // exitIframe page with the Shopify charge URL as a query param.
+        const redirectUrl = new URL(location, process.env.SHOPIFY_APP_URL ?? "");
+        const shopifyChargeUrl = redirectUrl.searchParams.get("exitIframe") ?? location;
+
+        logger.app("INFO", "Billing redirect caught", {
+          shop: session.shop,
+          plan: billingName,
+          chargeUrl: shopifyChargeUrl.substring(0, 80) + "...",
+        });
+
+        // Return HTML that breaks out of Shopify iframe to the charge page
+        return redirectHtml(shopifyChargeUrl);
+      }
+
+      // Redirect with no Location — unlikely
+      return errHtml("Redirect response missing target URL");
+    }
+
+    // billing.request() threw an actual error (not a Response)
+    const msg = thrown instanceof Error ? thrown.message : String(thrown);
+    logger.app("ERROR", "Billing request failed", {
+      shop: session.shop,
+      plan: billingName,
+      error: msg,
+    });
+    return errHtml(msg);
+  }
 };
+
+// ─── Helpers: HTML responses for raw form POST ──
+
+function redirectHtml(url: string) {
+  const escaped = url.replace(/</g, "\\u003c").replace(/"/g, "\\u0022");
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Redirecting to Shopify…</title></head><body><script>window.top.location.href="${escaped}"</script></body></html>`,
+    {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    },
+  );
+}
+
+function errHtml(message: string) {
+  const escaped = message.replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>TruCredit — Payment Error</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f5f5}main{background:#fff;padding:40px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:480px;width:100%}h1{color:#d82c0d;margin-bottom:12px}p{color:#333;line-height:1.5}a{color:#0070f3}</style></head><body><main><h1>Payment Error</h1><p>${escaped}</p><p>Please try again or contact support.</p><a href="javascript:history.back()">Go back</a></main></body></html>`,
+    {
+      status: 500,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    },
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -355,24 +409,27 @@ function PlanCard({
           </List>
         </BlockStack>
 
-        {/* CTA — reloadDocument: traditional form POST, no Authorization header → correct exitIframe redirect */}
+        {/* CTA — raw HTML <form> for traditional browser form POST.
+             Remix <Form> (even with reloadDocument) gets XHR-intercepted by Shopify App Bridge
+             → sends Authorization header → SDK's redirectOutOfApp throws 401 instead of redirect.
+             Raw <form> = pure browser submit → no extra headers → correct exitIframe redirect. */}
         {canUpgrade && (
           <BlockStack gap="200">
-            <Form reloadDocument method="POST" style={{ width: "100%" }}>
+            <form method="POST" style={{ width: "100%" }}>
               <input type="hidden" name="planKey" value={plan.key} />
               <input type="hidden" name="interval" value="monthly" />
               <Button variant="primary" size="large" fullWidth submit>
                 {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
               </Button>
-            </Form>
+            </form>
             {plan.billingPlanNameAnnual && (
-              <Form reloadDocument method="POST" style={{ width: "100%" }}>
+              <form method="POST" style={{ width: "100%" }}>
                 <input type="hidden" name="planKey" value={plan.key} />
                 <input type="hidden" name="interval" value="annual" />
                 <Button variant="plain" size="medium" fullWidth submit>
                   Save {String(Math.round(annualSavings))}% with annual billing
                 </Button>
-              </Form>
+              </form>
             )}
           </BlockStack>
         )}

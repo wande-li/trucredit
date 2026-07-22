@@ -38,6 +38,15 @@ export const PLAN_STARTER_ANNUAL = "TruCredit Starter Annual";
 export const PLAN_PRO_ANNUAL = "TruCredit Pro Annual";
 export const PLAN_ENTERPRISE_ANNUAL = "TruCredit Enterprise Annual";
 
+// Union type for type-safe billing.request() calls
+export type BillingPlanName =
+  | typeof PLAN_STARTER_MONTHLY
+  | typeof PLAN_STARTER_ANNUAL
+  | typeof PLAN_PRO_MONTHLY
+  | typeof PLAN_PRO_ANNUAL
+  | typeof PLAN_ENTERPRISE_MONTHLY
+  | typeof PLAN_ENTERPRISE_ANNUAL;
+
 // Legacy plan names for webhook handler
 export const PLAN_MONTHLY = PLAN_PRO_MONTHLY;
 export const PLAN_ANNUAL = PLAN_PRO_ANNUAL;

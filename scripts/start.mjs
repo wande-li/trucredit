@@ -1,5 +1,6 @@
 /**
- * remix-serve startup script with HOST sanitization + auto-migration.
+ * Custom Express server startup with HOST sanitization + auto-migration.
+ * Replaces @remix-run/serve to support increased body parser limits (10mb).
  */
 import { spawn, execSync } from "node:child_process";
 
@@ -34,9 +35,11 @@ if (rawHost) {
   }
 }
 
+// Use custom Express server (server.mjs) with 10mb body limit
+// instead of @remix-run/serve (default 100kb)
 const child = spawn(
   process.execPath,
-  ["./node_modules/@remix-run/serve/dist/cli.js", "./build/server/index.js"],
+  ["./server.mjs"],
   {
     stdio: "inherit",
     env: process.env,

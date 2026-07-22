@@ -399,8 +399,7 @@ function PlanCard({
           <BlockStack gap="200">
             <Divider />
             <Button
-              variant="primary"
-              tone="critical"
+              variant="tertiary"
               size="large"
               fullWidth
               loading={isCancelSubmitting}

@@ -1,12 +1,10 @@
-// TruCredit — Pricing Page (Managed Pricing — Shopify hosts payment)
-// 4-tier: Free / Starter / Pro / Enterprise — monthly & annual with 17% discount
+// TruCredit — Pricing Page
+// Upgrade flow: <Form method="POST"> → action → billing.request() → Shopify subscription confirmation
 // Webhook APP_SUBSCRIPTIONS_UPDATE syncs plan changes to DB.
-// Upgrade flow: window.top.location.href → Shopify charges page (same as Wandex)
 
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useRouteError } from "@remix-run/react";
-import { useState } from "react";
+import { useLoaderData, useRouteError, Form, useNavigation } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -23,8 +21,8 @@ import {
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
-import { pricingPageUrl } from "~/lib/constants";
 import { RouteError } from "~/services/error-boundary.shared";
+import { logger } from "~/services/logger.server";
 
 // ─── Loader ─────────────────────────────────────────────────
 
@@ -40,15 +38,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const currentPlan = shop?.plan ?? "FREE";
     const subscriptionStatus = shop?.subscriptionStatus ?? null;
-
-    // Check for active trial
     const isTrialActive = subscriptionStatus === "ACTIVE" && currentPlan === "FREE";
     const planDef = PLANS_V2.find((p) => p.key === currentPlan);
     const planName = planDef?.name ?? "Free";
 
     return json(
       {
-        shopDomain,
         currentPlan,
         planName,
         subscriptionStatus,
@@ -65,7 +60,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     return json(
       {
-        shopDomain: "",
         currentPlan: "FREE",
         planName: "Free",
         subscriptionStatus: null,
@@ -81,12 +75,62 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
+// ─── Action: billing.request() → Shopify subscription confirmation ──
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { billing, session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const planKey = formData.get("planKey")?.toString();
+  const interval = formData.get("interval")?.toString() as "monthly" | "annual" | undefined;
+
+  if (!planKey || planKey === "FREE") {
+    return json({ error: "Invalid plan selection" }, { status: 400 });
+  }
+
+  const plan = PLANS_V2.find((p) => p.key === planKey);
+  if (!plan) {
+    return json({ error: "Plan not found" }, { status: 400 });
+  }
+
+  const billingName =
+    interval === "annual" && plan.billingPlanNameAnnual
+      ? plan.billingPlanNameAnnual
+      : plan.billingPlanName;
+
+  if (!billingName) {
+    return json({ error: "No billing plan configured for this selection" }, { status: 400 });
+  }
+
+  // billing.request() calls appSubscriptionCreate GraphQL API under the hood.
+  // Returns a redirect to Shopify's subscription confirmation page.
+  // This works WITHOUT Managed Pricing configured in the Partner Dashboard.
+  try {
+    logger.app("INFO", "Billing request initiated", {
+      shop: session.shop,
+      plan: billingName,
+      interval,
+    });
+    return await billing.request({
+      plan: billingName,
+      isTest: process.env.NODE_ENV === "development",
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Billing request failed", {
+      shop: session.shop,
+      plan: billingName,
+      error: msg,
+    });
+    return json({ error: msg }, { status: 500 });
+  }
+};
+
 // ─── Component ──────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { shopDomain, currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
+  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
     useLoaderData<typeof loader>();
-  const [subscribing, setSubscribing] = useState<string | null>(null); // "{planKey}:{interval}"
+  const navigation = useNavigation();
 
   const isActive = subscriptionStatus === "ACTIVE";
   const isCancelling = subscriptionStatus === "CANCELLED";
@@ -98,15 +142,11 @@ export default function BillingPage() {
       })
     : null;
 
-  // Client-side upgrade: window.top.location.href escapes Shopify Admin iframe.
-  // Server-side redirect() fails because Shopify CSP blocks cross-origin nav inside iframe.
-  const handleSubscribe = (planKey: string, interval: string) => {
-    if (!shopDomain) return;
-    const key = `${planKey}:${interval}`;
-    setSubscribing(key);
-    // Navigate the parent window to Shopify's Managed Pricing page
-    window.top!.location.href = pricingPageUrl(shopDomain);
-  };
+  // Track which specific card:interval is being submitted via <Form>
+  const isSubmitting = navigation.state === "submitting";
+  const submittingKey = isSubmitting && navigation.formData
+    ? `${String(navigation.formData.get("planKey"))}:${String(navigation.formData.get("interval"))}`
+    : null;
 
   return (
     <Page title="Pricing Plans" backAction={{ url: "/app" }} fullWidth>
@@ -151,8 +191,8 @@ export default function BillingPage() {
               currentPlan={currentPlan}
               isActive={isActive}
               annualDiscountPercent={annualDiscountPercent}
-              onSubscribe={handleSubscribe}
-              subscribing={subscribing}
+              isSubmitting={isSubmitting}
+              submittingKey={submittingKey}
             />
           ))}
         </div>
@@ -208,22 +248,22 @@ export default function BillingPage() {
   );
 }
 
-// ─── Plan Card Component ────────────────────────────────────
+// ─── Plan Card Component (uses <Form> for billing.request()) ───
 
 function PlanCard({
   plan,
   currentPlan,
   isActive,
   annualDiscountPercent,
-  onSubscribe,
-  subscribing,
+  isSubmitting,
+  submittingKey,
 }: {
   plan: PlanDefinition;
   currentPlan: string;
   isActive: boolean;
   annualDiscountPercent: number;
-  onSubscribe: (planKey: string, interval: string) => void;
-  subscribing: string | null; // "{planKey}:{interval}"
+  isSubmitting: boolean;
+  submittingKey: string | null;
 }) {
   const isCurrent = plan.key === currentPlan;
   const isFree = plan.key === "FREE";
@@ -234,7 +274,6 @@ function PlanCard({
 
   const monthlyKey = `${plan.key}:monthly`;
 
-  // Annual price display
   const annualSavings =
     plan.price && plan.annualPrice
       ? Math.round((1 - plan.annualPrice / (plan.price * 12)) * 100)
@@ -329,26 +368,35 @@ function PlanCard({
         {/* CTA */}
         {canUpgrade && (
           <BlockStack gap="200">
-            <Button
-              variant="primary"
-              size="large"
-              fullWidth
-              onClick={() => onSubscribe(plan.key, "monthly")}
-              disabled={subscribing !== null}
-              loading={subscribing === monthlyKey}
-            >
-              {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
-            </Button>
-            {plan.billingPlanNameAnnual && (
+            {/* Monthly button — uses <Form> to trigger billing.request() */}
+            <Form method="POST" style={{ width: "100%" }}>
+              <input type="hidden" name="planKey" value={plan.key} />
+              <input type="hidden" name="interval" value="monthly" />
               <Button
-                variant="plain"
-                size="medium"
+                variant="primary"
+                size="large"
                 fullWidth
-                onClick={() => onSubscribe(plan.key, "annual")}
-                disabled={subscribing !== null}
+                submit
+                disabled={isSubmitting && submittingKey !== monthlyKey}
+                loading={isSubmitting && submittingKey === monthlyKey}
               >
-                Save {String(Math.round(annualSavings))}% with annual billing
+                {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
               </Button>
+            </Form>
+            {plan.billingPlanNameAnnual && (
+              <Form method="POST" style={{ width: "100%" }}>
+                <input type="hidden" name="planKey" value={plan.key} />
+                <input type="hidden" name="interval" value="annual" />
+                <Button
+                  variant="plain"
+                  size="medium"
+                  fullWidth
+                  submit
+                  disabled={isSubmitting}
+                >
+                  Save {String(Math.round(annualSavings))}% with annual billing
+                </Button>
+              </Form>
             )}
           </BlockStack>
         )}
@@ -377,7 +425,6 @@ function FeatureTable({
   plans: PlanDefinition[];
   currentPlan: string;
 }) {
-  // Extract unique feature keys across all plans
   const featureKeys = plans[0]?.features.map((f) => f.key) ?? [];
 
   return (
@@ -392,9 +439,7 @@ function FeatureTable({
         <thead>
           <tr style={{ borderBottom: "2px solid var(--p-color-border-secondary)" }}>
             <th style={{ textAlign: "left", padding: "12px 8px", minWidth: 200 }}>
-              <Text as="span" variant="bodySm" fontWeight="semibold">
-                Feature
-              </Text>
+              <Text as="span" variant="bodySm" fontWeight="semibold">Feature</Text>
             </th>
             {plans.map((plan) => (
               <th
@@ -403,21 +448,13 @@ function FeatureTable({
                   textAlign: "center",
                   padding: "12px 8px",
                   minWidth: 100,
-                  background: plan.key === currentPlan
-                    ? "var(--p-color-bg-surface-success)"
-                    : "transparent",
+                  background: plan.key === currentPlan ? "var(--p-color-bg-surface-success)" : "transparent",
                   borderRadius: plan.key === currentPlan ? "var(--p-border-radius-200)" : undefined,
                 }}
               >
                 <BlockStack gap="050" align="center">
-                  <Text as="span" variant="bodySm" fontWeight="bold">
-                    {plan.name}
-                  </Text>
-                  {plan.key === currentPlan && (
-                    <Badge size="small" tone="success">
-                      Current
-                    </Badge>
-                  )}
+                  <Text as="span" variant="bodySm" fontWeight="bold">{plan.name}</Text>
+                  {plan.key === currentPlan && <Badge size="small" tone="success">Current</Badge>}
                 </BlockStack>
               </th>
             ))}
@@ -427,7 +464,6 @@ function FeatureTable({
           {featureKeys.map((key, idx) => {
             const label = plans[0]?.features.find((f) => f.key === key)?.label ?? key;
             const isDivider = ["credit", "collections", "ai", "replies"].includes(key);
-
             return (
               <tr
                 key={key}
@@ -446,11 +482,7 @@ function FeatureTable({
                   const included = feat?.included ?? false;
                   return (
                     <td key={`${plan.key}-${key}`} style={{ textAlign: "center", padding: "10px 8px" }}>
-                      <Text
-                        as="span"
-                        variant="bodySm"
-                        tone={included ? "success" : "subdued"}
-                      >
+                      <Text as="span" variant="bodySm" tone={included ? "success" : "subdued"}>
                         {included ? "✓" : "—"}
                       </Text>
                     </td>

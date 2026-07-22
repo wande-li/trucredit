@@ -1,10 +1,11 @@
 // TruCredit — Pricing Page
-// Upgrade flow: <Form method="POST"> → action → billing.request() → Shopify subscription confirmation
-// Webhook APP_SUBSCRIPTIONS_UPDATE syncs plan changes to DB.
+// Upgrade flow: Button onClick → fetcher POST /api/create-charge → get confirmationUrl → window.open(url, '_top')
+// This avoids all iframe/App Bridge redirect issues. The charge is created server-side,
+// the URL is returned as JSON, and the client breaks out of the iframe via _top window target.
 
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useRouteError } from "@remix-run/react";
+import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -19,11 +20,9 @@ import {
   Button,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import type { BillingPlanName } from "~/shopify.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
-import { logger } from "~/services/logger.server";
 
 // ─── Loader ─────────────────────────────────────────────────
 
@@ -76,110 +75,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ─── Action: catch billing.request() redirect → extract URL → HTML redirect ──
-// billing.request() ALWAYS throws (Promise<never>).
-// On success: throws Response(302 Redirect) → Location = /exitiframe?exitIframe=shopifyChargeUrl
-//   → We catch it, extract the Shopify charge URL, return HTML with window.top redirect.
-// On failure: throws Response(400) or Error → we return error HTML.
-//
-// We use a raw HTML <form> (not Remix <Form>) to ensure traditional browser form POST,
-// which avoids Shopify App Bridge XHR interception.
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const planKey = formData.get("planKey")?.toString();
-  const interval = formData.get("interval")?.toString() as "monthly" | "annual" | undefined;
-
-  if (!planKey || planKey === "FREE") {
-    return errHtml("Invalid plan selection");
-  }
-
-  const plan = PLANS_V2.find((p) => p.key === planKey);
-  if (!plan) {
-    return errHtml("Plan not found");
-  }
-
-  const billingName =
-    interval === "annual" && plan.billingPlanNameAnnual
-      ? plan.billingPlanNameAnnual
-      : plan.billingPlanName;
-
-  if (!billingName) {
-    return errHtml("No billing plan configured for this selection");
-  }
-
-  logger.app("INFO", "Billing request initiated", {
-    shop: session.shop,
-    plan: billingName,
-    interval,
-  });
-
-  try {
-    // billing.request() always throws. The throw is intentional.
-    return await billing.request({
-      plan: billingName as BillingPlanName,
-      isTest: process.env.NODE_ENV === "development",
-    });
-  } catch (thrown: unknown) {
-    // billing.request() throws a Response (302 redirect) on success.
-    // The redirect goes to {appUrl}/exitiframe?exitIframe={shopifyChargeUrl}
-    if (thrown instanceof Response) {
-      const location = thrown.headers.get("Location");
-      if (location) {
-        // Parse the redirect URL. In embedded mode, the SDK redirects to our
-        // exitIframe page with the Shopify charge URL as a query param.
-        const redirectUrl = new URL(location, process.env.SHOPIFY_APP_URL ?? "");
-        const shopifyChargeUrl = redirectUrl.searchParams.get("exitIframe") ?? location;
-
-        logger.app("INFO", "Billing redirect caught", {
-          shop: session.shop,
-          plan: billingName,
-          chargeUrl: shopifyChargeUrl.substring(0, 80) + "...",
-        });
-
-        // Return HTML that breaks out of Shopify iframe to the charge page
-        return redirectHtml(shopifyChargeUrl);
-      }
-
-      // Redirect with no Location — unlikely
-      return errHtml("Redirect response missing target URL");
-    }
-
-    // billing.request() threw an actual error (not a Response)
-    const msg = thrown instanceof Error ? thrown.message : String(thrown);
-    logger.app("ERROR", "Billing request failed", {
-      shop: session.shop,
-      plan: billingName,
-      error: msg,
-    });
-    return errHtml(msg);
-  }
-};
-
-// ─── Helpers: HTML responses for raw form POST ──
-
-function redirectHtml(url: string) {
-  const escaped = url.replace(/</g, "\\u003c").replace(/"/g, "\\u0022");
-  return new Response(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Redirecting to Shopify…</title></head><body><script>window.top.location.href="${escaped}"</script></body></html>`,
-    {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    },
-  );
-}
-
-function errHtml(message: string) {
-  const escaped = message.replace(/</g, "&lt;").replace(/"/g, "&quot;");
-  return new Response(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>TruCredit — Payment Error</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f5f5}main{background:#fff;padding:40px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:480px;width:100%}h1{color:#d82c0d;margin-bottom:12px}p{color:#333;line-height:1.5}a{color:#0070f3}</style></head><body><main><h1>Payment Error</h1><p>${escaped}</p><p>Please try again or contact support.</p><a href="javascript:history.back()">Go back</a></main></body></html>`,
-    {
-      status: 500,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    },
-  );
-}
+// No action — billing flow uses /api/create-charge + client-side window.open(url, '_top')
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -295,10 +191,9 @@ export default function BillingPage() {
   );
 }
 
-// ─── Plan Card Component (uses <Form reloadDocument> for full-page submit → no XHR → correct redirect) ───
-// reloadDocument is critical: it makes the browser do a traditional form POST (not XHR),
-// so the request won't have the Authorization header. Without that header,
-// redirectOutOfApp detects isEmbeddedRequest → redirects to exitIframe page → Shopify charge page.
+// ─── Plan Card Component ─────────────────────────────────────
+// Uses useFetcher to POST to /api/create-charge (server creates charge, returns confirmationUrl).
+// Then window.open(url, '_top') breaks out of Shopify Admin iframe to the charge approval page.
 
 function PlanCard({
   plan,
@@ -322,6 +217,19 @@ function PlanCard({
     plan.price && plan.annualPrice
       ? Math.round((1 - plan.annualPrice / (plan.price * 12)) * 100)
       : annualDiscountPercent;
+
+  const fetcher = useFetcher<{ confirmationUrl?: string; error?: string }>();
+  const isSubmitting = fetcher.state === "submitting";
+  const errorMsg = fetcher.data?.error;
+
+  // When charge is created, redirect to Shopify approval page
+  if (fetcher.data?.confirmationUrl) {
+    // Use setTimeout to let React finish rendering before window.open
+    const url = fetcher.data.confirmationUrl;
+    setTimeout(() => {
+      window.open(url, "_top");
+    }, 0);
+  }
 
   return (
     <Card>
@@ -409,27 +317,46 @@ function PlanCard({
           </List>
         </BlockStack>
 
-        {/* CTA — raw HTML <form> for traditional browser form POST.
-             Remix <Form> (even with reloadDocument) gets XHR-intercepted by Shopify App Bridge
-             → sends Authorization header → SDK's redirectOutOfApp throws 401 instead of redirect.
-             Raw <form> = pure browser submit → no extra headers → correct exitIframe redirect. */}
+        {/* Error message */}
+        {errorMsg && (
+          <Banner tone="critical">
+            <Text as="p" variant="bodyMd">{errorMsg}</Text>
+          </Banner>
+        )}
+
+        {/* CTA */}
         {canUpgrade && (
           <BlockStack gap="200">
-            <form method="POST" style={{ width: "100%" }}>
-              <input type="hidden" name="planKey" value={plan.key} />
-              <input type="hidden" name="interval" value="monthly" />
-              <Button variant="primary" size="large" fullWidth submit>
-                {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
-              </Button>
-            </form>
+            <Button
+              variant="primary"
+              size="large"
+              fullWidth
+              loading={isSubmitting}
+              disabled={isSubmitting}
+              onClick={() => {
+                fetcher.submit(
+                  { planKey: plan.key, interval: "monthly" },
+                  { method: "POST", action: "/api/create-charge" },
+                );
+              }}
+            >
+              {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
+            </Button>
             {plan.billingPlanNameAnnual && (
-              <form method="POST" style={{ width: "100%" }}>
-                <input type="hidden" name="planKey" value={plan.key} />
-                <input type="hidden" name="interval" value="annual" />
-                <Button variant="plain" size="medium" fullWidth submit>
-                  Save {String(Math.round(annualSavings))}% with annual billing
-                </Button>
-              </form>
+              <Button
+                variant="plain"
+                size="medium"
+                fullWidth
+                disabled={isSubmitting}
+                onClick={() => {
+                  fetcher.submit(
+                    { planKey: plan.key, interval: "annual" },
+                    { method: "POST", action: "/api/create-charge" },
+                  );
+                }}
+              >
+                Save {String(Math.round(annualSavings))}% with annual billing
+              </Button>
             )}
           </BlockStack>
         )}

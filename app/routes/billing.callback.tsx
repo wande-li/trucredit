@@ -53,6 +53,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const adminUrl = `https://admin.shopify.com/store/${shop}/apps/trucredit`;
-  logger.app('INFO', 'Redirecting to Shopify Admin', { adminUrl });
+  logger.app('INFO', `Redirecting to Shopify Admin: ${adminUrl}`);
   return redirect(adminUrl);
 };

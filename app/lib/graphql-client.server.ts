@@ -43,7 +43,15 @@ export async function adminGraphQL<T>(
   return executeWithRetry<T>(
     async () => {
       const raw = await admin.graphql(query, { variables });
-      return normalizeResponse<T>(raw);
+      const normalized = await normalizeResponse<T>(raw);
+      logger.app("DEBUG", "GraphQL response normalized", undefined, {
+        shopDomain,
+        isResponse: typeof (raw as Response).json === "function",
+        hasData: !!normalized.data,
+        hasErrors: !!normalized.errors?.length,
+        dataKeys: normalized.data ? Object.keys(normalized.data).join(",") : "null",
+      });
+      return normalized;
     },
     shopDomain,
     0,
@@ -53,12 +61,17 @@ export async function adminGraphQL<T>(
 /**
  * Normalize admin.graphql() response — handles both raw Response and parsed objects.
  */
-function normalizeResponse<T>(raw: ShopifyGraphQLResult | Response): GraphQLResponse<T> {
-  // If it's a fetch Response, parse JSON
+async function normalizeResponse<T>(raw: ShopifyGraphQLResult | Response): Promise<GraphQLResponse<T>> {
+  // If it's a fetch Response, await .json() to get the body
   if (typeof (raw as Response).json === "function") {
-    return raw as unknown as GraphQLResponse<T>;
+    const json = await (raw as Response).json() as Record<string, unknown>;
+    return {
+      data: json.data as T | undefined,
+      errors: json.errors as GraphQLResponse<T>["errors"] | undefined,
+      extensions: json.extensions as GraphQLResponse<T>["extensions"] | undefined,
+    };
   }
-  // Already parsed — use as-is (shopify-app-remix returns body directly)
+  // Already parsed — use as-is
   const body = raw as ShopifyGraphQLResult;
   return {
     data: body.data as T | undefined,

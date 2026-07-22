@@ -5,6 +5,7 @@
 
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { useEffect, useRef } from "react";
 import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -221,15 +222,17 @@ function PlanCard({
   const fetcher = useFetcher<{ confirmationUrl?: string; error?: string }>();
   const isSubmitting = fetcher.state === "submitting";
   const errorMsg = fetcher.data?.error;
+  const lastFiredRef = useRef<string | null>(null);
 
-  // When charge is created, redirect to Shopify approval page
-  if (fetcher.data?.confirmationUrl) {
-    // Use setTimeout to let React finish rendering before window.open
-    const url = fetcher.data.confirmationUrl;
-    setTimeout(() => {
-      window.open(url, "_top");
-    }, 0);
-  }
+  // Redirect to Shopify charge approval page when confirmationUrl is received
+  useEffect(() => {
+    const url = fetcher.data?.confirmationUrl;
+    if (url && url !== lastFiredRef.current) {
+      lastFiredRef.current = url;
+      // Navigate top-level window to Shopify's charge confirmation page
+      window.top!.location.href = url;
+    }
+  }, [fetcher.data?.confirmationUrl]);
 
   return (
     <Card>

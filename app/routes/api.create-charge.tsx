@@ -25,19 +25,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!billingName) return json({ error: 'No billing plan' }, { status: 400 });
 
+  // BILLING_TEST_MODE: "true" = always test charges (dev stores / before Partner Dashboard setup)
+  // BILLING_TEST_MODE: "false" = real charges (production)
+  const isTest =
+    process.env.BILLING_TEST_MODE !== undefined
+      ? process.env.BILLING_TEST_MODE === 'true'
+      : process.env.NODE_ENV === 'development';
+
   logger.app('INFO', 'Charge creation requested', {
     shop: session.shop,
     planKey,
     billingName,
     interval,
     returnUrl: process.env.SHOPIFY_APP_URL,
-    isTest: process.env.NODE_ENV === 'development',
+    isTest,
   });
 
   try {
     const result = await billing.request({
       plan: billingName as BillingPlanName,
-      isTest: process.env.NODE_ENV === 'development',
+      isTest,
       returnUrl: process.env.SHOPIFY_APP_URL!,
     });
     logger.app('WARN', 'billing.request() returned normally (expected RedirectResponse throw)', {

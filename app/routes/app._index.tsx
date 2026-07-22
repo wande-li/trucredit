@@ -125,11 +125,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── KPI card — clean white card with colored accent border ──
 type KpiTone = "default" | "success" | "warning" | "critical";
 
-const kpiAccent: Record<KpiTone, { borderColor: string; iconBg: string; iconColor: string }> = {
-  default:  { borderColor: "transparent",      iconBg: "var(--p-color-bg-fill-secondary)", iconColor: "var(--p-color-text-brand)" },
-  success:  { borderColor: "var(--p-color-text-success)",  iconBg: "var(--p-color-bg-fill-success)",  iconColor: "var(--p-color-text-success)" },
-  warning:  { borderColor: "var(--p-color-text-caution)", iconBg: "var(--p-color-bg-fill-caution)",  iconColor: "var(--p-color-text-caution)" },
-  critical: { borderColor: "var(--p-color-text-critical)",  iconBg: "var(--p-color-bg-fill-critical)", iconColor: "var(--p-color-text-critical)" },
+const kpiAccent: Record<KpiTone, { borderColor: string; iconBg: string }> = {
+  default:  { borderColor: "transparent",                    iconBg: "var(--p-color-bg-fill-brand)" },
+  success:  { borderColor: "var(--p-color-text-success)",    iconBg: "var(--p-color-bg-fill-success)" },
+  warning:  { borderColor: "var(--p-color-text-caution)",    iconBg: "var(--p-color-bg-fill-caution)" },
+  critical: { borderColor: "var(--p-color-text-critical)",   iconBg: "var(--p-color-bg-fill-critical)" },
 };
 
 function KpiCard({
@@ -162,11 +162,11 @@ function KpiCard({
       <InlineStack gap="300" blockAlign="center" wrap={false}>
         <div
           style={{
-            width: 42,
-            height: 42,
-            borderRadius: "var(--p-border-radius-200)",
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
             background: a.iconBg,
-            color: a.iconColor,
+            color: "#ffffff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

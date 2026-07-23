@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -79,6 +79,7 @@ const statusLabel: Record<string, string> = {
 export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
@@ -111,7 +112,7 @@ export default function Invoices() {
         agingReport.dso ?? "—"
       } days`}
       primaryAction={
-        <Button url="/app/invoices/new" variant="primary">Create Invoice</Button>
+        <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
       }
     >
       <BlockStack gap="400">
@@ -267,11 +268,14 @@ export default function Invoices() {
               {invoiceResult.items.map((inv, idx) => (
                 <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
                   <IndexTable.Cell>
-                    <Link to={`/app/invoices/${inv.id}`}>
+                    <div
+                      style={{ cursor: "pointer", textDecoration: "none" }}
+                      onClick={() => navigate(`/app/invoices/${inv.id}`)}
+                    >
                       <Text as="span" variant="bodyMd" fontWeight="bold">
                         {inv.invoiceNumber}
                       </Text>
-                    </Link>
+                    </div>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <BlockStack gap="050">

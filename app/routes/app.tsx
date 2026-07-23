@@ -402,6 +402,7 @@ export default function AppLayout() {
   const { apiKey, authed, plan } = useLoaderData<typeof loader>();
   const location = useLocation();
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const isLoading = navigation.state === "loading";
   const [visible, setVisible] = useState(false);
 

@@ -1,7 +1,7 @@
 // TruCredit — Collection Tasks list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -218,7 +218,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function TasksPage() {
   const { tasks, page, totalPages, summary, statusFilter } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
 
@@ -347,24 +346,27 @@ export default function TasksPage() {
                 const ri = replyIntent ? INTENT_MAP[replyIntent] ?? null : null;
 
                 return (
-                  <IndexTable.Row key={task.id} id={task.id} position={idx} onClick={() => navigate(`/app/invoices/${task.invoice.id}`)}>
+                  <IndexTable.Row key={task.id} id={task.id} position={idx}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <span style={{ fontWeight: 500 }}>
+                        <Link
+                          to={`/app/invoices/${task.invoice.id}`}
+                          style={{ fontWeight: 500, textDecoration: "none", color: "inherit" }}
+                        >
                           {task.invoice.invoiceNumber}
-                        </span>
+                        </Link>
                         <Text as="span" tone="subdued">
                           {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
                         </Text>
                       </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <span
-                        style={{ cursor: "pointer", color: "var(--p-interactive)" }}
-                        onClick={(e) => { e.stopPropagation(); navigate(`/app/customers/${task.customer.id}`); }}
+                      <Link
+                        to={`/app/customers/${task.customer.id}`}
+                        style={{ textDecoration: "none", color: "var(--p-interactive)" }}
                       >
                         {task.customer.name}
-                      </span>
+                      </Link>
                       {task.customer.company && (
                         <Text as="p" tone="subdued" variant="bodySm">
                           {task.customer.company}

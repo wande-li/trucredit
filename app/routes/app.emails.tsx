@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useRevalidator, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useRevalidator, Link } from "@remix-run/react";
 import {
   Page,
   IndexTable,
@@ -138,7 +138,6 @@ export default function EmailsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
-  const navigate = useNavigate();
   const { items, page, total, totalPages } = loaderData;
   const [, setSearchParams] = useSearchParams();
 
@@ -172,13 +171,17 @@ export default function EmailsPage() {
       id={tpl.id}
       key={tpl.id}
       position={index}
-      onClick={() => navigate(`/app/emails/${tpl.id}`)}
     >
       <IndexTable.Cell>
         <InlineStack gap="200" blockAlign="center">
-          <Text variant="bodyMd" fontWeight="bold" as="span">
+          <Link
+            to={`/app/emails/${tpl.id}`}
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <Text variant="bodyMd" fontWeight="bold" as="span">
               {tpl.name}
             </Text>
+          </Link>
           {tpl.isDefault && (
             <Badge size="small" tone="info">Default</Badge>
           )}

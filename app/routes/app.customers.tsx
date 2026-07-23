@@ -291,8 +291,8 @@ export default function CustomersPage() {
                     <IndexTable.Cell>
                         <BlockStack gap="100">
                           <div
-                            onClick={() => { console.log("[DEBUG] customers click", id, name); navigate(`/app/customers/${id}`); }}
-                            style={{ cursor: "pointer", fontWeight: 600 }}
+                            onMouseDown={(e) => { e.stopPropagation(); console.log("[DEBUG] customers mousedown", id, name); navigate(`/app/customers/${id}`); }}
+                            style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
                           >
                             {name}
                           </div>

@@ -313,8 +313,8 @@ function RuleRow({
       <IndexTable.Cell>
           <BlockStack gap="050">
             <div
-              onClick={() => { console.log("[DEBUG] rules click", rule.id, rule.name); navigate(`/app/rules/${rule.id}`); }}
-              style={{ cursor: "pointer", fontWeight: 600 }}
+              onMouseDown={(e) => { e.stopPropagation(); console.log("[DEBUG] rules mousedown", rule.id, rule.name); navigate(`/app/rules/${rule.id}`); }}
+              style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
             >
               {rule.name}
             </div>

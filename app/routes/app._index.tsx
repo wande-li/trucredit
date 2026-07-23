@@ -121,14 +121,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ── KPI card — clean white card with colored accent border ──
+// ── KPI card — minimal financial dashboard style ──
 type KpiTone = "default" | "success" | "warning" | "critical";
 
-const kpiAccent: Record<KpiTone, { borderColor: string; iconBg: string }> = {
-  default:  { borderColor: "transparent",                    iconBg: "var(--p-color-bg-fill-brand)" },
-  success:  { borderColor: "var(--p-color-text-success)",    iconBg: "var(--p-color-bg-fill-success)" },
-  warning:  { borderColor: "var(--p-color-text-caution)",    iconBg: "var(--p-color-bg-fill-caution)" },
-  critical: { borderColor: "var(--p-color-text-critical)",   iconBg: "var(--p-color-bg-fill-critical)" },
+const toneColor: Record<KpiTone, string> = {
+  default:  "var(--p-color-text)",
+  success:  "var(--p-color-text-success)",
+  warning:  "var(--p-color-text-caution)",
+  critical: "var(--p-color-text-critical)",
+};
+
+const toneBg: Record<KpiTone, string> = {
+  default:  "var(--p-color-bg-fill-brand)",
+  success:  "var(--p-color-bg-fill-success)",
+  warning:  "var(--p-color-bg-fill-caution)",
+  critical: "var(--p-color-bg-fill-critical)",
 };
 
 function KpiCard({
@@ -142,7 +149,6 @@ function KpiCard({
   value: string | number;
   tone?: KpiTone;
 }) {
-  const a = kpiAccent[tone];
   return (
     <Box
       background="bg-surface"
@@ -153,36 +159,24 @@ function KpiCard({
       minWidth="160px"
       style={{
         flex: 1,
-        borderLeftWidth: tone !== "default" ? "3px" : undefined,
-        borderLeftStyle: tone !== "default" ? "solid" : undefined,
-        borderLeftColor: tone !== "default" ? a.borderColor : undefined,
+        borderTopWidth: "3px",
+        borderTopStyle: "solid",
+        borderTopColor: toneBg[tone],
       }}
     >
-      <InlineStack gap="300" blockAlign="center" wrap={false}>
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            background: a.iconBg,
-            color: "#ffffff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </div>
-        <BlockStack gap="050">
-          <Text as="p" variant="headingLg" fontWeight="bold">
-            {value}
-          </Text>
-          <Text as="p" variant="bodySm" tone="subdued">
+      <BlockStack gap="200">
+        <InlineStack gap="200" blockAlign="center" wrap={false}>
+          <span style={{ color: toneColor[tone], display: "flex", alignItems: "center", flexShrink: 0 }}>
+            {icon}
+          </span>
+          <Text as="span" variant="bodySm" tone="subdued">
             {label}
           </Text>
-        </BlockStack>
-      </InlineStack>
+        </InlineStack>
+        <Text as="p" variant="heading2xl" fontWeight="bold">
+          {value}
+        </Text>
+      </BlockStack>
     </Box>
   );
 }
@@ -350,12 +344,12 @@ export default function Dashboard() {
 
           {/* ═══ KPI Row ═══ */}
           <InlineStack gap="400" wrap>
-            <KpiCard icon={<PersonIcon style={{ width: 22, height: 22 }} />} label="Total Customers" value={stats.totalCustomers} />
-            <KpiCard icon={<PersonFilledIcon style={{ width: 22, height: 22 }} />} label="Active Customers" value={stats.activeCustomers} tone="success" />
-            <KpiCard icon={<PersonLockFilledIcon style={{ width: 22, height: 22 }} />} label="Frozen Accounts" value={stats.frozenCustomers} tone="warning" />
-            <KpiCard icon={<OrderFilledIcon style={{ width: 22, height: 22 }} />} label="Total Invoices" value={stats.totalInvoices} />
-            <KpiCard icon={<AlertTriangleIcon style={{ width: 22, height: 22 }} />} label="Overdue Invoices" value={stats.overdueInvoices} tone="critical" />
-            <KpiCard icon={<CashDollarFilledIcon style={{ width: 22, height: 22 }} />} label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString()}`} tone="critical" />
+            <KpiCard icon={<PersonIcon style={{ width: 16, height: 16 }} />} label="Total Customers" value={stats.totalCustomers} />
+            <KpiCard icon={<PersonFilledIcon style={{ width: 16, height: 16 }} />} label="Active Customers" value={stats.activeCustomers} tone="success" />
+            <KpiCard icon={<PersonLockFilledIcon style={{ width: 16, height: 16 }} />} label="Frozen Accounts" value={stats.frozenCustomers} tone="warning" />
+            <KpiCard icon={<OrderFilledIcon style={{ width: 16, height: 16 }} />} label="Total Invoices" value={stats.totalInvoices} />
+            <KpiCard icon={<AlertTriangleIcon style={{ width: 16, height: 16 }} />} label="Overdue Invoices" value={stats.overdueInvoices} tone="critical" />
+            <KpiCard icon={<CashDollarFilledIcon style={{ width: 16, height: 16 }} />} label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString()}`} tone="critical" />
           </InlineStack>
 
           {/* ═══ AR Aging + Plan Usage ═══ */}

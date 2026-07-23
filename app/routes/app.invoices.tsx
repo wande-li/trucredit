@@ -266,16 +266,11 @@ export default function Invoices() {
               selectable={false}
             >
               {invoiceResult.items.map((inv, idx) => (
-                <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
+                <IndexTable.Row key={inv.id} id={inv.id} position={idx} onClick={() => navigate(`/app/invoices/${inv.id}`)}>
                   <IndexTable.Cell>
-                    <div
-                      style={{ cursor: "pointer", textDecoration: "none" }}
-                      onClick={() => navigate(`/app/invoices/${inv.id}`)}
-                    >
                       <Text as="span" variant="bodyMd" fontWeight="bold">
                         {inv.invoiceNumber}
                       </Text>
-                    </div>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <BlockStack gap="050">

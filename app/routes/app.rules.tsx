@@ -309,12 +309,8 @@ function RuleRow({
     thisFormData && thisFormData.get("ruleId") === rule.id;
 
   return (
-    <IndexTable.Row id={rule.id} position={index}>
+    <IndexTable.Row id={rule.id} position={index} onClick={() => navigate(`/app/rules/${rule.id}`)}>
       <IndexTable.Cell>
-        <div
-          style={{ cursor: "pointer", textDecoration: "none" }}
-          onClick={() => navigate(`/app/rules/${rule.id}`)}
-        >
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">
               {rule.name}
@@ -325,7 +321,6 @@ function RuleRow({
               </Text>
             )}
           </BlockStack>
-        </div>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" variant="bodyMd">

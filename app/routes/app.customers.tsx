@@ -287,12 +287,8 @@ export default function CustomersPage() {
                   },
                   index,
                 ) => (
-                    <IndexTable.Row id={id} key={id} position={index}>
+                    <IndexTable.Row id={id} key={id} position={index} onClick={() => navigate(`/app/customers/${id}`)}>
                     <IndexTable.Cell>
-                      <div
-                        style={{ cursor: "pointer", textDecoration: "none" }}
-                        onClick={() => navigate(`/app/customers/${id}`)}
-                      >
                         <BlockStack gap="100">
                           <Text as="span" variant="bodyMd" fontWeight="bold">
                             {name}
@@ -306,7 +302,7 @@ export default function CustomersPage() {
                             {email}
                           </Text>
                         </BlockStack>
-                      </div>
+
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       {creditGrade ? (

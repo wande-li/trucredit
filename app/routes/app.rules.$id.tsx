@@ -19,6 +19,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import {
   getRule,
   createRule,
@@ -51,25 +52,19 @@ const GRADE_OPTIONS = [
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const isNew = params.id === "new";
     if (isNew) {
-      return json({ isNew: true, rule: null, shopId: shop.id });
+      return json({ isNew: true, rule: null, shopId });
     }
 
     if (!params.id) throw new Response("Rule ID required", { status: 400 });
 
-    const rule = await getRule({ shopId: shop.id, ruleId: params.id });
+    const rule = await getRule({ shopId, ruleId: params.id });
     if (!rule) throw new Response("Rule not found", { status: 404 });
 
-    return json({ isNew: false, rule, shopId: shop.id });
+    return json({ isNew: false, rule, shopId });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);

@@ -15,6 +15,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
@@ -26,23 +27,22 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId } = await resolveShop(request);
 
     const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true, currency: true },
+      where: { id: shopId },
+      select: { currency: true },
     });
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
     const [customers, nextSeq] = await Promise.all([
       prisma.customer.findMany({
-        where: { shopId: shop.id, status: { not: "BLACKLISTED" } },
+        where: { shopId, status: { not: "BLACKLISTED" } },
         orderBy: { name: "asc" },
         select: { id: true, name: true, company: true },
       }),
-      getNextInvoiceSequence(shop.id),
+      getNextInvoiceSequence(shopId),
     ]);
 
     const nextNumber = generateInvoiceNumber(nextSeq);

@@ -12,6 +12,7 @@ import {
 interface CreditLimitModalProps {
   open: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   customerId: string;
   creditLimit: string;
   creditUsed: string;
@@ -25,6 +26,7 @@ interface CreditLimitModalProps {
 export function CreditLimitModal({
   open,
   onClose,
+  onSuccess,
   customerId,
   creditLimit,
   creditUsed,
@@ -55,13 +57,14 @@ export function CreditLimitModal({
     );
   };
 
-  // Close on success
+  // Close on success and notify parent
   useEffect(() => {
     if (fetcher.data && !fetcher.data.error && fetcher.state === "idle") {
+      onSuccess?.();
       const timer = setTimeout(onClose, 500);
       return () => clearTimeout(timer);
     }
-  }, [fetcher.data, fetcher.data?.error, fetcher.state, onClose]);
+  }, [fetcher.data, fetcher.data?.error, fetcher.state, onClose, onSuccess]);
 
   return (
     <Modal

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import {
   Modal,
@@ -144,26 +144,9 @@ export function CustomerDetailModal({
         )
       : 0;
 
-  const handleFreezeToggle = useCallback(() => {
-    if (!customer || !customerId) return;
-    actionFetcher.submit(
-      {
-        intent: customer.isFrozen ? "unfreeze" : "freeze",
-        reason: customer.isFrozen
-          ? ""
-          : "Manual freeze from dashboard",
-      },
-      { method: "post", action: `/app/customers/${customerId}` }
-    );
-  }, [actionFetcher, customer, customerId]);
-
-  const handleRecalculate = useCallback(() => {
-    if (!customerId) return;
-    actionFetcher.submit(
-      { intent: "recalculate-score" },
-      { method: "post", action: `/app/customers/${customerId}` }
-    );
-  }, [actionFetcher, customerId]);
+  const freezeIntent = customer?.isFrozen ? "unfreeze" : "freeze";
+  const freezeLabel = customer?.isFrozen ? "Unfreeze" : "Freeze";
+  const freezeTone = customer?.isFrozen ? "success" : "critical";
 
   if (!customerId || !open) return null;
 
@@ -310,31 +293,48 @@ export function CustomerDetailModal({
                   >
                     Adjust Limit
                   </Button>
-                  <Button
-                    onClick={handleFreezeToggle}
-                    tone={customer.isFrozen ? "success" : "critical"}
-                    disabled={actionBusy}
-                    loading={
-                      actionBusy &&
-                      actionFetcher.formData
-                        ?.get("intent")
-                        ?.toString()
-                        .includes("freeze")
-                    }
+                  <actionFetcher.Form
+                    method="post"
+                    action={`/app/customers/${customerId}`}
                   >
-                    {customer.isFrozen ? "Unfreeze" : "Freeze"}
-                  </Button>
-                  <Button
-                    onClick={handleRecalculate}
-                    disabled={actionBusy}
-                    loading={
-                      actionBusy &&
-                      actionFetcher.formData?.get("intent") ===
-                        "recalculate-score"
-                    }
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value={freezeIntent}
+                    />
+                    {!customer.isFrozen && (
+                      <input
+                        type="hidden"
+                        name="reason"
+                        value="Manual freeze from dashboard"
+                      />
+                    )}
+                    <Button
+                      submit
+                      tone={freezeTone}
+                      disabled={actionBusy}
+                      loading={actionBusy}
+                    >
+                      {freezeLabel}
+                    </Button>
+                  </actionFetcher.Form>
+                  <actionFetcher.Form
+                    method="post"
+                    action={`/app/customers/${customerId}`}
                   >
-                    Recalculate Score
-                  </Button>
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="recalculate-score"
+                    />
+                    <Button
+                      submit
+                      disabled={actionBusy}
+                      loading={actionBusy}
+                    >
+                      Recalculate Score
+                    </Button>
+                  </actionFetcher.Form>
                 </InlineStack>
 
                 {assessment.warnings.length > 0 && (
@@ -712,6 +712,9 @@ export function CustomerDetailModal({
         <CreditLimitModal
           open={showLimitModal}
           onClose={() => setShowLimitModal(false)}
+          onSuccess={() => {
+            if (customerId) detailFetcher.load(`/app/customers/${customerId}`);
+          }}
           customerId={customer.id}
           creditLimit={customer.creditLimit}
           creditUsed={customer.creditUsed}

@@ -23,7 +23,7 @@ import {
   Popover,
   ActionList,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "~/services/logger.server";
@@ -47,21 +47,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const hostParam = url.searchParams.get("host") || "";
 
+  // Use resolveShop which handles authenticate.admin() + DB fallback
+  // for .data requests where shop may be null in session.
   try {
-    const { session } = await authenticate.admin(request);
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain: session.shop.trim() },
-    });
+    const { shopDomain, plan, subscriptionStatus } = await resolveShop(request);
 
     const elapsed = Date.now() - startTime;
     return json(
       {
         apiKey: process.env.SHOPIFY_API_KEY || "",
-        shop: session.shop,
+        shop: shopDomain,
         host: hostParam,
         authed: true,
-        plan: shop?.plan || "FREE",
-        subscriptionStatus: shop?.subscriptionStatus || "NONE",
+        plan,
+        subscriptionStatus,
       },
       {
         headers: {
@@ -71,58 +70,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     );
   } catch (e: unknown) {
-    // authenticate.admin() throws Response on auth failure.
-    // In embedded iframe, id_token may be missing/expired on _data refetches.
-    // Fall back to DB lookup before re-throwing — once installed, the shop
-    // record exists and we can serve the page without OAuth redirect loop.
-    if (e instanceof Response) {
-      // Try session table → shop table as fallback.
-      // Prefer shop from URL param to avoid cross-tenant data leak.
-      const shopParam = url.searchParams.get("shop") || undefined;
-      const dbSession = await prisma.session.findFirst({
-        where: shopParam ? { shop: shopParam } : undefined,
-        orderBy: { id: "desc" },
-        select: { shop: true },
-      });
-
-      let shopDomain: string | null = null;
-      if (dbSession?.shop) {
-        shopDomain = dbSession.shop.trim();
-      } else if (shopParam) {
-        const anyShop = await prisma.shop.findFirst({
-          where: { shopDomain: shopParam },
-          select: { shopDomain: true },
-        });
-        if (anyShop?.shopDomain) shopDomain = anyShop.shopDomain.trim();
-      }
-
-      if (shopDomain) {
-        const shop = await prisma.shop.findUnique({
-          where: { shopDomain },
-        });
-        const elapsed = Date.now() - startTime;
-        return json(
-          {
-            apiKey: process.env.SHOPIFY_API_KEY || "",
-            shop: shopDomain,
-            host: hostParam,
-            authed: true,
-            plan: shop?.plan || "FREE",
-            subscriptionStatus: shop?.subscriptionStatus || "NONE",
-          },
-          {
-            headers: {
-              "Cache-Control": "private, max-age=30, must-revalidate",
-              "X-Response-Time": `${elapsed}ms`,
-            },
-          },
-        );
-      }
-
-      // No shop or session in DB at all — must redirect (first install)
-      throw e;
-    }
-
     // Dev mode: auto-seed database on cold start
     if (process.env.NODE_ENV === "development") {
       const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";

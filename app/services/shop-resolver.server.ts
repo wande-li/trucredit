@@ -21,7 +21,12 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
   // Primary path: normal Shopify session auth
   try {
     const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const shopDomain = session.shop?.trim(); // null-safe — .data requests have shop:null
+
+    // .data requests: authenticate succeeds but shop is null → fallback to DB
+    if (!shopDomain) {
+      throw new Response("Shop not in session", { status: 401 });
+    }
 
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -39,7 +44,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
 
     // Shop record missing — create on the fly (first-time install edge case)
     const newShop = await prisma.shop.create({
-      data: { shopDomain: session.shop.trim(), accessToken: session.accessToken || "" },
+      data: { shopDomain, accessToken: session.accessToken || "" },
       select: { id: true, plan: true, subscriptionStatus: true },
     });
     return {

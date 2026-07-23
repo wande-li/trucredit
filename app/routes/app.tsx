@@ -217,12 +217,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 };
 
-// ═══ Performance: skip layout loader on tab switches ═══
+// ═══ Performance: skip layout loader on same-page param changes ═══
 export const shouldRevalidate = ({
   formMethod,
+  currentUrl,
+  nextUrl,
 }: ShouldRevalidateFunctionArgs) => {
+  // Always revalidate non-GET (form submissions)
   if (formMethod && formMethod.toUpperCase() !== "GET") return true;
-  return false;
+  // Skip only same-page parameter refreshes (search, filter, pagination)
+  if (currentUrl.pathname === nextUrl.pathname) return false;
+  // Different page → always revalidate
+  return true;
 };
 
 // ── Navigation config — 6 top-level items (3 standalone + 3 dropdowns) ──

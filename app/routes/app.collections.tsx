@@ -1,7 +1,7 @@
 // TruCredit — Collection Sequences list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -160,7 +160,6 @@ export default function CollectionsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const { items, page, totalPages } = loaderData;
   const fetcher = useFetcher();
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
   const [showCreate, setShowCreate] = useState(false);
@@ -248,7 +247,13 @@ export default function CollectionsPage() {
                   <IndexTable.Row key={seq.id} id={seq.id} position={idx}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <Text as="span" fontWeight="bold">{seq.name}</Text>
+                        <a
+                          href={`/app/collections/${seq.id}`}
+                          data-primary-link
+                          style={{ textDecoration: "none", color: "inherit" }}
+                        >
+                          <Text as="span" fontWeight="bold">{seq.name}</Text>
+                        </a>
                         {seq.isDefault && <Tag>Default</Tag>}
                       </InlineStack>
                     </IndexTable.Cell>
@@ -289,12 +294,9 @@ export default function CollectionsPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <ButtonGroup>
-                        <Button
-                          size="slim"
-                          onClick={() => navigate(`/app/collections/${seq.id}`)}
-                        >
-                          Edit
-                        </Button>
+                        <a href={`/app/collections/${seq.id}`} style={{ textDecoration: "none" }}>
+                          <Button size="slim">Edit</Button>
+                        </a>
                         <Button
                           size="slim"
                           tone={seq.isActive ? "critical" : "success"}

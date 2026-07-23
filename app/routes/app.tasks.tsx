@@ -1,7 +1,7 @@
 // TruCredit — Collection Tasks list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -218,7 +218,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function TasksPage() {
   const { tasks, page, totalPages, summary, statusFilter } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
 
@@ -350,24 +349,25 @@ export default function TasksPage() {
                   <IndexTable.Row key={task.id} id={task.id} position={idx}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <Button
-                          variant="plain"
-                          onClick={() => navigate(`/app/invoices/${task.invoice.id}`)}
+                        <a
+                          href={`/app/invoices/${task.invoice.id}`}
+                          data-primary-link
+                          style={{ textDecoration: "none", color: "inherit" }}
                         >
                           {task.invoice.invoiceNumber}
-                        </Button>
+                        </a>
                         <Text as="span" tone="subdued">
                           {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
                         </Text>
                       </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <Button
-                        variant="plain"
-                        onClick={() => navigate(`/app/customers/${task.customer.id}`)}
+                      <a
+                        href={`/app/customers/${task.customer.id}`}
+                        style={{ textDecoration: "none", color: "inherit" }}
                       >
                         {task.customer.name}
-                      </Button>
+                      </a>
                       {task.customer.company && (
                         <Text as="p" tone="subdued" variant="bodySm">
                           {task.customer.company}

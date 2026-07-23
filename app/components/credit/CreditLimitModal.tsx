@@ -108,15 +108,15 @@ export function CreditLimitModal({
               min={0}
               step={100}
               helpText={
-                assessment.recommendedLimit > 0
-                  ? `AI recommends $${assessment.recommendedLimit.toLocaleString()}`
+                recommendation.recommendedLimit > 0
+                  ? `AI recommends $${recommendation.recommendedLimit.toLocaleString()}`
                   : undefined
               }
               error={
                 isOver2x
-                  ? `Exceeds 2x recommended limit ($${assessment.recommendedLimit.toLocaleString()})`
+                  ? `Exceeds 2x recommended limit ($${recommendation.recommendedLimit.toLocaleString()})`
                   : isOver50pct
-                    ? `Score ${assessment.score} — increases over 50% need review`
+                    ? `Score ${recommendation.score} — increases over 50% need review`
                     : undefined
               }
             />
@@ -135,10 +135,10 @@ export function CreditLimitModal({
               options={[
                 { label: "Custom", value: "" },
                 {
-                  label: `AI Recommended: $${assessment.recommendedLimit.toLocaleString()}`,
-                  value: String(assessment.recommendedLimit),
+                  label: `AI Recommended: $${recommendation.recommendedLimit.toLocaleString()}`,
+                  value: String(recommendation.recommendedLimit),
                 },
-                { label: "Double current", value: String(Number(customer.creditLimit) * 2) },
+                { label: "Double current", value: String(Number(creditLimit) * 2) },
                 { label: "Set to $5,000", value: "5000" },
                 { label: "Set to $10,000", value: "10000" },
               ]}
@@ -149,17 +149,8 @@ export function CreditLimitModal({
             />
           </FormLayout>
 
-          {assessment.warnings.length > 0 && (
-            <Banner tone="warning">
-              <BlockStack gap="100">
-                {assessment.warnings.map((w, i) => (
-                  <Text as="p" variant="bodyMd" key={i}>
-                    {w}
-                  </Text>
-                ))}
-              </BlockStack>
-            </Banner>
-          )}
+
+
         </BlockStack>
       </Modal.Section>
     </Modal>

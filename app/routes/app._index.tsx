@@ -15,12 +15,6 @@ import {
   Divider,
 } from "@shopify/polaris";
 import {
-  PersonIcon,
-  PersonFilledIcon,
-  PersonLockFilledIcon,
-  OrderFilledIcon,
-  AlertTriangleIcon,
-  CashDollarFilledIcon,
   PersonAddIcon,
   OrderIcon,
   CalendarCheckIcon,
@@ -121,30 +115,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ── KPI card — minimal financial dashboard style ──
+// ── KPI card — Stripe/Mercury inspired, typography-forward ──
 type KpiTone = "default" | "success" | "warning" | "critical";
 
-const toneColor: Record<KpiTone, string> = {
-  default:  "var(--p-color-text)",
+const toneDot: Record<KpiTone, string> = {
+  default:  "var(--p-color-icon)",
   success:  "var(--p-color-text-success)",
   warning:  "var(--p-color-text-caution)",
   critical: "var(--p-color-text-critical)",
 };
 
-const toneBg: Record<KpiTone, string> = {
-  default:  "var(--p-color-bg-fill-brand)",
-  success:  "var(--p-color-bg-fill-success)",
-  warning:  "var(--p-color-bg-fill-caution)",
-  critical: "var(--p-color-bg-fill-critical)",
-};
-
 function KpiCard({
-  icon,
   label,
   value,
   tone = "default",
 }: {
-  icon: React.ReactNode;
   label: string;
   value: string | number;
   tone?: KpiTone;
@@ -155,27 +140,28 @@ function KpiCard({
       borderWidth="025"
       borderColor="border-secondary"
       borderRadius="200"
-      padding="400"
+      padding="500"
       minWidth="160px"
-      style={{
-        flex: 1,
-        borderTopWidth: "3px",
-        borderTopStyle: "solid",
-        borderTopColor: toneBg[tone],
-      }}
+      style={{ flex: 1 }}
     >
       <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center" wrap={false}>
-          <span style={{ color: toneColor[tone], display: "flex", alignItems: "center", flexShrink: 0 }}>
-            {icon}
-          </span>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {label}
+        <Text as="span" variant="bodySm" fontWeight="medium" tone="subdued">
+          {label}
+        </Text>
+        <InlineStack gap="150" blockAlign="center" wrap={false}>
+          <Box
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: toneDot[tone],
+              flexShrink: 0,
+            }}
+          />
+          <Text as="p" variant="heading2xl" fontWeight="semibold">
+            {value}
           </Text>
         </InlineStack>
-        <Text as="p" variant="heading2xl" fontWeight="bold">
-          {value}
-        </Text>
       </BlockStack>
     </Box>
   );
@@ -344,12 +330,12 @@ export default function Dashboard() {
 
           {/* ═══ KPI Row ═══ */}
           <InlineStack gap="400" wrap>
-            <KpiCard icon={<PersonIcon style={{ width: 16, height: 16 }} />} label="Total Customers" value={stats.totalCustomers} />
-            <KpiCard icon={<PersonFilledIcon style={{ width: 16, height: 16 }} />} label="Active Customers" value={stats.activeCustomers} tone="success" />
-            <KpiCard icon={<PersonLockFilledIcon style={{ width: 16, height: 16 }} />} label="Frozen Accounts" value={stats.frozenCustomers} tone="warning" />
-            <KpiCard icon={<OrderFilledIcon style={{ width: 16, height: 16 }} />} label="Total Invoices" value={stats.totalInvoices} />
-            <KpiCard icon={<AlertTriangleIcon style={{ width: 16, height: 16 }} />} label="Overdue Invoices" value={stats.overdueInvoices} tone="critical" />
-            <KpiCard icon={<CashDollarFilledIcon style={{ width: 16, height: 16 }} />} label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString()}`} tone="critical" />
+            <KpiCard label="Total Customers" value={stats.totalCustomers} />
+            <KpiCard label="Active Customers" value={stats.activeCustomers} tone="success" />
+            <KpiCard label="Frozen Accounts" value={stats.frozenCustomers} tone="warning" />
+            <KpiCard label="Total Invoices" value={stats.totalInvoices} />
+            <KpiCard label="Overdue Invoices" value={stats.overdueInvoices} tone="critical" />
+            <KpiCard label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString()}`} tone="critical" />
           </InlineStack>
 
           {/* ═══ AR Aging + Plan Usage ═══ */}

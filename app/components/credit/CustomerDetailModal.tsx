@@ -293,48 +293,39 @@ export function CustomerDetailModal({
                   >
                     Adjust Limit
                   </Button>
-                  <actionFetcher.Form
-                    method="post"
-                    action={`/app/customers/${customerId}`}
+                  <Button
+                    onClick={() => {
+                      if (!customerId) return;
+                      const fd = new FormData();
+                      fd.append("intent", freezeIntent);
+                      if (!customer.isFrozen)
+                        fd.append("reason", "Manual freeze from dashboard");
+                      actionFetcher.submit(fd, {
+                        method: "post",
+                        action: `/app/customers/${customerId}`,
+                      });
+                    }}
+                    tone={freezeTone}
+                    disabled={actionBusy}
+                    loading={actionBusy}
                   >
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value={freezeIntent}
-                    />
-                    {!customer.isFrozen && (
-                      <input
-                        type="hidden"
-                        name="reason"
-                        value="Manual freeze from dashboard"
-                      />
-                    )}
-                    <Button
-                      submit
-                      tone={freezeTone}
-                      disabled={actionBusy}
-                      loading={actionBusy}
-                    >
-                      {freezeLabel}
-                    </Button>
-                  </actionFetcher.Form>
-                  <actionFetcher.Form
-                    method="post"
-                    action={`/app/customers/${customerId}`}
+                    {freezeLabel}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!customerId) return;
+                      const fd = new FormData();
+                      fd.append("intent", "recalculate-score");
+                      actionFetcher.submit(fd, {
+                        method: "post",
+                        action: `/app/customers/${customerId}`,
+                      });
+                    }}
+                    disabled={actionBusy}
+                    loading={actionBusy}
                   >
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="recalculate-score"
-                    />
-                    <Button
-                      submit
-                      disabled={actionBusy}
-                      loading={actionBusy}
-                    >
-                      Recalculate Score
-                    </Button>
-                  </actionFetcher.Form>
+                    Recalculate Score
+                  </Button>
                 </InlineStack>
 
                 {assessment.warnings.length > 0 && (

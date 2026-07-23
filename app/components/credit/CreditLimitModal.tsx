@@ -46,15 +46,15 @@ export function CreditLimitModal({
     numericNewLimit > Number(creditLimit) * 1.5;
 
   const handleSubmit = () => {
-    fetcher.submit(
-      {
-        intent: "set-credit-limit",
-        customerId,
-        newLimit,
-        reason: reason || `Manual adjustment from ${creditLimit} to ${newLimit}`,
-      },
-      { method: "post", action: `/app/customers/${customerId}` },
-    );
+    const fd = new FormData();
+    fd.append("intent", "set-credit-limit");
+    fd.append("customerId", customerId);
+    fd.append("newLimit", newLimit);
+    fd.append("reason", reason || `Manual adjustment from ${creditLimit} to ${newLimit}`);
+    fetcher.submit(fd, {
+      method: "post",
+      action: `/app/customers/${customerId}`,
+    });
   };
 
   // Close on success and notify parent

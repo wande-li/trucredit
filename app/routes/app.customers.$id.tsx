@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -500,11 +500,13 @@ export default function CustomerDetailPage() {
                       <Text as="h3" variant="headingMd">
                         Outstanding Invoices
                       </Text>
-                      <Link to={`/app/invoices/new?customerId=${customer.id}`}>
-                        <Text as="span" variant="bodySm" tone="subdued">
-                          + New
-                        </Text>
-                      </Link>
+                      <Button
+                        variant="tertiary"
+                        size="slim"
+                        onClick={() => navigate(`/app/invoices/new?customerId=${customer.id}`)}
+                      >
+                        + New Invoice
+                      </Button>
                     </InlineStack>
                     {aging.invoices.map((inv) => (
                       <Box

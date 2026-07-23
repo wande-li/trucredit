@@ -15,6 +15,7 @@ import {
   Tabs,
   Box,
   EmptyState,
+  Button,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { listInvoices, getARAgingReport } from "~/services/invoice.server";
@@ -113,7 +114,9 @@ export default function Invoices() {
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Invoices</Text>
-            <Link to="/app/invoices/new" reloadDocument className="Polaris-Button Polaris-Button--primary" style={{ textDecoration: "none" }}>Create Invoice</Link>
+            <Link to="/app/invoices/new" style={{ textDecoration: "none" }}>
+              <Button variant="primary">Create Invoice</Button>
+            </Link>
           </InlineStack>
         </Card>
 

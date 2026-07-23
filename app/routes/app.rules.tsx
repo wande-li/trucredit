@@ -14,6 +14,7 @@ import {
   EmptyState,
   Banner,
   Pagination,
+  Button,
 } from "@shopify/polaris";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticate } from "~/shopify.server";
@@ -247,7 +248,9 @@ export default function RulesPage() {
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Credit Rules</Text>
-            <Link to="/app/rules/new" reloadDocument className="Polaris-Button Polaris-Button--primary" style={{ textDecoration: "none" }}>Add Rule</Link>
+            <Link to="/app/rules/new" style={{ textDecoration: "none" }}>
+              <Button variant="primary">Add Rule</Button>
+            </Link>
           </InlineStack>
         </Card>
 

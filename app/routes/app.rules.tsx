@@ -213,7 +213,7 @@ export default function RulesPage() {
   const successHandledRef = useRef(false);
   const [visibleSuccess, setVisibleSuccess] = useState(false);
 
-  // Auto-dismiss success banner
+  // Auto-dismiss success banner (Remix auto-revalidates loader after action)
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.success && !successHandledRef.current) {
       successHandledRef.current = true;
@@ -322,15 +322,9 @@ function RuleRow({
   const isThisRow =
     fetcher.formData && fetcher.formData.get("ruleId") === rule.id;
 
-  const doAction = (intent: string, extra?: Record<string, string>) => {
-    const fd = new FormData();
-    fd.append("intent", intent);
-    fd.append("ruleId", rule.id);
-    if (extra) {
-      Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
-    }
-    fetcher.submit(fd, { method: "post" });
-  };
+  // ── Form refs for each action ──
+  const toggleFormRef = useRef<HTMLFormElement>(null);
+  const deleteFormRef = useRef<HTMLFormElement>(null);
 
   return (
     <IndexTable.Row id={rule.id} position={index}>
@@ -368,14 +362,23 @@ function RuleRow({
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
+        {/* Use standalone hidden fetcher.Forms + programmatic submit for reliable action trigger */}
+        <fetcher.Form ref={toggleFormRef} method="post" style={{ display: "none" }}>
+          <input type="hidden" name="intent" value="toggle" />
+          <input type="hidden" name="ruleId" value={rule.id} />
+          <input type="hidden" name="isActive" value={String(!rule.isActive)} />
+        </fetcher.Form>
+        <fetcher.Form ref={deleteFormRef} method="post" style={{ display: "none" }}>
+          <input type="hidden" name="intent" value="delete" />
+          <input type="hidden" name="ruleId" value={rule.id} />
+        </fetcher.Form>
         <InlineStack gap="200" blockAlign="center">
           <Badge tone={rule.isActive ? "success" : "critical"}>
             {rule.isActive ? "Active" : "Inactive"}
           </Badge>
           <Button
-            onClick={() =>
-              doAction("toggle", { isActive: String(!rule.isActive) })
-            }
+            type="button"
+            onClick={() => toggleFormRef.current?.requestSubmit()}
             variant="plain"
             size="slim"
             disabled={isBusy}
@@ -384,7 +387,8 @@ function RuleRow({
             {rule.isActive ? "Disable" : "Enable"}
           </Button>
           <Button
-            onClick={() => doAction("delete")}
+            type="button"
+            onClick={() => deleteFormRef.current?.requestSubmit()}
             variant="plain"
             tone="critical"
             size="slim"

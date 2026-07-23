@@ -23,7 +23,7 @@ import {
   Tag,
 } from "@shopify/polaris";
 import { useState, useCallback, useRef } from "react";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import {
   listSequences,
   createSequence,
@@ -31,7 +31,6 @@ import {
   updateSequence,
 } from "~/services/collection.server";
 import type { TriggerType } from "@prisma/client";
-import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -39,21 +38,14 @@ import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
 
-    const result = await listSequences(shop.id, { page });
+    const result = await listSequences(shopId, { page });
 
-    return json({ shopId: shop.id, ...result });
+    return json({ shopId, ...result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -64,14 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -79,7 +64,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (intent) {
       case "create": {
         // Auto sequences require STARTER+ plan
-        const { isPaid } = await checkPlanAccess(shop.id);
+        const { isPaid } = await checkPlanAccess(shopId);
         if (!isPaid) {
           return json(
             {
@@ -98,7 +83,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!name) return json({ error: "Name is required" }, { status: 400 });
 
         const seq = await createSequence({
-          shopId: shop.id,
+          shopId,
           name,
           description: description || undefined,
           triggerType,
@@ -111,7 +96,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const sequenceId = formData.get("sequenceId")?.toString();
         if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
 
-        const result = await deleteSequence(sequenceId, shop.id);
+        const result = await deleteSequence(sequenceId, shopId);
         if (!result.success) return json({ error: result.error }, { status: 400 });
         return json({ success: true });
       }
@@ -123,7 +108,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         const result = await updateSequence({
           sequenceId,
-          shopId: shop.id,
+          shopId,
           isActive: !isActive,
         });
         if (!result.success) return json({ error: result.error }, { status: 400 });

@@ -16,6 +16,7 @@ import {
   DataTable,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { getInvoice, markInvoicePaid } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
@@ -27,22 +28,14 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopId } = await resolveShop(request);
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });
     }
 
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
-
     const invoice = await getInvoice({
-      shopId: shop.id,
+      shopId,
       invoiceId: params.id,
     });
 
@@ -93,19 +86,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session, admin } = await authenticate.admin(request);
+    const { admin } = await authenticate.admin(request);
+    const { shopId, shopDomain } = await resolveShop(request);
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });
     }
-
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -114,7 +100,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "mark-paid": {
         const paymentMethod = formData.get("paymentMethod")?.toString();
         const invoice = await markInvoicePaid({
-          shopId: shop.id,
+          shopId,
           invoiceId: params.id,
           paymentMethod,
         });
@@ -134,7 +120,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (!newStatus) return json({ error: "New status is required" }, { status: 400 });
 
         const currentInvoice = await prisma.invoice.findFirst({
-          where: { id: params.id, shopId: shop.id },
+          where: { id: params.id, shopId },
           select: { status: true, paidDate: true },
         });
 
@@ -160,7 +146,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
 
         await prisma.invoice.update({
-          where: { id: params.id, shopId: shop.id },
+          where: { id: params.id, shopId },
           data: updateData,
         });
 

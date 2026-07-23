@@ -17,9 +17,8 @@ import {
   Banner,
   Box,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { listCustomers } from "~/services/customer.server";
-import prisma from "~/db.server";
 import { useCallback, useState } from "react";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -28,15 +27,7 @@ import { CustomerDetailModal } from "~/components/credit/CustomerDetailModal";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? undefined;
@@ -46,7 +37,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
 
     const result = await listCustomers({
-      shopId: shop.id,
+      shopId,
       search,
       status,
       creditGrade,
@@ -54,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
     });
 
-    return json({ result, shopDomain });
+    return json({ result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);

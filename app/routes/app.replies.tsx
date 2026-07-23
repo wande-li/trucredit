@@ -22,10 +22,9 @@ import {
   Pagination,
 } from "@shopify/polaris";
 import { useState, useCallback, useMemo } from "react";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { listReplies, resolveReply } from "~/services/reply.server";
 import type { ReplyIntent } from "@prisma/client";
-import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -69,25 +68,18 @@ function shortBody(body: string | null | undefined, maxLen = 120): string {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId } = await resolveShop(request);
 
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
-
-    const { isPaid } = await checkPlanAccess(shop.id);
+    const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
     const intent = (url.searchParams.get("intent") ?? undefined) as ReplyIntent | undefined;
 
-    const result = await listReplies(shop.id, { page, intent });
+    const result = await listReplies(shopId, { page, intent });
 
-    return json({ shopId: shop.id, ...result });
+    return json({ shopId, ...result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -98,14 +90,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -117,7 +102,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       if (!eventId || !taskId) return json({ error: "Missing parameters" }, { status: 400 });
 
-      const result = await resolveReply({ eventId, taskId, shopId: shop.id, notes });
+      const result = await resolveReply({ eventId, taskId, shopId, notes });
       if (!result.success) return json({ error: result.error }, { status: 400 });
       return json({ success: true });
     }

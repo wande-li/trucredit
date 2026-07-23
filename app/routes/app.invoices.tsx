@@ -17,9 +17,8 @@ import {
   EmptyState,
   Button,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { listInvoices, getARAgingReport } from "~/services/invoice.server";
-import prisma from "~/db.server";
 import { useCallback, useMemo } from "react";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -27,15 +26,7 @@ import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId, shopDomain } = await resolveShop(request);
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? undefined;
@@ -43,8 +34,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
 
     const [invoiceResult, agingReport] = await Promise.all([
-      listInvoices({ shopId: shop.id, search, status, page }),
-      getARAgingReport(shop.id),
+      listInvoices({ shopId, search, status, page }),
+      getARAgingReport(shopId),
     ]);
 
     return json({ invoiceResult, agingReport, shopDomain });

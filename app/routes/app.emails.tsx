@@ -20,13 +20,12 @@ import {
   InlineStack,
   Box,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
 import { PAGINATION } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
-import prisma from "~/db.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
@@ -34,25 +33,18 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId, shopDomain } = await resolveShop(request);
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
     const pageSize = Math.min(parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10), PAGINATION.MAX_PAGE_SIZE);
 
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
-
-    const { isPaid } = await checkPlanAccess(shop.id);
+    const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
 
     // Auto-seed default templates
-    await ensureDefaultTemplates(session.shop);
+    await ensureDefaultTemplates(shopDomain);
 
-    const result = await listTemplates(session.shop, { page, pageSize });
+    const result = await listTemplates(shopDomain, { page, pageSize });
     return json(result);
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -66,7 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopDomain } = await resolveShop(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -82,7 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       await createTemplate({
-        shopId: session.shop,
+        shopId: shopDomain,
         name: name.trim(),
         type: type || "CUSTOM",
         subject: subject.trim(),
@@ -95,7 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent === "delete") {
       const templateId = formData.get("templateId") as string;
-      const result = await deleteTemplate(templateId, session.shop);
+      const result = await deleteTemplate(templateId, shopDomain);
       return json(result);
     }
 

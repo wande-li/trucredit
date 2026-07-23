@@ -20,7 +20,7 @@ import {
   Divider,
   Button,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
@@ -29,16 +29,13 @@ import { RouteError } from "~/services/error-boundary.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId, plan: currentPlan, subscriptionStatus } = await resolveShop(request);
 
     const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { plan: true, subscriptionStatus: true, currentPeriodEnd: true },
+      where: { id: shopId },
+      select: { currentPeriodEnd: true },
     });
 
-    const currentPlan = shop?.plan ?? "FREE";
-    const subscriptionStatus = shop?.subscriptionStatus ?? null;
     const isTrialActive = subscriptionStatus === "ACTIVE" && currentPlan === "FREE";
     const planDef = PLANS_V2.find((p) => p.key === currentPlan);
     const planName = planDef?.name ?? "Free";

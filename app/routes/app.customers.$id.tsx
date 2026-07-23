@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import {
   getCustomer,
   setCreditLimit,
@@ -35,22 +36,14 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopId } = await resolveShop(request);
 
     if (!params.id) {
       throw new Response("Customer ID required", { status: 400 });
     }
 
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
-
     const customer = await getCustomer({
-      shopId: shop.id,
+      shopId,
       customerId: params.id,
     });
 
@@ -73,7 +66,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
 
     const aging = await getARAgingByCustomer({
-      shopId: shop.id,
+      shopId,
       customerId: customer.id,
     });
 
@@ -88,19 +81,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session, admin } = await authenticate.admin(request);
+    const { admin } = await authenticate.admin(request);
+    const { shopId, shopDomain } = await resolveShop(request);
 
     if (!params.id) {
       throw new Response("Customer ID required", { status: 400 });
     }
-
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-
-    if (!shop) throw new Response("Shop not found", { status: 404 });
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -118,7 +104,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
 
         await setCreditLimit({
-          shopId: shop.id,
+          shopId,
           customerId: params.id,
           newLimit,
           reason,
@@ -137,7 +123,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "freeze": {
         const reason = formData.get("reason")?.toString() ?? "Manual freeze";
         await freezeCustomer({
-          shopId: shop.id,
+          shopId,
           customerId: params.id,
           reason,
           triggeredBy: "USER",
@@ -153,7 +139,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       case "unfreeze": {
         await unfreezeCustomer({
-          shopId: shop.id,
+          shopId,
           customerId: params.id,
           triggeredBy: "USER",
         });
@@ -169,7 +155,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "recalculate-score": {
         await recalculateCreditScore({
           customerId: params.id,
-          shopId: shop.id,
+          shopId,
           triggeredBy: "USER",
         });
 

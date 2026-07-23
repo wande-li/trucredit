@@ -28,7 +28,7 @@ import {
   TargetIcon,
   ChartLineIcon,
 } from "@shopify/polaris-icons";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { getShopBilling } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
@@ -40,11 +40,10 @@ import PageSkeleton from "~/components/PageSkeleton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId } = await resolveShop(request);
 
     const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
+      where: { id: shopId },
       include: {
         _count: { select: { customers: true, invoices: true } },
       },

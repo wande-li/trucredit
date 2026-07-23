@@ -17,7 +17,7 @@ import {
   Box,
   InlineStack,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -54,9 +54,9 @@ type ActionData = {
 // ── Loader ──
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopDomain } = await resolveShop(request);
     const shop = await prisma.shop.findUnique({
-      where: { shopDomain: session.shop.trim() },
+      where: { shopDomain },
       select: { currency: true, timezone: true, emailFromName: true, emailReplyTo: true },
     });
 
@@ -74,7 +74,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── Action ──
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopDomain } = await resolveShop(request);
     const formData = await request.formData();
     const intent = formData.get("intent");
 
@@ -107,7 +107,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     await prisma.shop.update({
-      where: { shopDomain: session.shop.trim() },
+      where: { shopDomain },
       data: {
         currency: (formData.get("currency") as string) || "USD",
         timezone,

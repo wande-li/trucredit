@@ -70,18 +70,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session, admin } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { admin } = await authenticate.admin(request);
+    const { shopId, shopDomain } = await resolveShop(request);
 
     const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true, plan: true },
+      where: { id: shopId },
+      select: { plan: true },
     });
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
     // Check invoice quota
-    const quota = await checkInvoiceQuota(shop.id, shop.plan);
+    const quota = await checkInvoiceQuota(shopId, shop.plan);
     if (!quota.allowed) {
       return json(
         {
@@ -115,7 +115,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const netTermsDays = parseInt(netTermsDaysStr ?? String(COLLECTION.DEFAULT_NET_TERMS), 10);
 
     const invoice = await createInvoice({
-      shopId: shop.id,
+      shopId,
       customerId,
       amount,
       currency,

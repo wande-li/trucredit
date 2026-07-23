@@ -21,7 +21,7 @@ import {
   LegacyCard,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import {
   getSequence,
   updateSequence,
@@ -31,25 +31,17 @@ import {
 } from "~/services/collection.server";
 import { COLLECTION } from "~/lib/constants";
 import type { Channel, TriggerType } from "@prisma/client";
-import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const sequenceId = params.id;
     if (!sequenceId) throw new Response("Not Found", { status: 404 });
 
-    const sequence = await getSequence(sequenceId, shop.id);
+    const sequence = await getSequence(sequenceId, shopId);
     if (!sequence) throw new Response("Not Found", { status: 404 });
 
     return json({ sequence });
@@ -63,14 +55,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const sequenceId = params.id;
     if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });
@@ -89,7 +74,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const result = await updateSequence({
           sequenceId,
-          shopId: shop.id,
+          shopId: shopId,
           name,
           description: description || undefined,
           triggerType,
@@ -110,7 +95,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const result = await addStep({
           sequenceId,
-          shopId: shop.id,
+          shopId: shopId,
           order,
           delayDays,
           channel,
@@ -133,7 +118,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const result = await updateStep({
           stepId,
           sequenceId,
-          shopId: shop.id,
+          shopId: shopId,
           delayDays: delayDays !== undefined ? parseInt(delayDays, 10) : undefined,
           channel,
           toneLevel: toneLevel !== undefined ? parseInt(toneLevel, 10) : undefined,
@@ -147,7 +132,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const stepId = formData.get("stepId")?.toString();
         if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
 
-        const result = await deleteStep(stepId, sequenceId, shop.id);
+        const result = await deleteStep(stepId, sequenceId, shopId);
         if (!result.success) return json({ error: result.error }, { status: 400 });
         return json({ success: true });
       }

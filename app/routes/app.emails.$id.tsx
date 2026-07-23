@@ -18,7 +18,7 @@ import {
   Box,
   Divider,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { getTemplateById, updateTemplate, deleteTemplate } from "~/services/email.server";
 import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
@@ -30,8 +30,8 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const template = await getTemplateById(params.id!, session.shop);
+    const { shopDomain } = await resolveShop(request);
+    const template = await getTemplateById(params.id!, shopDomain);
     if (!template) throw new Response("Template not found", { status: 404 });
     return json({ template });
   } catch (e: unknown) {
@@ -46,7 +46,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
+    const { shopDomain } = await resolveShop(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -64,7 +64,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const result = await updateTemplate({
         templateId: params.id!,
-        shopId: session.shop,
+        shopId: shopDomain,
         name: name.trim(),
         subject: subject.trim(),
         body: body.trim(),
@@ -76,7 +76,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     // Delete template
     if (intent === "delete") {
-      const result = await deleteTemplate(params.id!, session.shop);
+      const result = await deleteTemplate(params.id!, shopDomain);
       return json(result);
     }
 

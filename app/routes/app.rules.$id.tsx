@@ -18,7 +18,6 @@ import {
   Box,
 } from "@shopify/polaris";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
 import {
   getRule,
@@ -26,7 +25,6 @@ import {
   updateRule,
 } from "~/services/credit-rule.server";
 import type { RuleConditions, RuleActionValue } from "~/services/credit-rule.server";
-import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -77,13 +75,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -179,7 +171,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     if (isNew) {
       await createRule({
-        shopId: shop.id,
+        shopId,
         name,
         description,
         priority,
@@ -191,10 +183,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     } else {
       if (!params.id) throw new Error("Rule ID required");
       // Verify ownership before update
-      const existing = await getRule({ shopId: shop.id, ruleId: params.id });
+      const existing = await getRule({ shopId, ruleId: params.id });
       if (!existing) throw new Response("Rule not found", { status: 404 });
 
-      await updateRule(shop.id, params.id, {
+      await updateRule(shopId, params.id, {
         name,
         description,
         priority,

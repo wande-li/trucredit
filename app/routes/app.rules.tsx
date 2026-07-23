@@ -17,7 +17,7 @@ import {
   Button,
 } from "@shopify/polaris";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
@@ -44,15 +44,9 @@ const ACTION_TONE: Record<CreditAction, "success" | "critical" | "warning" | "ne
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId, shopDomain } = await resolveShop(request);
 
-    const { isPaid } = await checkPlanAccess(shop.id);
+    const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
@@ -60,7 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const showInactive = url.searchParams.get("inactive") === "1";
 
     const result = await listRules({
-      shopId: shop.id,
+      shopId,
       isActive: showInactive ? undefined : true,
       page,
     });
@@ -76,13 +70,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -92,18 +80,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Verify rule belongs to shop
     const rule = await prisma.creditRule.findFirst({
-      where: { id: ruleId, shopId: shop.id },
+      where: { id: ruleId, shopId },
     });
     if (!rule) return json({ error: "Rule not found" }, { status: 404 });
 
     switch (intent) {
       case "toggle": {
         const isActive = formData.get("isActive") === "true";
-        await toggleRule({ shopId: shop.id, ruleId, isActive });
+        await toggleRule({ shopId, ruleId, isActive });
         return json({ success: true });
       }
       case "delete": {
-        await deleteRule(shop.id, ruleId);
+        await deleteRule(shopId, ruleId);
         return json({ success: true });
       }
       default:

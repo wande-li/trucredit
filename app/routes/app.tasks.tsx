@@ -18,7 +18,7 @@ import {
   Select,
 } from "@shopify/polaris";
 import { useCallback, useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { pauseTask, stopTask } from "~/services/collection.server";
 import { enqueueEmail } from "~/queues/email.queue";
@@ -58,16 +58,9 @@ function daysToStage(daysOverdue: number): string {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
+    const { shopId } = await resolveShop(request);
 
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) throw new Response("Shop not found", { status: 404 });
-
-    const { isPaid } = await checkPlanAccess(shop.id);
+    const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
@@ -79,7 +72,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const statusFilter = url.searchParams.get("status") ?? "";
 
     const where: Record<string, unknown> = {
-      sequence: { shopId: shop.id },
+      sequence: { shopId },
     };
     if (statusFilter && statusFilter !== "ALL") {
       where.status = statusFilter;
@@ -127,14 +120,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { session } = await authenticate.admin(request);
-    const shopDomain = session.shop.trim();
-
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { id: true },
-    });
-    if (!shop) return json({ error: "Shop not found" }, { status: 404 });
+    const { shopId } = await resolveShop(request);
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -143,23 +129,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     switch (intent) {
       case "pause": {
-        await pauseTask({ taskId, shopId: shop.id, reason: "Manually paused" });
+        await pauseTask({ taskId, shopId, reason: "Manually paused" });
         return json({ success: true });
       }
       case "stop": {
-        await stopTask({ taskId, shopId: shop.id, reason: "Manually stopped" });
+        await stopTask({ taskId, shopId, reason: "Manually stopped" });
         return json({ success: true });
       }
       case "resume": {
         // Verify task belongs to this shop
         const task = await prisma.collectionTask.findUnique({
-          where: { id: taskId, sequence: { shopId: shop.id } },
+          where: { id: taskId, sequence: { shopId } },
         });
         if (!task || task.status !== "PAUSED") {
           return json({ error: "Task not found or not paused" }, { status: 400 });
         }
         await prisma.collectionTask.update({
-          where: { id: taskId, sequence: { shopId: shop.id } },
+          where: { id: taskId, sequence: { shopId } },
           data: { status: "ACTIVE" },
         });
         return json({ success: true });
@@ -167,7 +153,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       case "send": {
         // Verify task belongs to this shop
         const task = await prisma.collectionTask.findUnique({
-          where: { id: taskId, sequence: { shopId: shop.id } },
+          where: { id: taskId, sequence: { shopId } },
           include: {
             customer: { select: { name: true, company: true, email: true } },
             invoice: { select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, paymentUrl: true, shopifyOrderName: true } },
@@ -183,7 +169,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
 
         await enqueueEmail({
-          shopId: shop.id,
+          shopId,
           toEmail: task.customer.email,
           stage: daysToStage(daysOverdue),
           useAI: task.sequence.steps[0]?.useAI ?? false,

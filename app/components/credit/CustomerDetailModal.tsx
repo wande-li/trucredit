@@ -128,14 +128,21 @@ export function CustomerDetailModal({
 
   // Refresh detail after successful action
   useEffect(() => {
+    console.log("[DetailModal] actionFetcher effect", {
+      state: actionFetcher.state,
+      success: actionFetcher.data?.success,
+      error: actionFetcher.data?.error,
+      customerId,
+    });
     if (
       actionFetcher.state === "idle" &&
       actionFetcher.data?.success &&
       customerId
     ) {
+      console.log("[DetailModal] refreshing detail data");
       detailFetcher.load(`/app/customers/${customerId}`);
     }
-  }, [actionFetcher.state, actionFetcher.data?.success, customerId]);
+  }, [actionFetcher.state, actionFetcher.data?.success, actionFetcher.data?.error, customerId]);
 
   const utilizationPct =
     customer && Number(customer.creditLimit) > 0
@@ -288,22 +295,31 @@ export function CustomerDetailModal({
 
                 <InlineStack gap="200" wrap>
                   <Button
-                    onClick={() => setShowLimitModal(true)}
+                    onClick={() => {
+                      console.log("[DetailModal] Adjust Limit clicked");
+                      setShowLimitModal(true);
+                    }}
                     disabled={actionBusy}
                   >
                     Adjust Limit
                   </Button>
                   <Button
                     onClick={() => {
-                      if (!customerId) return;
-                      const fd = new FormData();
-                      fd.append("intent", freezeIntent);
-                      if (!customer.isFrozen)
-                        fd.append("reason", "Manual freeze from dashboard");
-                      actionFetcher.submit(fd, {
-                        method: "post",
-                        action: `/app/customers/${customerId}`,
-                      });
+                      console.log("[DetailModal] Freeze/Unfreeze clicked", { customerId, intent: freezeIntent });
+                      try {
+                        if (!customerId) return;
+                        const fd = new FormData();
+                        fd.append("intent", freezeIntent);
+                        if (!customer.isFrozen)
+                          fd.append("reason", "Manual freeze from dashboard");
+                        actionFetcher.submit(fd, {
+                          method: "post",
+                          action: `/app/customers/${customerId}`,
+                        });
+                        console.log("[DetailModal] freeze submit done");
+                      } catch (err) {
+                        console.error("[DetailModal] freeze submit error", err);
+                      }
                     }}
                     tone={freezeTone}
                     disabled={actionBusy}
@@ -313,13 +329,19 @@ export function CustomerDetailModal({
                   </Button>
                   <Button
                     onClick={() => {
-                      if (!customerId) return;
-                      const fd = new FormData();
-                      fd.append("intent", "recalculate-score");
-                      actionFetcher.submit(fd, {
-                        method: "post",
-                        action: `/app/customers/${customerId}`,
-                      });
+                      console.log("[DetailModal] Recalculate clicked", { customerId });
+                      try {
+                        if (!customerId) return;
+                        const fd = new FormData();
+                        fd.append("intent", "recalculate-score");
+                        actionFetcher.submit(fd, {
+                          method: "post",
+                          action: `/app/customers/${customerId}`,
+                        });
+                        console.log("[DetailModal] recalculate submit done");
+                      } catch (err) {
+                        console.error("[DetailModal] recalculate submit error", err);
+                      }
                     }}
                     disabled={actionBusy}
                     loading={actionBusy}

@@ -17,7 +17,7 @@ import {
   Divider,
   Box,
 } from "@shopify/polaris";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { authenticate } from "~/shopify.server";
 import {
   getRule,
@@ -226,12 +226,18 @@ export default function RuleEditPage() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const navigate = useNavigate();
 
-  // Navigate to list after successful save
+  // Navigate to list after successful save (ref-guarded against double-fire)
+  const navHandledRef = useRef(false);
   useEffect(() => {
-    if (fetcher.data?.success) {
+    if (fetcher.state === "submitting") {
+      navHandledRef.current = false;
+      return;
+    }
+    if (fetcher.state === "idle" && fetcher.data?.success && !navHandledRef.current) {
+      navHandledRef.current = true;
       navigate("/app/rules");
     }
-  }, [fetcher.data, navigate]);
+  }, [fetcher.state, fetcher.data?.success, navigate]);
 
   // Form state — initialize from existing rule or defaults
   const [name, setName] = useState(rule?.name ?? "");

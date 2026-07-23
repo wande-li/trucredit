@@ -22,7 +22,7 @@ import { logger } from "~/services/logger.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import prisma from "~/db.server";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -203,10 +203,30 @@ export default function InvoiceDetail() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const revalidator = useRevalidator();
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [busyIntent, setBusyIntent] = useState<string | null>(null);
+  const [visibleSuccess, setVisibleSuccess] = useState(false);
+  const successHandledRef = useRef(false);
 
   const isPaid = invoice.status === "PAID";
   const isVoid = invoice.status === "VOID";
   const isEditable = !isPaid && !isVoid;
+
+  // Per-intent loading + auto-dismiss success
+  useEffect(() => {
+    if (fetcher.state === "submitting") {
+      successHandledRef.current = false;
+      return;
+    }
+    if (fetcher.state === "idle") {
+      setBusyIntent(null);
+      if (fetcher.data?.success && !successHandledRef.current) {
+        successHandledRef.current = true;
+        setVisibleSuccess(true);
+        const t = setTimeout(() => setVisibleSuccess(false), 3000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [fetcher.state, fetcher.data?.success]);
 
   const handleMarkPaid = useCallback(() => {
     setShowPaymentMethod(true);
@@ -217,6 +237,8 @@ export default function InvoiceDetail() {
       const formData = new FormData();
       formData.set("intent", "mark-paid");
       if (paymentMethod) formData.set("paymentMethod", paymentMethod);
+      setVisibleSuccess(false);
+      setBusyIntent("mark-paid");
       fetcher.submit(formData, { method: "POST" });
       setShowPaymentMethod(false);
     },
@@ -228,10 +250,14 @@ export default function InvoiceDetail() {
       const formData = new FormData();
       formData.set("intent", "update-status");
       formData.set("newStatus", newStatus);
+      setVisibleSuccess(false);
+      setBusyIntent("update-status");
       fetcher.submit(formData, { method: "POST" });
     },
     [fetcher],
   );
+
+  const isBusy = (intent: string) => busyIntent === intent && fetcher.state !== "idle";
 
   return (
     <Page
@@ -241,17 +267,14 @@ export default function InvoiceDetail() {
       <BlockStack gap="400">
         {/* Feedback */}
         {fetcher.data?.error && (
-          <Banner tone="critical" onDismiss={() => fetcher.load("/app/invoices")}>
+          <Banner tone="critical">
             <Text as="p" variant="bodyMd">
               {fetcher.data.error}
             </Text>
           </Banner>
         )}
-        {fetcher.data?.success && (
-          <Banner
-            tone="success"
-            onDismiss={() => revalidator.revalidate()}
-          >
+        {visibleSuccess && (
+          <Banner tone="success">
             <Text as="p" variant="bodyMd">
               Invoice updated successfully.
             </Text>
@@ -519,7 +542,7 @@ export default function InvoiceDetail() {
                           variant={targetStatus === "VOID" ? "plain" : "secondary"}
                           tone={targetStatus === "DISPUTED" ? "critical" : undefined}
                           fullWidth
-                          loading={fetcher.state === "submitting"}
+                          loading={isBusy("update-status")}
                         >
                           Mark as {statusLabel[targetStatus] ?? targetStatus}
                         </Button>

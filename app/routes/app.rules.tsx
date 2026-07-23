@@ -16,7 +16,7 @@ import {
   Banner,
   Pagination,
 } from "@shopify/polaris";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticate } from "~/shopify.server";
 import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
@@ -210,6 +210,21 @@ export default function RulesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
   const actionError = fetcher.data?.error;
+  const successHandledRef = useRef(false);
+  const [visibleSuccess, setVisibleSuccess] = useState(false);
+
+  // Auto-dismiss success banner
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success && !successHandledRef.current) {
+      successHandledRef.current = true;
+      setVisibleSuccess(true);
+      const t = setTimeout(() => setVisibleSuccess(false), 3000);
+      return () => clearTimeout(t);
+    }
+    if (fetcher.state === "submitting") {
+      successHandledRef.current = false;
+    }
+  }, [fetcher.state, fetcher.data?.success]);
 
   const handlePageChange = useCallback(
     (newPage: number) => {
@@ -229,6 +244,7 @@ export default function RulesPage() {
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
+        {visibleSuccess && <Banner tone="success">Action completed successfully.</Banner>}
 
         <Card padding="0">
           {items.length === 0 ? (
@@ -302,9 +318,19 @@ function RuleRow({
   const conditionsText = formatConditions(rule.conditions);
   const actionValueText = formatActionValue(rule.action, rule.actionValue);
   const isBusy = fetcher.state === "submitting";
-  const thisFormData = fetcher.formData;
+  const busyIntent = isBusy ? fetcher.formData?.get("intent")?.toString() : null;
   const isThisRow =
-    thisFormData && thisFormData.get("ruleId") === rule.id;
+    fetcher.formData && fetcher.formData.get("ruleId") === rule.id;
+
+  const doAction = (intent: string, extra?: Record<string, string>) => {
+    const fd = new FormData();
+    fd.append("intent", intent);
+    fd.append("ruleId", rule.id);
+    if (extra) {
+      Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+    }
+    fetcher.submit(fd, { method: "post" });
+  };
 
   return (
     <IndexTable.Row id={rule.id} position={index}>
@@ -346,34 +372,27 @@ function RuleRow({
           <Badge tone={rule.isActive ? "success" : "critical"}>
             {rule.isActive ? "Active" : "Inactive"}
           </Badge>
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="toggle" />
-            <input type="hidden" name="ruleId" value={rule.id} />
-            <input type="hidden" name="isActive" value={String(!rule.isActive)} />
-            <Button
-              submit
-              variant="plain"
-              size="slim"
-              disabled={isBusy}
-              loading={isBusy && isThisRow && fetcher.formData?.get("intent") === "toggle"}
-            >
-              {rule.isActive ? "Disable" : "Enable"}
-            </Button>
-          </fetcher.Form>
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="delete" />
-            <input type="hidden" name="ruleId" value={rule.id} />
-            <Button
-              submit
-              variant="plain"
-              tone="critical"
-              size="slim"
-              disabled={isBusy}
-              loading={isBusy && isThisRow && fetcher.formData?.get("intent") === "delete"}
-            >
-              Delete
-            </Button>
-          </fetcher.Form>
+          <Button
+            onClick={() =>
+              doAction("toggle", { isActive: String(!rule.isActive) })
+            }
+            variant="plain"
+            size="slim"
+            disabled={isBusy}
+            loading={isBusy && isThisRow && busyIntent === "toggle"}
+          >
+            {rule.isActive ? "Disable" : "Enable"}
+          </Button>
+          <Button
+            onClick={() => doAction("delete")}
+            variant="plain"
+            tone="critical"
+            size="slim"
+            disabled={isBusy}
+            loading={isBusy && isThisRow && busyIntent === "delete"}
+          >
+            Delete
+          </Button>
         </InlineStack>
       </IndexTable.Cell>
     </IndexTable.Row>

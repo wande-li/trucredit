@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
+import { Outlet, useLoaderData, useLocation, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -77,6 +77,12 @@ const statusLabel: Record<string, string> = {
 };
 
 export default function Invoices() {
+  const location = useLocation();
+  // Render child route (app.invoices.new / app.invoices.$id) when path is deeper than /app/invoices
+  if (location.pathname !== "/app/invoices") {
+    return <Outlet />;
+  }
+
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();

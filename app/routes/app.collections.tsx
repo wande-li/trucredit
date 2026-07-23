@@ -1,7 +1,7 @@
 // TruCredit — Collection Sequences list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -157,6 +157,12 @@ const TONE_LABELS: Record<number, string> = {
 };
 
 export default function CollectionsPage() {
+  const location = useLocation();
+  // Render child route (app.collections.$id) when path is deeper than /app/collections
+  if (location.pathname !== "/app/collections") {
+    return <Outlet />;
+  }
+
   const loaderData = useLoaderData<typeof loader>();
   const { items, page, totalPages } = loaderData;
   const fetcher = useFetcher();

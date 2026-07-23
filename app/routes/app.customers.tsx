@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useFetcher } from "@remix-run/react";
+import { Outlet, useLoaderData, useLocation, useSearchParams, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -64,6 +64,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function CustomersPage() {
+  const location = useLocation();
+  // Render child route (app.customers.$id) when path is deeper than /app/customers
+  if (location.pathname !== "/app/customers") {
+    return <Outlet />;
+  }
+
   const { result } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;

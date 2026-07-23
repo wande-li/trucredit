@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useRevalidator, Link } from "@remix-run/react";
+import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useRevalidator, Link } from "@remix-run/react";
 import {
   Page,
   IndexTable,
@@ -135,6 +135,12 @@ const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
   .map(([value, label]) => ({ value, label }));
 
 export default function EmailsPage() {
+  const location = useLocation();
+  // Render child route (app.emails.$id) when path is deeper than /app/emails
+  if (location.pathname !== "/app/emails") {
+    return <Outlet />;
+  }
+
   const loaderData = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();

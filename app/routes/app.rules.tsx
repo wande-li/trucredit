@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
+import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -205,6 +205,12 @@ function formatActionValue(
 // ─── Page Component ──────────────────────────────────────
 
 export default function RulesPage() {
+  const location = useLocation();
+  // Render child route (app.rules.new / app.rules.$id) when path is deeper than /app/rules
+  if (location.pathname !== "/app/rules") {
+    return <Outlet />;
+  }
+
   const { result } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();

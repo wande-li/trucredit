@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -254,7 +254,7 @@ export default function RulesPage() {
               selectable={false}
             >
               {items.map((rule, index) => (
-                <RuleRow key={rule.id} rule={rule} index={index} fetcher={fetcher} />
+                <RuleRow key={rule.id} rule={rule} index={index} fetcher={fetcher} navigate={navigate} />
               ))}
             </IndexTable>
           )}
@@ -284,6 +284,7 @@ function RuleRow({
   rule,
   index,
   fetcher,
+  navigate,
 }: {
   rule: {
     id: string;
@@ -297,6 +298,7 @@ function RuleRow({
   };
   index: number;
   fetcher: ReturnType<typeof useFetcher>;
+  navigate: ReturnType<typeof useNavigate>;
 }) {
   const actionLabel = ACTION_LABELS[rule.action] ?? rule.action;
   const actionTone = ACTION_TONE[rule.action] ?? "new";
@@ -311,12 +313,12 @@ function RuleRow({
     <IndexTable.Row id={rule.id} position={index}>
       <IndexTable.Cell>
           <BlockStack gap="050">
-            <Link
-              to={`/app/rules/${rule.id}`}
-              style={{ fontWeight: 600, textDecoration: "none", color: "inherit" }}
+            <span
+              onClick={(e) => { e.stopPropagation(); navigate(`/app/rules/${rule.id}`); }}
+              style={{ fontWeight: 600, cursor: "pointer", color: "inherit" }}
             >
               {rule.name}
-            </Link>
+            </span>
             {rule.description && (
               <Text as="span" variant="bodySm" tone="subdued">
                 {rule.description}

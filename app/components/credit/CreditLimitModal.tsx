@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import {
   Modal,
@@ -56,9 +56,12 @@ export function CreditLimitModal({
   };
 
   // Close on success
-  if (fetcher.data && !fetcher.data.error && fetcher.state === "idle") {
-    setTimeout(onClose, 500);
-  }
+  useEffect(() => {
+    if (fetcher.data && !fetcher.data.error && fetcher.state === "idle") {
+      const timer = setTimeout(onClose, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [fetcher.data, fetcher.data?.error, fetcher.state, onClose]);
 
   return (
     <Modal

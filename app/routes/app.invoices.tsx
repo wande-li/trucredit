@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -79,6 +79,7 @@ const statusLabel: Record<string, string> = {
 export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
   const handleTabChange = useCallback(
@@ -108,9 +109,16 @@ export default function Invoices() {
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"
       } days`}
-      primaryAction={<Button variant="primary" onClick={() => { console.log("[Invoices] Create Invoice clicked"); window.location.href = "/app/invoices/new"; }}>Create Invoice</Button>}
     >
       <BlockStack gap="400">
+        {/* Action bar */}
+        <Card>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">Invoices</Text>
+            <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
+          </InlineStack>
+        </Card>
+
         {/* AR Aging Summary Cards */}
         <Card>
           <BlockStack gap="400">

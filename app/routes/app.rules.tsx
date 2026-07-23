@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -207,6 +207,7 @@ function formatActionValue(
 export default function RulesPage() {
   const { result } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
   const actionError = fetcher.data?.error;
@@ -240,11 +241,17 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button variant="primary" onClick={() => { console.log("[Rules] Add Rule clicked"); window.location.href = "/app/rules/new"; }}>Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
         {visibleSuccess && <Banner tone="success">Action completed successfully.</Banner>}
+
+        <Card>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">Credit Rules</Text>
+            <Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>
+          </InlineStack>
+        </Card>
 
         <Card padding="0">
           {items.length === 0 ? (

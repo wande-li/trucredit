@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -302,15 +302,15 @@ function RuleRow({
   const actionTone = ACTION_TONE[rule.action] ?? "new";
   const conditionsText = formatConditions(rule.conditions);
   const actionValueText = formatActionValue(rule.action, rule.actionValue);
+  const navigate = useNavigate();
   const isBusy = fetcher.state === "submitting";
   const thisFormData = fetcher.formData;
   const isThisRow =
     thisFormData && thisFormData.get("ruleId") === rule.id;
 
   return (
-    <IndexTable.Row id={rule.id} position={index}>
+    <IndexTable.Row id={rule.id} position={index} onClick={() => navigate(`/app/rules/${rule.id}`)}>
       <IndexTable.Cell>
-        <Link to={`/app/rules/${rule.id}`}>
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">
               {rule.name}
@@ -321,7 +321,6 @@ function RuleRow({
               </Text>
             )}
           </BlockStack>
-        </Link>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" variant="bodyMd">

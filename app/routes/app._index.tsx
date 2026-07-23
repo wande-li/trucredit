@@ -1,7 +1,7 @@
 // TruCredit Dashboard — v3 Clean redesign
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, Link } from "@remix-run/react";
+import { useLoaderData, useNavigate, Link } from "@remix-run/react";
 import { useState } from "react";
 import {
   Page,
@@ -278,13 +278,15 @@ function customerAvatarColor(name: string): string {
 }
 
 function CustomerCard({ customer }: { customer: { id: string; name: string; company?: string | null; status: string; creditGrade?: string | null } }) {
+  const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
   const initials = customerAvatarInitials(customer.name);
   const avatarBg = customerAvatarColor(customer.name);
   return (
-    <Link to={`/app/customers/${customer.id}`} style={{ textDecoration: "none" }}>
       <div
+        onClick={() => navigate(`/app/customers/${customer.id}`)}
         style={{
+          cursor: "pointer",
           padding: "var(--p-space-400)",
           borderRadius: "var(--p-border-radius-200)",
           border: "1px solid var(--p-color-border-secondary)",
@@ -331,7 +333,6 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
           </Badge>
         </div>
       </div>
-    </Link>
   );
 }
 

@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -195,6 +195,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function CustomerDetailPage() {
   const { customer, assessment, creditEvents, aging } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const navigate = useNavigate();
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   const isBusy = fetcher.state === "submitting";
@@ -506,13 +507,15 @@ export default function CustomerDetailPage() {
                       </Link>
                     </InlineStack>
                     {aging.invoices.map((inv) => (
-                      <Link key={inv.id} to={`/app/invoices/${inv.id}`}>
-                        <Box
-                          borderColor="border-secondary"
-                          borderWidth="025"
-                          borderRadius="200"
-                          padding="200"
-                        >
+                      <Box
+                        key={inv.id}
+                        borderColor="border-secondary"
+                        borderWidth="025"
+                        borderRadius="200"
+                        padding="200"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => navigate(`/app/invoices/${inv.id}`)}
+                      >
                           <InlineStack align="space-between" blockAlign="center">
                             <BlockStack gap="050">
                               <Text as="span" variant="bodyMd" fontWeight="bold">
@@ -541,7 +544,6 @@ export default function CustomerDetailPage() {
                             </BlockStack>
                           </InlineStack>
                         </Box>
-                      </Link>
                     ))}
                   </BlockStack>
                 </Card>

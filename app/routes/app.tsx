@@ -9,7 +9,6 @@ import {
   useNavigation,
   useNavigate,
   useRouteError,
-  Link,
 } from "@remix-run/react";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
@@ -456,17 +455,16 @@ export default function AppLayout() {
                 {NAV_STANDALONE.map((item) => {
                   const active = isStandaloneActive(item.href, location.pathname);
                   return (
-                    <Link key={item.label} to={item.href} style={{ textDecoration: "none" }}>
                       <Button
+                        key={item.label}
                         variant="tertiary"
                         size="large"
                         pressed={active}
                         removeUnderline
-                        onClick={bumpCloseToken}
+                        onClick={() => { bumpCloseToken(); navigate(item.href); }}
                       >
                         {item.label}
                       </Button>
-                    </Link>
                   );
                 })}
                 {NAV_GROUPS.map((group) => (

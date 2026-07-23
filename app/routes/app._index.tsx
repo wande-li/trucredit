@@ -340,6 +340,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
 export default function Dashboard() {
   const { stats, quota, planName, aging, collectionStats, recentCustomers } =
     useLoaderData<typeof loader>();
+  const navigate = useNavigate();
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -438,7 +439,7 @@ export default function Dashboard() {
                     <Text as="h2" variant="headingMd">Plan Usage</Text>
                     <Badge tone={planName === "FREE" ? "info" : "success"}>{planName}</Badge>
                   </InlineStack>
-                  <Button url="/app/billing" variant="plain">Manage</Button>
+                  <Button onClick={() => navigate("/app/billing")} variant="plain">Manage</Button>
                 </InlineStack>
 
                 <BlockStack gap="500">
@@ -447,7 +448,7 @@ export default function Dashboard() {
                 </BlockStack>
 
                 {quota.needsUpgrade && (
-                  <Button url="/app/billing" variant="primary" fullWidth>
+                  <Button onClick={() => navigate("/app/billing")} variant="primary" fullWidth>
                     Upgrade Plan
                   </Button>
                 )}
@@ -478,9 +479,9 @@ export default function Dashboard() {
               <BlockStack gap="300">
                 <Text as="h2" variant="headingSm" tone="subdued">QUICK ACTIONS</Text>
                 <InlineStack gap="300" wrap>
-                  <Button url="/app/customers" icon={PersonAddIcon} variant="primary">View Customers</Button>
-                  <Button url="/app/invoices/new" icon={OrderIcon}>Create Invoice</Button>
-                  <Button url="/app/collections" icon={CalendarCheckIcon}>Collections</Button>
+                  <Button onClick={() => navigate("/app/customers")} icon={PersonAddIcon} variant="primary">View Customers</Button>
+                  <Button onClick={() => navigate("/app/invoices/new")} icon={OrderIcon}>Create Invoice</Button>
+                  <Button onClick={() => navigate("/app/collections")} icon={CalendarCheckIcon}>Collections</Button>
                 </InlineStack>
               </BlockStack>
             </BlockStack>
@@ -504,7 +505,7 @@ export default function Dashboard() {
                   <BlockStack gap="400" align="center">
                     <Text as="p" variant="bodyLg" tone="subdued">No customers yet</Text>
                     <Text as="p" variant="bodyMd" tone="subdued">Customers are synced from Shopify B2B companies. Go to the Customers page to trigger a sync.</Text>
-                    <Button url="/app/customers" variant="primary">Go to Customers</Button>
+                    <Button onClick={() => navigate("/app/customers")} variant="primary">Go to Customers</Button>
                   </BlockStack>
                 </Box>
               ) : (

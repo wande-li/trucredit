@@ -595,7 +595,7 @@ export default function RuleEditPage() {
         {/* Submit */}
         <Box padding="400">
           <InlineStack gap="200" align="end">
-            <Button url="/app/rules" variant="secondary">
+            <Button onClick={() => navigate("/app/rules")} variant="secondary">
               Cancel
             </Button>
             <Button

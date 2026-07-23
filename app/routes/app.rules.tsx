@@ -209,6 +209,7 @@ export default function RulesPage() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
+  const navigate = useNavigate();
 
   const actionError = fetcher.data?.error;
 
@@ -226,7 +227,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={{ content: "Add Rule", url: "/app/rules/new" }}
+      primaryAction={{ content: "Add Rule", onAction: () => navigate("/app/rules/new") }}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}

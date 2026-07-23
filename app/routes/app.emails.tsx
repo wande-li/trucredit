@@ -201,7 +201,7 @@ export default function EmailsPage() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text variant="bodySm" as="span" tone="subdued">
-          {new Date(tpl.updatedAt).toLocaleDateString()}
+          {new Date(tpl.updatedAt).toLocaleDateString('en-US')}
         </Text>
       </IndexTable.Cell>
     </IndexTable.Row>

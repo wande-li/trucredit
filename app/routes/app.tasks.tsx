@@ -397,7 +397,7 @@ export default function TasksPage() {
                     <IndexTable.Cell>
                       {task.nextStepAt ? (
                         <Text as="span" tone="subdued">
-                          {new Date(task.nextStepAt).toLocaleDateString()}
+                          {new Date(task.nextStepAt).toLocaleDateString('en-US')}
                         </Text>
                       ) : (
                         <Text as="span" tone="subdued">

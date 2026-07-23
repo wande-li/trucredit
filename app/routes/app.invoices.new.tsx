@@ -271,7 +271,7 @@ export default function NewInvoice() {
                   {(() => {
                     const d = new Date();
                     d.setDate(d.getDate() + parseInt(netTermsDays, 10));
-                    return d.toLocaleDateString();
+                    return d.toLocaleDateString('en-US');
                   })()}
                 </Text>
               </BlockStack>

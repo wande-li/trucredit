@@ -301,7 +301,7 @@ export default function InvoiceDetail() {
                         Issue Date
                       </Text>
                       <Text as="p" variant="headingMd" fontWeight="semibold">
-                        {new Date(invoice.issueDate).toLocaleDateString()}
+                        {new Date(invoice.issueDate).toLocaleDateString('en-US')}
                       </Text>
                     </BlockStack>
                   </Box>
@@ -312,7 +312,7 @@ export default function InvoiceDetail() {
                         Due Date
                       </Text>
                       <Text as="p" variant="headingMd" fontWeight="semibold">
-                        {new Date(invoice.dueDate).toLocaleDateString()}
+                        {new Date(invoice.dueDate).toLocaleDateString('en-US')}
                       </Text>
                     </BlockStack>
                   </Box>
@@ -324,7 +324,7 @@ export default function InvoiceDetail() {
                           Paid Date
                         </Text>
                         <Text as="p" variant="headingMd" fontWeight="semibold" tone="success">
-                          {new Date(invoice.paidDate).toLocaleDateString()}
+                          {new Date(invoice.paidDate).toLocaleDateString('en-US')}
                         </Text>
                       </BlockStack>
                     </Box>
@@ -367,8 +367,8 @@ export default function InvoiceDetail() {
                           ? `https://admin.shopify.com/store/orders/${invoice.shopifyOrderId ?? ""}`
                           : "—",
                       ],
-                      ["Created", new Date(invoice.createdAt).toLocaleDateString()],
-                      ["Last Updated", new Date(invoice.updatedAt).toLocaleDateString()],
+                      ["Created", new Date(invoice.createdAt).toLocaleDateString('en-US')],
+                      ["Last Updated", new Date(invoice.updatedAt).toLocaleDateString('en-US')],
                     ]}
                   />
                 </BlockStack>
@@ -408,9 +408,9 @@ export default function InvoiceDetail() {
                           </Text>
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          Started: {new Date(task.startedAt).toLocaleDateString()}
+                          Started: {new Date(task.startedAt).toLocaleDateString('en-US')}
                           {task.completedAt &&
-                            ` · Completed: ${new Date(task.completedAt).toLocaleDateString()}`}
+                            ` · Completed: ${new Date(task.completedAt).toLocaleDateString('en-US')}`}
                         </Text>
                         {task.lastReplyIntent && (
                           <Text as="p" variant="bodySm">
@@ -538,7 +538,7 @@ export default function InvoiceDetail() {
                       </Text>
                       {invoice.paidDate && (
                         <Text as="p" variant="bodySm">
-                          {new Date(invoice.paidDate).toLocaleDateString()}
+                          {new Date(invoice.paidDate).toLocaleDateString('en-US')}
                         </Text>
                       )}
                       {invoice.paymentMethod && (

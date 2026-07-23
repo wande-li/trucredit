@@ -294,12 +294,12 @@ export default function Invoices() {
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodyMd">
-                      {new Date(inv.issueDate).toLocaleDateString()}
+                      {new Date(inv.issueDate).toLocaleDateString('en-US')}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodyMd">
-                      {new Date(inv.dueDate).toLocaleDateString()}
+                      {new Date(inv.dueDate).toLocaleDateString('en-US')}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>

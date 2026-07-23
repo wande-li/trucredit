@@ -208,7 +208,7 @@ function PageShell({ title, subtitle, children }: { title: string; subtitle?: st
         {subtitle && <p style={{ fontSize: 14, color: "#6d7175", margin: "0 0 32px" }}>{subtitle}</p>}
         <div style={s.card}>{children}</div>
         <p style={{ textAlign: "center", fontSize: 13, color: "#999", marginTop: 32 }}>
-          &copy; {new Date().getFullYear()} TruCredit. All rights reserved.
+          &copy; <span suppressHydrationWarning>{new Date().getFullYear()}</span> TruCredit. All rights reserved.
         </p>
       </div>
     </div>

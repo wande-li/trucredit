@@ -522,7 +522,7 @@ export default function CustomerDetailPage() {
                                 {inv.invoiceNumber}
                               </Text>
                               <Text as="span" variant="bodySm" tone="subdued">
-                                Due {new Date(inv.dueDate).toLocaleDateString()}
+                                Due {new Date(inv.dueDate).toLocaleDateString('en-US')}
                               </Text>
                             </BlockStack>
                             <BlockStack gap="050" align="end">
@@ -560,7 +560,7 @@ export default function CustomerDetailPage() {
                     </Text>
                     {customer.frozenAt && (
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Since {new Date(customer.frozenAt).toLocaleDateString()}
+                        Since {new Date(customer.frozenAt).toLocaleDateString('en-US')}
                       </Text>
                     )}
                   </BlockStack>
@@ -669,7 +669,7 @@ export default function CustomerDetailPage() {
                               )}
                           </BlockStack>
                           <Text as="span" variant="bodySm" tone="subdued">
-                            {new Date(event.createdAt).toLocaleDateString()}
+                            {new Date(event.createdAt).toLocaleDateString('en-US')}
                           </Text>
                         </InlineStack>
                       </Box>

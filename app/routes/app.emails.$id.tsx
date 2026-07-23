@@ -222,7 +222,7 @@ export default function EmailTemplateDetail() {
     companyName: "Your Company",
     invoiceNumber: "INV-001",
     amount: "$1,250.00",
-    dueDate: new Date().toLocaleDateString(),
+    dueDate: new Date().toLocaleDateString('en-US'),
     daysOverdue: "7",
     paymentLink: "https://pay.example.com/invoice",
   };

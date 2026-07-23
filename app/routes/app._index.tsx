@@ -115,15 +115,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ── KPI card — Stripe/Mercury inspired, typography-forward ──
+// ── KPI card — Polaris-native Card with Shopify Admin dashboard style ──
 type KpiTone = "default" | "success" | "warning" | "critical";
-
-const toneDot: Record<KpiTone, string> = {
-  default:  "var(--p-color-icon)",
-  success:  "var(--p-color-text-success)",
-  warning:  "var(--p-color-text-caution)",
-  critical: "var(--p-color-text-critical)",
-};
 
 function KpiCard({
   label,
@@ -135,35 +128,30 @@ function KpiCard({
   tone?: KpiTone;
 }) {
   return (
-    <Box
-      background="bg-surface"
-      borderWidth="025"
-      borderColor="border-secondary"
-      borderRadius="200"
-      padding="500"
-      minWidth="160px"
-      style={{ flex: 1 }}
-    >
-      <BlockStack gap="200">
-        <Text as="span" variant="bodySm" fontWeight="medium" tone="subdued">
-          {label}
-        </Text>
-        <InlineStack gap="150" blockAlign="center" wrap={false}>
-          <Box
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: toneDot[tone],
-              flexShrink: 0,
-            }}
-          />
-          <Text as="p" variant="heading2xl" fontWeight="semibold">
-            {value}
-          </Text>
-        </InlineStack>
-      </BlockStack>
-    </Box>
+    <div style={{ flex: 1, minWidth: 140 }}>
+      <Card padding="0">
+        <div
+          style={{
+            borderTop: `2px solid ${
+              tone === "success"  ? "var(--p-color-border-success)" :
+              tone === "warning"  ? "var(--p-color-border-caution)" :
+              tone === "critical" ? "var(--p-color-border-critical)" :
+                                    "var(--p-color-border-brand)"
+            }`,
+          }}
+        />
+        <Box padding="400">
+          <BlockStack gap="150">
+            <Text as="p" variant="heading2xl" fontWeight="bold">
+              {value}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {label}
+            </Text>
+          </BlockStack>
+        </Box>
+      </Card>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Link, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -79,6 +79,7 @@ const statusLabel: Record<string, string> = {
 export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
   const handleTabChange = useCallback(
@@ -109,7 +110,7 @@ export default function Invoices() {
         agingReport.dso ?? "—"
       } days`}
       primaryAction={
-        <Link to="/app/invoices/new" style={{ textDecoration: "none" }}><Button variant="primary">Create Invoice</Button></Link>
+        <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
       }
     >
       <BlockStack gap="400">

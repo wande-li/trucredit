@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -208,6 +208,7 @@ export default function RulesPage() {
   const { result } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { items, page, totalPages, total } = result;
   const actionError = fetcher.data?.error;
   const successHandledRef = useRef(false);
@@ -240,7 +241,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Link to="/app/rules/new" style={{ textDecoration: "none" }}><Button variant="primary">Add Rule</Button></Link>}
+      primaryAction={<Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}

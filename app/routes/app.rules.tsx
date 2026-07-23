@@ -1,14 +1,13 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
   Text,
   BlockStack,
   InlineStack,
-  Button,
   IndexTable,
   Badge,
   Box,
@@ -248,7 +247,7 @@ export default function RulesPage() {
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Credit Rules</Text>
-            <Button variant="primary" url="/app/rules/new">Add Rule</Button>
+            <Link to="/app/rules/new" reloadDocument className="Polaris-Button Polaris-Button--primary" style={{ textDecoration: "none" }}>Add Rule</Link>
           </InlineStack>
         </Card>
 

@@ -1,13 +1,12 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
   Text,
   BlockStack,
   InlineStack,
-  Button,
   IndexTable,
   Badge,
   Pagination,
@@ -114,7 +113,7 @@ export default function Invoices() {
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Invoices</Text>
-            <Button variant="primary" url="/app/invoices/new">Create Invoice</Button>
+            <Link to="/app/invoices/new" reloadDocument className="Polaris-Button Polaris-Button--primary" style={{ textDecoration: "none" }}>Create Invoice</Link>
           </InlineStack>
         </Card>
 

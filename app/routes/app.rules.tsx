@@ -298,7 +298,6 @@ function RuleRow({
   index: number;
   fetcher: ReturnType<typeof useFetcher>;
 }) {
-  const navigate = useNavigate();
   const actionLabel = ACTION_LABELS[rule.action] ?? rule.action;
   const actionTone = ACTION_TONE[rule.action] ?? "new";
   const conditionsText = formatConditions(rule.conditions);
@@ -313,7 +312,7 @@ function RuleRow({
       <IndexTable.Cell>
           <BlockStack gap="050">
             <div
-              onMouseDown={(e) => { e.stopPropagation(); console.log("[DEBUG] rules mousedown", rule.id, rule.name); navigate(`/app/rules/${rule.id}`); }}
+              onMouseDown={(e) => { e.stopPropagation(); window.location.href = `/app/rules/${rule.id}`; }}
               style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
             >
               {rule.name}

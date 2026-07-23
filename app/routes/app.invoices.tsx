@@ -269,7 +269,7 @@ export default function Invoices() {
                 <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
                   <IndexTable.Cell>
                       <div
-                        onMouseDown={(e) => { e.stopPropagation(); console.log("[DEBUG] invoices mousedown", inv.id, inv.invoiceNumber); navigate(`/app/invoices/${inv.id}`); }}
+                        onMouseDown={(e) => { e.stopPropagation(); window.location.href = `/app/invoices/${inv.id}`; }}
                         style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
                       >
                         {inv.invoiceNumber}

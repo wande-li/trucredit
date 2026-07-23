@@ -1,7 +1,8 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -210,6 +211,11 @@ export default function RulesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
 
+  // DEBUG
+  useEffect(() => {
+    console.log("[DEBUG] Rules page mounted", { itemCount: items.length, total });
+  }, []);
+
   const actionError = fetcher.data?.error;
 
   const handlePageChange = useCallback(
@@ -226,7 +232,17 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button url="/app/rules/new" variant="primary">Add Rule</Button>}
+      primaryAction={
+        <Button
+          variant="primary"
+          onClick={() => {
+            console.log("[DEBUG] Rules Add Rule button clicked, navigating to /app/rules/new");
+            window.location.href = "/app/rules/new";
+          }}
+        >
+          Add Rule
+        </Button>
+      }
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
@@ -310,7 +326,13 @@ function RuleRow({
   return (
     <IndexTable.Row id={rule.id} position={index}>
       <IndexTable.Cell>
-        <Link to={`/app/rules/${rule.id}`} style={{ textDecoration: "none", display: "block" }}>
+        <div
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            console.log("[DEBUG] Rules row clicked", { id: rule.id, name: rule.name });
+            window.location.href = `/app/rules/${rule.id}`;
+          }}
+        >
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">
               {rule.name}
@@ -321,7 +343,7 @@ function RuleRow({
               </Text>
             )}
           </BlockStack>
-        </Link>
+        </div>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" variant="bodyMd">

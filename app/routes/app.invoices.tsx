@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -80,6 +81,11 @@ export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // DEBUG
+  useEffect(() => {
+    console.log("[DEBUG] Invoices page mounted", { invoiceCount: invoiceResult.items.length, agingReport });
+  }, []);
+
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
 
@@ -110,7 +116,17 @@ export default function Invoices() {
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"
       } days`}
-      primaryAction={<Button url="/app/invoices/new" variant="primary">Create Invoice</Button>}
+      primaryAction={
+        <Button
+          variant="primary"
+          onClick={() => {
+            console.log("[DEBUG] Invoices Create Invoice clicked → /app/invoices/new");
+            window.location.href = "/app/invoices/new";
+          }}
+        >
+          Create Invoice
+        </Button>
+      }
     >
       <BlockStack gap="400">
         {/* AR Aging Summary Cards */}

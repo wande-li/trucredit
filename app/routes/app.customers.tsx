@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useFetcher } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -63,6 +64,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function CustomersPage() {
+  // DEBUG
+  useEffect(() => {
+    console.log("[DEBUG] Customers page mounted");
+  }, []);
   const { result } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
@@ -286,9 +291,15 @@ export default function CustomersPage() {
                   },
                   index,
                 ) => (
-                  <IndexTable.Row id={id} key={id} position={index}>
+                    <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
-                      <Link to={`/app/customers/${id}`} style={{ textDecoration: "none", display: "block" }}>
+                      <div
+                        style={{ cursor: "pointer", textDecoration: "none" }}
+                        onClick={() => {
+                          console.log("[DEBUG] Customers row clicked", { id, name });
+                          window.location.href = `/app/customers/${id}`;
+                        }}
+                      >
                         <BlockStack gap="100">
                           <Text as="span" variant="bodyMd" fontWeight="bold">
                             {name}
@@ -302,7 +313,7 @@ export default function CustomersPage() {
                             {email}
                           </Text>
                         </BlockStack>
-                      </Link>
+                      </div>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       {creditGrade ? (

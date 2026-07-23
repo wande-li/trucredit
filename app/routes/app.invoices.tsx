@@ -1,12 +1,13 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams } from "@remix-run/react";
 import {
   Page,
   Card,
   Text,
   BlockStack,
   InlineStack,
+  Button,
   IndexTable,
   Badge,
   Pagination,
@@ -14,8 +15,6 @@ import {
   Select,
   Tabs,
   Box,
-  Button,
-  InlineStack,
   EmptyState,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
@@ -109,31 +108,9 @@ export default function Invoices() {
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"
       } days`}
+      primaryAction={<Button variant="primary" url="/app/invoices/new">Create Invoice</Button>}
     >
       <BlockStack gap="400">
-        {/* Action bar — placed outside primaryAction to avoid App Bridge interception */}
-        <Card>
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="h2" variant="headingMd">Invoices</Text>
-            <Link
-              to="/app/invoices/new"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "8px 16px",
-                background: "var(--p-color-bg-fill-brand)",
-                color: "var(--p-color-text-on-color)",
-                borderRadius: "var(--p-border-radius-200)",
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: "14px",
-                lineHeight: "20px",
-              }}
-            >
-              Create Invoice
-            </Link>
-          </InlineStack>
-        </Card>
         {/* AR Aging Summary Cards */}
         <Card>
           <BlockStack gap="400">

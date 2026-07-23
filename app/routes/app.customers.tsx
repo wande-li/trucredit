@@ -126,19 +126,25 @@ export default function CustomersPage() {
       fullWidth
       title="Customers"
       subtitle={`${total} total`}
-      secondaryActions={[
-        {
-          content: isSyncing ? "Syncing..." : "Sync from Shopify",
-          accessibilityLabel: "Re-sync customers from Shopify",
-          disabled: isSyncing,
-          onAction: () =>
-            syncFetcher.submit(
-              {},
-              { method: "POST", action: "/api/sync-companies" },
-            ),
-        },
-      ]}
     >
+      {/* Sync button */}
+      <Box paddingBlockEnd="400">
+        <InlineStack align="end">
+          <Button
+            variant="primary"
+            disabled={isSyncing}
+            onClick={() =>
+              syncFetcher.submit(
+                {},
+                { method: "POST", action: "/api/sync-companies" },
+              )
+            }
+          >
+            {isSyncing ? "Syncing..." : "Sync from Shopify"}
+          </Button>
+        </InlineStack>
+      </Box>
+
       {/* Sync result feedback */}
       {syncFetcher.data?.success && (syncFetcher.data.created ?? 0) === 0 && (syncFetcher.data.updated ?? 0) === 0 ? (
         <Box padding="400">

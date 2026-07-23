@@ -312,7 +312,7 @@ function RuleRow({
       <IndexTable.Cell>
           <BlockStack gap="050">
             <div
-              onMouseDown={(e) => { e.stopPropagation(); window.location.href = `/app/rules/${rule.id}`; }}
+              onMouseDown={(e) => { e.stopPropagation(); const u = new URL(window.location.href); u.pathname = `/app/rules/${rule.id}`; window.location.href = u.toString(); }}
               style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
             >
               {rule.name}

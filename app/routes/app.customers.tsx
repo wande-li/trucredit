@@ -290,7 +290,7 @@ export default function CustomersPage() {
                     <IndexTable.Cell>
                         <BlockStack gap="100">
                           <div
-                            onMouseDown={(e) => { e.stopPropagation(); window.location.href = `/app/customers/${id}`; }}
+                            onMouseDown={(e) => { e.stopPropagation(); const u = new URL(window.location.href); u.pathname = `/app/customers/${id}`; window.location.href = u.toString(); }}
                             style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
                           >
                             {name}

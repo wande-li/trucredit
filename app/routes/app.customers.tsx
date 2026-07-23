@@ -117,24 +117,18 @@ export default function CustomersPage() {
       fullWidth
       title="Customers"
       subtitle={`${total} total`}
+      secondaryActions={[
+        {
+          content: isSyncing ? "Syncing..." : "Sync from Shopify",
+          disabled: isSyncing,
+          onAction: () =>
+            syncFetcher.submit(
+              {},
+              { method: "POST", action: "/api/sync-companies" },
+            ),
+        },
+      ]}
     >
-      {/* Sync button */}
-      <Box paddingBlockEnd="400">
-        <InlineStack align="end">
-          <Button
-            variant="primary"
-            disabled={isSyncing}
-            onClick={() =>
-              syncFetcher.submit(
-                {},
-                { method: "POST", action: "/api/sync-companies" },
-              )
-            }
-          >
-            {isSyncing ? "Syncing..." : "Sync from Shopify"}
-          </Button>
-        </InlineStack>
-      </Box>
 
       {/* Sync result feedback */}
       {syncFetcher.data?.success && (syncFetcher.data.created ?? 0) === 0 && (syncFetcher.data.updated ?? 0) === 0 ? (
@@ -167,7 +161,7 @@ export default function CustomersPage() {
         {/* Filters */}
         <Card>
           <BlockStack gap="300">
-            <InlineStack gap="300" align="space-between" blockAlign="end">
+            <InlineStack gap="300" align="space-between" blockAlign="center">
               <div style={{ flex: 1, maxWidth: 360 }}>
                 <TextField
                   label="Search"

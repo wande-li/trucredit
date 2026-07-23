@@ -348,7 +348,7 @@ export default function Dashboard() {
                     const color = agingBarColor(bucket.label);
                     return (
                       <BlockStack key={bucket.label} gap="100">
-                        <InlineStack align="space-between" gap="200">
+                        <InlineStack align="space-between" gap="200" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
                             <Badge size="small" tone={agingBadgeTone(bucket.label)}>{bucket.label}</Badge>
                             <Text as="span" variant="bodySm">{bucket.count} inv</Text>

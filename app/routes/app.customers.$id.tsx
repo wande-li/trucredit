@@ -238,7 +238,7 @@ export default function CustomerDetailPage() {
                 <Divider />
 
                 <BlockStack gap="200">
-                  <InlineStack align="space-between">
+                  <InlineStack align="space-between" blockAlign="center">
                     <Text as="span" variant="bodyMd" tone="subdued">
                       Credit Score
                     </Text>
@@ -267,7 +267,7 @@ export default function CustomerDetailPage() {
                   >
                     {/* Simple progress bar for utilization */}
                     <BlockStack gap="200">
-                      <InlineStack align="space-between">
+                      <InlineStack align="space-between" blockAlign="center">
                         <Text as="span" variant="bodySm">
                           Utilization {utilizationPct}%
                         </Text>
@@ -368,7 +368,7 @@ export default function CustomerDetailPage() {
                     Customer Info
                   </Text>
                   <BlockStack gap="200">
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" tone="subdued" variant="bodyMd">
                         Email
                       </Text>
@@ -377,7 +377,7 @@ export default function CustomerDetailPage() {
                       </Text>
                     </InlineStack>
                     {customer.phone && (
-                      <InlineStack align="space-between">
+                      <InlineStack align="space-between" blockAlign="center">
                         <Text as="span" tone="subdued" variant="bodyMd">
                           Phone
                         </Text>
@@ -386,7 +386,7 @@ export default function CustomerDetailPage() {
                         </Text>
                       </InlineStack>
                     )}
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" tone="subdued" variant="bodyMd">
                         Total Orders
                       </Text>
@@ -394,7 +394,7 @@ export default function CustomerDetailPage() {
                         {customer.totalOrders}
                       </Text>
                     </InlineStack>
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" tone="subdued" variant="bodyMd">
                         Total Revenue
                       </Text>
@@ -402,7 +402,7 @@ export default function CustomerDetailPage() {
                         ${Number(customer.totalRevenue).toLocaleString()}
                       </Text>
                     </InlineStack>
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" tone="subdued" variant="bodyMd">
                         On-Time Payment
                       </Text>
@@ -412,7 +412,7 @@ export default function CustomerDetailPage() {
                           : "N/A"}
                       </Text>
                     </InlineStack>
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" tone="subdued" variant="bodyMd">
                         Avg Payment Days
                       </Text>
@@ -460,14 +460,14 @@ export default function CustomerDetailPage() {
                       </InlineStack>
                     ))}
                     <Box borderColor="border-secondary" borderWidth="025" />
-                    <InlineStack align="space-between">
+                    <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" variant="bodyMd">Total Outstanding</Text>
                       <Text as="span" variant="bodyMd" fontWeight="bold">
                         ${Number(aging.totalOutstanding).toLocaleString()}
                       </Text>
                     </InlineStack>
                     {Number(aging.totalOverdue) > 0 && (
-                      <InlineStack align="space-between">
+                      <InlineStack align="space-between" blockAlign="center">
                         <Text as="span" variant="bodyMd" tone="critical">Total Overdue</Text>
                         <Text as="span" variant="bodyMd" fontWeight="bold" tone="critical">
                           ${Number(aging.totalOverdue).toLocaleString()}

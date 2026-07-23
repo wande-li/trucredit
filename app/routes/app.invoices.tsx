@@ -108,7 +108,7 @@ export default function Invoices() {
       subtitle={`${agingReport.totalInvoices} outstanding · ${agingReport.totalCustomers} customers · DSO: ${
         agingReport.dso ?? "—"
       } days`}
-      primaryAction={<Button variant="primary" url="/app/invoices/new">Create Invoice</Button>}
+      primaryAction={<Button variant="primary" onClick={() => { console.log("[Invoices] Create Invoice clicked"); window.location.href = "/app/invoices/new"; }}>Create Invoice</Button>}
     >
       <BlockStack gap="400">
         {/* AR Aging Summary Cards */}

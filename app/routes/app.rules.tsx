@@ -240,7 +240,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button variant="primary" url="/app/rules/new">Add Rule</Button>}
+      primaryAction={<Button variant="primary" onClick={() => { console.log("[Rules] Add Rule clicked"); window.location.href = "/app/rules/new"; }}>Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}

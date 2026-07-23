@@ -45,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
-    const [overdueInvoices, activeCustomers, frozenCustomers, billing, agingReport, activeTasks] =
+    const [overdueInvoices, activeCustomers, frozenCustomers, billing, agingReport, activeTasks, totalRules] =
       await Promise.all([
         prisma.invoice.count({ where: { shopId: shop.id, status: "OVERDUE" } }),
         prisma.customer.count({ where: { shopId: shop.id, status: "ACTIVE" } }),
@@ -58,6 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             status: { in: ["PENDING", "ACTIVE", "PAUSED", "ESCALATED"] },
           },
         }),
+        prisma.creditRule.count({ where: { shopId: shop.id } }),
       ]);
 
     const recentCustomers = await prisma.customer.findMany({
@@ -83,6 +84,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         activeCustomers,
         frozenCustomers,
         overdueTotal: overdueTotal._sum.amount?.toString() ?? "0.00",
+        activeTasks,
+        totalRules,
       },
       quota: {
         customerQuotaPercent: billing.customerQuotaPercent,
@@ -455,7 +458,14 @@ export default function Dashboard() {
           </Card>
 
           {/* ═══ Quick Tips ═══ */}
-          {stats.totalCustomers > 0 && <QuickTips />}
+          {stats.totalCustomers > 0 && (
+            <QuickTips
+              totalCustomers={stats.totalCustomers}
+              totalInvoices={stats.totalInvoices}
+              activeTasks={stats.activeTasks}
+              totalRules={stats.totalRules}
+            />
+          )}
 
           {/* ═══ Recent Customers ═══ */}
           <Card>

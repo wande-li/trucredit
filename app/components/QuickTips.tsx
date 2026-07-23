@@ -1,5 +1,5 @@
-// TruCredit QuickTips — Contextual tips for returning users
-// Shown on Dashboard when at least 1 customer exists. 7 tips auto-rotate.
+// TruCredit QuickTips — Contextual tips for returning users.
+// Shown on Dashboard when >=1 customer exists. Dismissed via cookie or auto-hide when fully set up.
 import { useState, useEffect, useCallback } from "react";
 import {
   Card,
@@ -9,6 +9,7 @@ import {
   Box,
   InlineStack,
   ProgressBar,
+  Button,
 } from "@shopify/polaris";
 
 const TIPS = [
@@ -57,9 +58,45 @@ const TIPS = [
 ];
 
 const ROTATION_INTERVAL = 6000; // 6 seconds per tip
+const DISMISS_COOKIE = "trucredit:quickTipsDismissed";
 
-export default function QuickTips() {
+interface QuickTipsProps {
+  totalCustomers: number;
+  totalInvoices: number;
+  activeTasks: number;
+  totalRules: number;
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setCookie(name: string, value: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
+export default function QuickTips({
+  totalCustomers,
+  totalInvoices,
+  activeTasks,
+  totalRules,
+}: QuickTipsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [dismissed, setDismissed] = useState<boolean | null>(null); // null = loading from cookie
+
+  // Check if auto-dismiss conditions are met (all 4 pillars in place)
+  const fullySetup = totalCustomers > 0 && totalInvoices > 0 && activeTasks > 0 && totalRules > 0;
+
+  useEffect(() => {
+    try {
+      setDismissed(getCookie(DISMISS_COOKIE) === "1");
+    } catch {
+      setDismissed(false);
+    }
+  }, []);
 
   const next = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % TIPS.length);
@@ -70,18 +107,38 @@ export default function QuickTips() {
     return () => clearInterval(timer);
   }, [next]);
 
+  const handleDismiss = () => {
+    try { setCookie(DISMISS_COOKIE, "1"); } catch { /* noop */ }
+    setDismissed(true);
+  };
+
+  // Hidden: user explicitly dismissed OR auto-dismiss when fully set up
+  if (dismissed === true || fullySetup) return null;
+  // Still loading cookie — don't flash
+  if (dismissed === null) return null;
+
   const tip = TIPS[currentIndex]!;
 
   return (
     <Card padding="500">
       <BlockStack gap="400">
-        <InlineStack gap="200" blockAlign="center" wrap>
-          <Text as="h2" variant="headingMd">
-            Quick Tips
-          </Text>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {currentIndex + 1} / {TIPS.length}
-          </Text>
+        <InlineStack align="space-between" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center" wrap>
+            <Text as="h2" variant="headingMd">
+              Quick Tips
+            </Text>
+            <Text as="span" variant="bodySm" tone="subdued">
+              {currentIndex + 1} / {TIPS.length}
+            </Text>
+          </InlineStack>
+          <Button
+            variant="tertiary"
+            size="micro"
+            onClick={handleDismiss}
+            accessibilityLabel="Dismiss quick tips"
+          >
+            Dismiss
+          </Button>
         </InlineStack>
 
         <BlockStack gap="200">

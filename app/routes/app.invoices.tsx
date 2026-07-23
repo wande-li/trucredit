@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Link, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,

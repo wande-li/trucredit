@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -227,7 +227,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={{ content: "Add Rule", onAction: () => navigate("/app/rules/new") }}
+      primaryAction={<Button onClick={() => navigate("/app/rules/new")} variant="primary">Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
@@ -312,7 +312,7 @@ function RuleRow({
   return (
     <IndexTable.Row id={rule.id} position={index}>
       <IndexTable.Cell>
-        <Box onClick={() => navigate(`/app/rules/${rule.id}`)} style={{ cursor: "pointer" }}>
+        <Link to={`/app/rules/${rule.id}`} style={{ textDecoration: "none" }}>
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">
               {rule.name}
@@ -323,7 +323,7 @@ function RuleRow({
               </Text>
             )}
           </BlockStack>
-        </Box>
+        </Link>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" variant="bodyMd">

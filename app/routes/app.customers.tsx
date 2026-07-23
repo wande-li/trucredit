@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useNavigate, useFetcher } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useNavigate, useFetcher, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -289,7 +289,7 @@ export default function CustomersPage() {
                 ) => (
                   <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
-                      <Box onClick={() => navigate(`/app/customers/${id}`)} style={{ cursor: "pointer" }}>
+                      <Link to={`/app/customers/${id}`} style={{ textDecoration: "none" }}>
                         <BlockStack gap="100">
                           <Text as="span" variant="bodyMd" fontWeight="bold">
                             {name}
@@ -303,7 +303,7 @@ export default function CustomersPage() {
                             {email}
                           </Text>
                         </BlockStack>
-                      </Box>
+                      </Link>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       {creditGrade ? (

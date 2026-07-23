@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -209,6 +209,7 @@ export default function RulesPage() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
+  const navigate = useNavigate();
   const actionError = fetcher.data?.error;
 
   const handlePageChange = useCallback(
@@ -225,7 +226,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<a href="/app/rules/new" style={{ textDecoration: "none" }}><Button variant="primary">Add Rule</Button></a>}
+      primaryAction={<Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
@@ -253,7 +254,7 @@ export default function RulesPage() {
               selectable={false}
             >
               {items.map((rule, index) => (
-                <RuleRow key={rule.id} rule={rule} index={index} fetcher={fetcher} />
+                <RuleRow key={rule.id} rule={rule} index={index} fetcher={fetcher} navigate={navigate} />
               ))}
             </IndexTable>
           )}
@@ -283,6 +284,7 @@ function RuleRow({
   rule,
   index,
   fetcher,
+  navigate,
 }: {
   rule: {
     id: string;
@@ -296,6 +298,7 @@ function RuleRow({
   };
   index: number;
   fetcher: ReturnType<typeof useFetcher>;
+  navigate: ReturnType<typeof useNavigate>;
 }) {
   const actionLabel = ACTION_LABELS[rule.action] ?? rule.action;
   const actionTone = ACTION_TONE[rule.action] ?? "new";
@@ -307,16 +310,12 @@ function RuleRow({
     thisFormData && thisFormData.get("ruleId") === rule.id;
 
   return (
-    <IndexTable.Row id={rule.id} position={index}>
+    <IndexTable.Row id={rule.id} position={index} onClick={() => navigate(`/app/rules/${rule.id}`)}>
       <IndexTable.Cell>
           <BlockStack gap="050">
-            <Link
-              to={`/app/rules/${rule.id}`}
-              data-primary-link
-              style={{ display: "block", fontWeight: 600, textDecoration: "none", color: "inherit" }}
-            >
+            <span style={{ fontWeight: 600 }}>
               {rule.name}
-            </Link>
+            </span>
             {rule.description && (
               <Text as="span" variant="bodySm" tone="subdued">
                 {rule.description}

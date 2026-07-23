@@ -1,7 +1,7 @@
 // TruCredit — Collection Sequences list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -160,6 +160,7 @@ export default function CollectionsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const { items, page, totalPages } = loaderData;
   const fetcher = useFetcher();
+  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
   const [showCreate, setShowCreate] = useState(false);
@@ -244,16 +245,10 @@ export default function CollectionsPage() {
                 const maxTone = stepOrders.length > 0 ? seq.steps[stepOrders.length - 1]!.toneLevel : null;
 
                 return (
-                  <IndexTable.Row key={seq.id} id={seq.id} position={idx}>
+                  <IndexTable.Row key={seq.id} id={seq.id} position={idx} onClick={() => navigate(`/app/collections/${seq.id}`)}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <Link
-                          to={`/app/collections/${seq.id}`}
-                          data-primary-link
-                          style={{ textDecoration: "none", color: "inherit" }}
-                        >
-                          <Text as="span" fontWeight="bold">{seq.name}</Text>
-                        </Link>
+                        <Text as="span" fontWeight="bold">{seq.name}</Text>
                         {seq.isDefault && <Tag>Default</Tag>}
                       </InlineStack>
                     </IndexTable.Cell>
@@ -294,9 +289,12 @@ export default function CollectionsPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <ButtonGroup>
-                        <Link to={`/app/collections/${seq.id}`} style={{ textDecoration: "none" }}>
-                          <Button size="slim">Edit</Button>
-                        </Link>
+                        <Button
+                          size="slim"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/app/collections/${seq.id}`); }}
+                        >
+                          Edit
+                        </Button>
                         <Button
                           size="slim"
                           tone={seq.isActive ? "critical" : "success"}

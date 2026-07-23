@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useNavigate, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useFetcher, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -65,7 +65,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function CustomersPage() {
   const { result } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { items, page, totalPages, total } = result;
   const syncFetcher = useFetcher<{ success?: boolean; created?: number; updated?: number; error?: string }>();
   const isSyncing = syncFetcher.state !== "idle";
@@ -289,7 +288,7 @@ export default function CustomersPage() {
                 ) => (
                   <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
-                      <Link to={`/app/customers/${id}`} style={{ textDecoration: "none" }}>
+                      <Link to={`/app/customers/${id}`} style={{ textDecoration: "none", display: "block" }}>
                         <BlockStack gap="100">
                           <Text as="span" variant="bodyMd" fontWeight="bold">
                             {name}

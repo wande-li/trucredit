@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -209,7 +209,6 @@ export default function RulesPage() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
-  const navigate = useNavigate();
 
   const actionError = fetcher.data?.error;
 
@@ -227,7 +226,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button onClick={() => navigate("/app/rules/new")} variant="primary">Add Rule</Button>}
+      primaryAction={<Button url="/app/rules/new" variant="primary">Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
@@ -303,7 +302,6 @@ function RuleRow({
   const actionTone = ACTION_TONE[rule.action] ?? "new";
   const conditionsText = formatConditions(rule.conditions);
   const actionValueText = formatActionValue(rule.action, rule.actionValue);
-  const navigate = useNavigate();
   const isBusy = fetcher.state === "submitting";
   const thisFormData = fetcher.formData;
   const isThisRow =
@@ -312,7 +310,7 @@ function RuleRow({
   return (
     <IndexTable.Row id={rule.id} position={index}>
       <IndexTable.Cell>
-        <Link to={`/app/rules/${rule.id}`} style={{ textDecoration: "none" }}>
+        <Link to={`/app/rules/${rule.id}`} style={{ textDecoration: "none", display: "block" }}>
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">
               {rule.name}

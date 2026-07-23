@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -268,12 +268,12 @@ export default function Invoices() {
               {invoiceResult.items.map((inv, idx) => (
                 <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
                   <IndexTable.Cell>
-                      <div
-                        onMouseDown={(e) => { e.stopPropagation(); const u = new URL(window.location.href); u.pathname = `/app/invoices/${inv.id}`; window.location.href = u.toString(); }}
-                        style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}
+                      <Link
+                        to={`/app/invoices/${inv.id}`}
+                        style={{ fontWeight: 600, textDecoration: "none", color: "inherit" }}
                       >
                         {inv.invoiceNumber}
-                      </div>
+                      </Link>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <BlockStack gap="050">

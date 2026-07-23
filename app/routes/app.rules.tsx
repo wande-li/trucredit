@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -209,8 +209,6 @@ export default function RulesPage() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
-  const navigate = useNavigate();
-
   const actionError = fetcher.data?.error;
 
   const handlePageChange = useCallback(
@@ -227,7 +225,7 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>}
+      primaryAction={<Button variant="primary" url="/app/rules/new">Add Rule</Button>}
     >
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
@@ -309,7 +307,7 @@ function RuleRow({
     thisFormData && thisFormData.get("ruleId") === rule.id;
 
   return (
-    <IndexTable.Row id={rule.id} position={index} onClick={() => navigate(`/app/rules/${rule.id}`)}>
+    <IndexTable.Row id={rule.id} position={index} url={`/app/rules/${rule.id}`}>
       <IndexTable.Cell>
           <BlockStack gap="050">
             <Text as="span" variant="bodyMd" fontWeight="bold">

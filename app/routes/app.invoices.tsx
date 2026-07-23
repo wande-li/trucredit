@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
+import { useLoaderData, useSearchParams } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -79,8 +79,6 @@ const statusLabel: Record<string, string> = {
 export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
 
@@ -112,7 +110,7 @@ export default function Invoices() {
         agingReport.dso ?? "—"
       } days`}
       primaryAction={
-        <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
+        <Button variant="primary" url="/app/invoices/new">Create Invoice</Button>
       }
     >
       <BlockStack gap="400">
@@ -266,7 +264,7 @@ export default function Invoices() {
               selectable={false}
             >
               {invoiceResult.items.map((inv, idx) => (
-                <IndexTable.Row key={inv.id} id={inv.id} position={idx} onClick={() => navigate(`/app/invoices/${inv.id}`)}>
+                <IndexTable.Row key={inv.id} id={inv.id} position={idx} url={`/app/invoices/${inv.id}`}>
                   <IndexTable.Cell>
                       <Text as="span" variant="bodyMd" fontWeight="bold">
                         {inv.invoiceNumber}

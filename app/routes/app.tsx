@@ -435,8 +435,7 @@ export default function AppLayout() {
           <InlineStack gap="600" blockAlign="center" align="space-between" wrap>
             {/* Brand + Nav */}
             <InlineStack gap="400" blockAlign="center" wrap>
-              <Link to="/app" style={{ textDecoration: "none" }}>
-                <InlineStack gap="200" blockAlign="center">
+                <InlineStack gap="200" blockAlign="center" style={{ cursor: "pointer" }} onClick={() => navigate("/app")}>
                   <Box
                     background="bg-fill-brand"
                     borderRadius="200"
@@ -450,7 +449,6 @@ export default function AppLayout() {
                     TruCredit
                   </Text>
                 </InlineStack>
-              </Link>
               <InlineStack gap="500" blockAlign="center">
                 {NAV_STANDALONE.map((item) => {
                   const active = isStandaloneActive(item.href, location.pathname);

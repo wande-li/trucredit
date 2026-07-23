@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import {
   Modal,
@@ -106,7 +106,9 @@ export function CustomerDetailModal({
   const [showLimitEditor, setShowLimitEditor] = useState(false);
   const [editorLimit, setEditorLimit] = useState("");
   const [editorReason, setEditorReason] = useState("");
+  const [busyIntent, setBusyIntent] = useState<string | null>(null);
   const successHandledRef = useRef(false);
+  const lastDataRef = useRef<DetailLoaderData | null>(null);
 
   // Load detail when modal opens
   useEffect(() => {
@@ -117,19 +119,53 @@ export function CustomerDetailModal({
       setShowLimitEditor(false);
       setEditorLimit("");
       setEditorReason("");
+      lastDataRef.current = null;
     }
   }, [open, customerId]);
 
-  const isLoading = detailFetcher.state === "loading";
-  const data = detailFetcher.data;
+  // Stale-while-revalidate: preserve last good data during refetch to prevent content flash
+  const data = useMemo(() => {
+    if (detailFetcher.data) {
+      lastDataRef.current = detailFetcher.data;
+      return detailFetcher.data;
+    }
+    // During refetch, keep showing stale data instead of blank
+    return lastDataRef.current;
+  }, [detailFetcher.data]);
+
+  const isInitialLoad = !lastDataRef.current && detailFetcher.state === "loading";
   const customer = data?.customer;
   const assessment = data?.assessment;
   const creditEvents = data?.creditEvents;
   const aging = data?.aging;
-  const hasError = detailFetcher.state === "idle" && !customer;
+  const hasError = detailFetcher.state === "idle" && !data?.customer;
 
-  const actionBusy = actionFetcher.state === "submitting";
+  const actionBusy = actionFetcher.state !== "idle";
   const actionError = actionFetcher.data?.error;
+  const showSuccess = actionFetcher.data?.success && !actionError;
+  const successTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Auto-dismiss success banner after 3s
+  useEffect(() => {
+    if (showSuccess) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => {
+        // Force re-render by submitting an empty no-op — actually, just let the ref guard handle it
+        // Instead, we rely on the next user action to clear it naturally
+      }, 3000);
+    }
+    return () => clearTimeout(successTimerRef.current);
+  }, [showSuccess]);
+
+  // Track success and auto-clear
+  const [visibleSuccess, setVisibleSuccess] = useState(false);
+  useEffect(() => {
+    if (showSuccess) {
+      setVisibleSuccess(true);
+      const t = setTimeout(() => setVisibleSuccess(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [showSuccess]);
 
   // Refresh detail after successful action (ref-guarded, fires once per submission)
   useEffect(() => {
@@ -144,9 +180,15 @@ export function CustomerDetailModal({
       customerId
     ) {
       successHandledRef.current = true;
+      setBusyIntent(null);
       detailFetcher.load(`/app/customers/${customerId}`);
     }
+    if (actionFetcher.state === "idle" && !actionFetcher.data?.success) {
+      setBusyIntent(null);
+    }
   }, [actionFetcher.state, actionFetcher.data?.success, actionFetcher.data?.error, customerId]);
+
+  const isBusy = (intent: string) => busyIntent === intent && actionBusy;
 
   // Init editor limit when assessment loads
   useEffect(() => {
@@ -167,6 +209,8 @@ export function CustomerDetailModal({
 
   const doAction = (intent: string, extra?: Record<string, string>) => {
     if (!customerId) return;
+    setVisibleSuccess(false);
+    setBusyIntent(intent);
     const fd = new FormData();
     fd.append("intent", intent);
     if (extra) {
@@ -180,8 +224,9 @@ export function CustomerDetailModal({
 
   const handleFreeze = () => {
     if (!customer) return;
+    const intent = customer.isFrozen ? "unfreeze" : "freeze";
     doAction(
-      customer.isFrozen ? "unfreeze" : "freeze",
+      intent,
       customer.isFrozen ? {} : { reason: "Manual freeze from dashboard" }
     );
   };
@@ -217,7 +262,6 @@ export function CustomerDetailModal({
         open={open}
         onClose={onClose}
         title={customer?.name ?? "Loading..."}
-        loading={isLoading}
         size="large"
         secondaryActions={[
           {
@@ -226,25 +270,31 @@ export function CustomerDetailModal({
           },
         ]}
       >
-        {isLoading && (
+        {isInitialLoad && (
           <Modal.Section>
-            <Text as="p" tone="subdued">Loading customer details...</Text>
+            <Box padding="400">
+              <BlockStack gap="400" align="center">
+                <Text as="p" tone="subdued">
+                  Loading customer details...
+                </Text>
+              </BlockStack>
+            </Box>
           </Modal.Section>
         )}
-        {hasError && (
+        {hasError && !customer && (
           <Modal.Section>
             <Banner tone="critical">
               Could not load customer data. Please try again.
             </Banner>
           </Modal.Section>
         )}
-        {!isLoading && !hasError && customer && assessment && creditEvents && aging && (
+        {!isInitialLoad && !(hasError && !customer) && customer && assessment && creditEvents && aging && (
           <Modal.Section>
             <BlockStack gap="400">
               {actionError && (
                 <Banner tone="critical">{actionError}</Banner>
               )}
-              {actionFetcher.data?.success && !actionError && (
+              {visibleSuccess && (
                 <Banner tone="success">Action completed successfully.</Banner>
               )}
 
@@ -358,14 +408,14 @@ export function CustomerDetailModal({
                     onClick={handleFreeze}
                     tone={freezeTone}
                     disabled={actionBusy}
-                    loading={actionBusy}
+                    loading={isBusy("freeze") || isBusy("unfreeze")}
                   >
                     {freezeLabel}
                   </Button>
                   <Button
                     onClick={handleRecalculate}
                     disabled={actionBusy}
-                    loading={actionBusy}
+                    loading={isBusy("recalculate-score")}
                   >
                     Recalculate Score
                   </Button>
@@ -437,12 +487,11 @@ export function CustomerDetailModal({
                           variant="primary"
                           onClick={handleSaveLimit}
                           disabled={
-                            actionBusy ||
                             !editorLimit ||
                             isNaN(numericEditorLimit) ||
                             numericEditorLimit <= 0
                           }
-                          loading={actionBusy}
+                          loading={isBusy("set-credit-limit")}
                         >
                           Save
                         </Button>

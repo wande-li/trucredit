@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import {
   Modal,
   Text,
+  TextField,
+  Select,
   BlockStack,
   InlineStack,
   Button,
@@ -12,7 +14,6 @@ import {
   Banner,
   DataTable,
 } from "@shopify/polaris";
-import { CreditLimitModal } from "./CreditLimitModal";
 import { CustomerStatusBadge } from "./CustomerStatusBadge";
 
 // ── Types matching the detail page loader return ──
@@ -102,16 +103,20 @@ export function CustomerDetailModal({
 }: CustomerDetailModalProps) {
   const detailFetcher = useFetcher<DetailLoaderData>();
   const actionFetcher = useFetcher<{ success?: boolean; error?: string }>();
-  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showLimitEditor, setShowLimitEditor] = useState(false);
+  const [editorLimit, setEditorLimit] = useState("");
+  const [editorReason, setEditorReason] = useState("");
+  const successHandledRef = useRef(false);
 
   // Load detail when modal opens
   useEffect(() => {
     if (open && customerId) {
       detailFetcher.load(`/app/customers/${customerId}`);
     }
-    // Reset limit modal on close
     if (!open) {
-      setShowLimitModal(false);
+      setShowLimitEditor(false);
+      setEditorLimit("");
+      setEditorReason("");
     }
   }, [open, customerId]);
 
@@ -126,23 +131,29 @@ export function CustomerDetailModal({
   const actionBusy = actionFetcher.state === "submitting";
   const actionError = actionFetcher.data?.error;
 
-  // Refresh detail after successful action
+  // Refresh detail after successful action (ref-guarded, fires once per submission)
   useEffect(() => {
-    console.log("[DetailModal] actionFetcher effect", {
-      state: actionFetcher.state,
-      success: actionFetcher.data?.success,
-      error: actionFetcher.data?.error,
-      customerId,
-    });
+    if (actionFetcher.state === "submitting") {
+      successHandledRef.current = false;
+      return;
+    }
     if (
       actionFetcher.state === "idle" &&
       actionFetcher.data?.success &&
+      !successHandledRef.current &&
       customerId
     ) {
-      console.log("[DetailModal] refreshing detail data");
+      successHandledRef.current = true;
       detailFetcher.load(`/app/customers/${customerId}`);
     }
   }, [actionFetcher.state, actionFetcher.data?.success, actionFetcher.data?.error, customerId]);
+
+  // Init editor limit when assessment loads
+  useEffect(() => {
+    if (assessment) {
+      setEditorLimit(String(assessment.recommendedLimit));
+    }
+  }, [assessment?.recommendedLimit]);
 
   const utilizationPct =
     customer && Number(customer.creditLimit) > 0
@@ -151,9 +162,52 @@ export function CustomerDetailModal({
         )
       : 0;
 
-  const freezeIntent = customer?.isFrozen ? "unfreeze" : "freeze";
   const freezeLabel = customer?.isFrozen ? "Unfreeze" : "Freeze";
   const freezeTone = customer?.isFrozen ? "success" : "critical";
+
+  const doAction = (intent: string, extra?: Record<string, string>) => {
+    if (!customerId) return;
+    const fd = new FormData();
+    fd.append("intent", intent);
+    if (extra) {
+      Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+    }
+    actionFetcher.submit(fd, {
+      method: "post",
+      action: `/app/customers/${customerId}`,
+    });
+  };
+
+  const handleFreeze = () => {
+    if (!customer) return;
+    doAction(
+      customer.isFrozen ? "unfreeze" : "freeze",
+      customer.isFrozen ? {} : { reason: "Manual freeze from dashboard" }
+    );
+  };
+
+  const handleRecalculate = () => doAction("recalculate-score");
+
+  const handleSaveLimit = () => {
+    if (!customer || !assessment) return;
+    const n = parseFloat(editorLimit);
+    if (!editorLimit || isNaN(n) || n <= 0) return;
+    doAction("set-credit-limit", {
+      customerId: customer.id,
+      newLimit: editorLimit,
+      reason: editorReason || `Manual adjustment from ${customer.creditLimit} to ${editorLimit}`,
+    });
+    setShowLimitEditor(false);
+  };
+
+  // Editor validation
+  const numericEditorLimit = parseFloat(editorLimit);
+  const isOver2x = assessment && numericEditorLimit > assessment.recommendedLimit * 2;
+  const isOver50pct =
+    assessment &&
+    assessment.score < 70 &&
+    customer &&
+    numericEditorLimit > Number(customer.creditLimit) * 1.5;
 
   if (!customerId || !open) return null;
 
@@ -295,32 +349,13 @@ export function CustomerDetailModal({
 
                 <InlineStack gap="200" wrap>
                   <Button
-                    onClick={() => {
-                      console.log("[DetailModal] Adjust Limit clicked");
-                      setShowLimitModal(true);
-                    }}
+                    onClick={() => setShowLimitEditor(!showLimitEditor)}
                     disabled={actionBusy}
                   >
-                    Adjust Limit
+                    {showLimitEditor ? "Cancel Adjust" : "Adjust Limit"}
                   </Button>
                   <Button
-                    onClick={() => {
-                      console.log("[DetailModal] Freeze/Unfreeze clicked", { customerId, intent: freezeIntent });
-                      try {
-                        if (!customerId) return;
-                        const fd = new FormData();
-                        fd.append("intent", freezeIntent);
-                        if (!customer.isFrozen)
-                          fd.append("reason", "Manual freeze from dashboard");
-                        actionFetcher.submit(fd, {
-                          method: "post",
-                          action: `/app/customers/${customerId}`,
-                        });
-                        console.log("[DetailModal] freeze submit done");
-                      } catch (err) {
-                        console.error("[DetailModal] freeze submit error", err);
-                      }
-                    }}
+                    onClick={handleFreeze}
                     tone={freezeTone}
                     disabled={actionBusy}
                     loading={actionBusy}
@@ -328,27 +363,99 @@ export function CustomerDetailModal({
                     {freezeLabel}
                   </Button>
                   <Button
-                    onClick={() => {
-                      console.log("[DetailModal] Recalculate clicked", { customerId });
-                      try {
-                        if (!customerId) return;
-                        const fd = new FormData();
-                        fd.append("intent", "recalculate-score");
-                        actionFetcher.submit(fd, {
-                          method: "post",
-                          action: `/app/customers/${customerId}`,
-                        });
-                        console.log("[DetailModal] recalculate submit done");
-                      } catch (err) {
-                        console.error("[DetailModal] recalculate submit error", err);
-                      }
-                    }}
+                    onClick={handleRecalculate}
                     disabled={actionBusy}
                     loading={actionBusy}
                   >
                     Recalculate Score
                   </Button>
                 </InlineStack>
+
+                {/* ── Inline Limit Editor ── */}
+                {showLimitEditor && (
+                  <Box
+                    background="bg-surface-secondary"
+                    borderRadius="200"
+                    padding="400"
+                  >
+                    <BlockStack gap="400">
+                      <Text as="h3" variant="headingSm">
+                        Adjust Credit Limit
+                      </Text>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        Current: ${Number(customer.creditLimit).toLocaleString()}
+                        {" | "}Used: ${Number(customer.creditUsed).toLocaleString()}
+                        {" | "}AI Rec: ${assessment.recommendedLimit.toLocaleString()}
+                      </Text>
+                      <TextField
+                        label="New Credit Limit (USD)"
+                        type="number"
+                        value={editorLimit}
+                        onChange={setEditorLimit}
+                        autoComplete="off"
+                        min={0}
+                        step={100}
+                        helpText={`AI recommends $${assessment.recommendedLimit.toLocaleString()}`}
+                        error={
+                          isOver2x
+                            ? `Exceeds 2x recommended limit ($${assessment.recommendedLimit.toLocaleString()})`
+                            : isOver50pct
+                              ? `Score ${assessment.score} — increases over 50% need review`
+                              : undefined
+                        }
+                      />
+                      <TextField
+                        label="Reason for change"
+                        value={editorReason}
+                        onChange={setEditorReason}
+                        autoComplete="off"
+                        placeholder="e.g., customer requested higher limit, seasonal adjustment"
+                        multiline={2}
+                      />
+                      <Select
+                        label="Quick Preset"
+                        options={[
+                          { label: "Custom", value: "" },
+                          {
+                            label: `AI Recommended: $${assessment.recommendedLimit.toLocaleString()}`,
+                            value: String(assessment.recommendedLimit),
+                          },
+                          {
+                            label: "Double current",
+                            value: String(Number(customer.creditLimit) * 2),
+                          },
+                          { label: "Set to $5,000", value: "5000" },
+                          { label: "Set to $10,000", value: "10000" },
+                        ]}
+                        onChange={(val) => {
+                          if (val) setEditorLimit(val);
+                        }}
+                        value=""
+                      />
+                      <InlineStack gap="200">
+                        <Button
+                          variant="primary"
+                          onClick={handleSaveLimit}
+                          disabled={
+                            actionBusy ||
+                            !editorLimit ||
+                            isNaN(numericEditorLimit) ||
+                            numericEditorLimit <= 0
+                          }
+                          loading={actionBusy}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          onClick={() => setShowLimitEditor(false)}
+                          disabled={actionBusy}
+                        >
+                          Cancel
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Box>
+                )}
 
                 {assessment.warnings.length > 0 && (
                   <Banner tone="warning">
@@ -720,24 +827,6 @@ export function CustomerDetailModal({
         )}
       </Modal>
 
-      {/* ── Credit Limit Sub-Modal ── */}
-      {customer && assessment && (
-        <CreditLimitModal
-          open={showLimitModal}
-          onClose={() => setShowLimitModal(false)}
-          onSuccess={() => {
-            if (customerId) detailFetcher.load(`/app/customers/${customerId}`);
-          }}
-          customerId={customer.id}
-          creditLimit={customer.creditLimit}
-          creditUsed={customer.creditUsed}
-          recommendation={{
-            recommendedLimit: assessment.recommendedLimit,
-            score: assessment.score,
-            grade: assessment.grade,
-          }}
-        />
-      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 // Credit Rules — list page
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, Link, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -10,7 +10,6 @@ import {
   InlineStack,
   IndexTable,
   Badge,
-  Button,
   Box,
   EmptyState,
   Banner,
@@ -208,7 +207,6 @@ export default function RulesPage() {
   const { result } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { items, page, totalPages, total } = result;
   const actionError = fetcher.data?.error;
   const successHandledRef = useRef(false);
@@ -241,9 +239,32 @@ export default function RulesPage() {
       fullWidth
       title="Credit Rules"
       subtitle={`${total} total`}
-      primaryAction={<Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>}
     >
       <BlockStack gap="400">
+        {/* Action bar — placed outside primaryAction to avoid App Bridge interception */}
+        <Card>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">Credit Rules</Text>
+            <Link
+              to="/app/rules/new"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "8px 16px",
+                background: "var(--p-color-bg-fill-brand)",
+                color: "var(--p-color-text-on-color)",
+                borderRadius: "var(--p-border-radius-200)",
+                textDecoration: "none",
+                fontWeight: 600,
+                fontSize: "14px",
+                lineHeight: "20px",
+              }}
+            >
+              Add Rule
+            </Link>
+          </InlineStack>
+        </Card>
+
         {actionError && <Banner tone="critical">{actionError}</Banner>}
         {visibleSuccess && <Banner tone="success">Action completed successfully.</Banner>}
 

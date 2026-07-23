@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -20,10 +20,11 @@ import {
 import { authenticate } from "~/shopify.server";
 import { listCustomers } from "~/services/customer.server";
 import prisma from "~/db.server";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+import { CustomerDetailModal } from "~/components/credit/CustomerDetailModal";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -68,6 +69,7 @@ export default function CustomersPage() {
   const { items, page, totalPages, total } = result;
   const syncFetcher = useFetcher<{ success?: boolean; created?: number; updated?: number; error?: string }>();
   const isSyncing = syncFetcher.state !== "idle";
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const handleSearch = useCallback(
     (value: string) => {
       const next = new URLSearchParams(searchParams);
@@ -288,12 +290,22 @@ export default function CustomersPage() {
                     <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
                         <BlockStack gap="100">
-                          <Link
-                            to={`/app/customers/${id}`}
-                            style={{ fontWeight: 600, textDecoration: "none", color: "inherit" }}
+                          <span
+                            onClick={() => setSelectedCustomerId(id)}
+                            style={{
+                              fontWeight: 600,
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                              color: "inherit",
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") setSelectedCustomerId(id);
+                            }}
                           >
                             {name}
-                          </Link>
+                          </span>
                           {company && (
                             <Text as="span" variant="bodySm" tone="subdued">
                               {company}
@@ -393,6 +405,11 @@ export default function CustomersPage() {
           </Card>
         )}
       </BlockStack>
+      <CustomerDetailModal
+        customerId={selectedCustomerId}
+        open={selectedCustomerId !== null}
+        onClose={() => setSelectedCustomerId(null)}
+      />
     </Page>
   );
 }

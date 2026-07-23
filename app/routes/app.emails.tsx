@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams, useRevalidator } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, useRevalidator, Link } from "@remix-run/react";
 import {
   Page,
   IndexTable,
@@ -174,15 +174,15 @@ export default function EmailsPage() {
     >
       <IndexTable.Cell>
         <InlineStack gap="200" blockAlign="center">
-          <a
-            href={`/app/emails/${tpl.id}`}
+          <Link
+            to={`/app/emails/${tpl.id}`}
             data-primary-link
             style={{ textDecoration: "none", color: "inherit" }}
           >
             <Text variant="bodyMd" fontWeight="bold" as="span">
               {tpl.name}
             </Text>
-          </a>
+          </Link>
           {tpl.isDefault && (
             <Badge size="small" tone="info">Default</Badge>
           )}

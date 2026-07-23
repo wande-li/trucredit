@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, useFetcher } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useFetcher, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -288,13 +288,13 @@ export default function CustomersPage() {
                     <IndexTable.Row id={id} key={id} position={index}>
                     <IndexTable.Cell>
                         <BlockStack gap="100">
-                          <a
-                            href={`/app/customers/${id}`}
+                          <Link
+                            to={`/app/customers/${id}`}
                             data-primary-link
                             style={{ display: "block", fontWeight: 600, textDecoration: "none", color: "inherit" }}
                           >
                             {name}
-                          </a>
+                          </Link>
                           {company && (
                             <Text as="span" variant="bodySm" tone="subdued">
                               {company}

@@ -1,7 +1,7 @@
 // TruCredit — Collection Tasks list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -349,25 +349,25 @@ export default function TasksPage() {
                   <IndexTable.Row key={task.id} id={task.id} position={idx}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <a
-                          href={`/app/invoices/${task.invoice.id}`}
+                        <Link
+                          to={`/app/invoices/${task.invoice.id}`}
                           data-primary-link
                           style={{ textDecoration: "none", color: "inherit" }}
                         >
                           {task.invoice.invoiceNumber}
-                        </a>
+                        </Link>
                         <Text as="span" tone="subdued">
                           {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
                         </Text>
                       </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <a
-                        href={`/app/customers/${task.customer.id}`}
+                      <Link
+                        to={`/app/customers/${task.customer.id}`}
                         style={{ textDecoration: "none", color: "inherit" }}
                       >
                         {task.customer.name}
-                      </a>
+                      </Link>
                       {task.customer.company && (
                         <Text as="p" tone="subdued" variant="bodySm">
                           {task.customer.company}

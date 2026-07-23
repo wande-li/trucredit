@@ -1,7 +1,7 @@
 // TruCredit — Collection Sequences list
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -247,13 +247,13 @@ export default function CollectionsPage() {
                   <IndexTable.Row key={seq.id} id={seq.id} position={idx}>
                     <IndexTable.Cell>
                       <InlineStack gap="200" blockAlign="center">
-                        <a
-                          href={`/app/collections/${seq.id}`}
+                        <Link
+                          to={`/app/collections/${seq.id}`}
                           data-primary-link
                           style={{ textDecoration: "none", color: "inherit" }}
                         >
                           <Text as="span" fontWeight="bold">{seq.name}</Text>
-                        </a>
+                        </Link>
                         {seq.isDefault && <Tag>Default</Tag>}
                       </InlineStack>
                     </IndexTable.Cell>
@@ -294,9 +294,9 @@ export default function CollectionsPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <ButtonGroup>
-                        <a href={`/app/collections/${seq.id}`} style={{ textDecoration: "none" }}>
+                        <Link to={`/app/collections/${seq.id}`} style={{ textDecoration: "none" }}>
                           <Button size="slim">Edit</Button>
-                        </a>
+                        </Link>
                         <Button
                           size="slim"
                           tone={seq.isActive ? "critical" : "success"}

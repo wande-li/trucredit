@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -110,7 +110,7 @@ export default function Invoices() {
         agingReport.dso ?? "—"
       } days`}
       primaryAction={
-        <a href="/app/invoices/new" style={{ textDecoration: "none" }}><Button variant="primary">Create Invoice</Button></a>
+        <Link to="/app/invoices/new" style={{ textDecoration: "none" }}><Button variant="primary">Create Invoice</Button></Link>
       }
     >
       <BlockStack gap="400">
@@ -266,13 +266,13 @@ export default function Invoices() {
               {invoiceResult.items.map((inv, idx) => (
                 <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
                   <IndexTable.Cell>
-                      <a
-                        href={`/app/invoices/${inv.id}`}
+                      <Link
+                        to={`/app/invoices/${inv.id}`}
                         data-primary-link
                         style={{ display: "block", fontWeight: 600, textDecoration: "none", color: "inherit" }}
                       >
                         {inv.invoiceNumber}
-                      </a>
+                      </Link>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <BlockStack gap="050">

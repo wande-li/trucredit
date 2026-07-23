@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -82,6 +82,8 @@ export default function Invoices() {
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
 
+  const navigate = useNavigate();
+
   const handleTabChange = useCallback(
     (selected: number) => {
       const buckets = ["all", "current", "1-30", "31-60", "61-90", "90+"];
@@ -110,7 +112,7 @@ export default function Invoices() {
         agingReport.dso ?? "—"
       } days`}
       primaryAction={
-        <Button variant="primary" url="/app/invoices/new">Create Invoice</Button>
+        <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
       }
     >
       <BlockStack gap="400">
@@ -264,11 +266,11 @@ export default function Invoices() {
               selectable={false}
             >
               {invoiceResult.items.map((inv, idx) => (
-                <IndexTable.Row key={inv.id} id={inv.id} position={idx} url={`/app/invoices/${inv.id}`}>
+                <IndexTable.Row key={inv.id} id={inv.id} position={idx}>
                   <IndexTable.Cell>
-                      <Text as="span" variant="bodyMd" fontWeight="bold">
+                      <Button variant="plain" onClick={() => navigate(`/app/invoices/${inv.id}`)}>
                         {inv.invoiceNumber}
-                      </Text>
+                      </Button>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <BlockStack gap="050">

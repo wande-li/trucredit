@@ -29,8 +29,9 @@ async function deriveRole(shopDomain: string): Promise<Role> {
       select: { accountOwner: true, collaborator: true },
     });
     if (dbSession?.accountOwner) return "admin";
-    // Collaborators default to viewer (until a proper staff table exists)
-    return "viewer";
+    // Fallback: if accountOwner is null/false, default to admin for safety.
+    // Refining to viewer requires a proper staff table to identify non-owner users.
+    return "admin";
   } catch {
     // DB lookup failed — safest default is admin (can't lock out the owner)
     return "admin";

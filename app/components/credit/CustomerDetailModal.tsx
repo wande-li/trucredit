@@ -15,6 +15,7 @@ import {
   DataTable,
 } from "@shopify/polaris";
 import { CustomerStatusBadge } from "./CustomerStatusBadge";
+import ActionToast from "~/components/ActionToast";
 
 // ── Types matching the detail page loader return ──
 interface CreditEvent {
@@ -143,30 +144,6 @@ export function CustomerDetailModal({
 
   const actionBusy = actionFetcher.state !== "idle";
   const actionError = actionFetcher.data?.error;
-  const showSuccess = actionFetcher.data?.success && !actionError;
-  const successTimerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  // Auto-dismiss success banner after 3s
-  useEffect(() => {
-    if (showSuccess) {
-      clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => {
-        // Force re-render by submitting an empty no-op — actually, just let the ref guard handle it
-        // Instead, we rely on the next user action to clear it naturally
-      }, 3000);
-    }
-    return () => clearTimeout(successTimerRef.current);
-  }, [showSuccess]);
-
-  // Track success and auto-clear
-  const [visibleSuccess, setVisibleSuccess] = useState(false);
-  useEffect(() => {
-    if (showSuccess) {
-      setVisibleSuccess(true);
-      const t = setTimeout(() => setVisibleSuccess(false), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [showSuccess]);
 
   // Refresh detail after successful action (ref-guarded, fires once per submission)
   useEffect(() => {
@@ -212,7 +189,6 @@ export function CustomerDetailModal({
 
   const doAction = (intent: string, extra?: Record<string, string>) => {
     if (!customerId) return;
-    setVisibleSuccess(false);
     setBusyIntent(intent);
     const fd = new FormData();
     fd.append("intent", intent);
@@ -296,9 +272,6 @@ export function CustomerDetailModal({
             <BlockStack gap="400">
               {actionError && (
                 <Banner tone="critical">{actionError}</Banner>
-              )}
-              {visibleSuccess && (
-                <Banner tone="success">Action completed successfully.</Banner>
               )}
 
               {/* ── Credit Summary ── */}
@@ -879,7 +852,7 @@ export function CustomerDetailModal({
           </Modal.Section>
         )}
       </Modal>
-
+      <ActionToast fetcher={actionFetcher} successMessage="Action completed successfully" />
     </>
   );
 }

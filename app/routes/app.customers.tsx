@@ -21,6 +21,7 @@ import {
 import { resolveShop } from "~/services/shop-resolver.server";
 import { listCustomers } from "~/services/customer.server";
 import { useCallback, useState } from "react";
+import { downloadCSV } from "~/utils/export-csv";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
@@ -28,7 +29,7 @@ import { CustomerDetailModal } from "~/components/credit/CustomerDetailModal";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId } = await resolveShop(request);
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? undefined;
@@ -46,7 +47,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
     });
 
-    return json({ result, shopDomain });
+    return json({ result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -62,7 +63,7 @@ export default function CustomersPage() {
     return <Outlet />;
   }
 
-  const { result, shopDomain } = useLoaderData<typeof loader>();
+  const { result } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { items, page, totalPages, total } = result;
   const syncFetcher = useFetcher<{ success?: boolean; created?: number; updated?: number; error?: string }>();
@@ -121,7 +122,7 @@ export default function CustomersPage() {
       secondaryActions={[
         {
           content: "Export CSV",
-          onAction: () => window.open(`/api/customers/export/csv?shop=${encodeURIComponent(shopDomain)}`, "_blank"),
+          onAction: () => downloadCSV("/api/customers/export/csv"),
         },
         {
           content: isSyncing ? "Syncing..." : "Sync from Shopify",

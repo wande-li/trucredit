@@ -21,6 +21,7 @@ import {
 import { resolveShop } from "~/services/shop-resolver.server";
 import { listInvoices, getARAgingReport } from "~/services/invoice.server";
 import { useCallback, useMemo } from "react";
+import { downloadCSV } from "~/utils/export-csv";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
@@ -75,7 +76,7 @@ export default function Invoices() {
     return <Outlet />;
   }
 
-  const { invoiceResult, agingReport, shopDomain } = useLoaderData<typeof loader>();
+  const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const currentTab = searchParams.get("agingBucket") ?? "all";
@@ -114,7 +115,7 @@ export default function Invoices() {
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Invoices</Text>
             <InlineStack gap="200">
-              <Button variant="tertiary" onClick={() => window.open(`/api/invoices/export/csv?shop=${encodeURIComponent(shopDomain)}`, "_blank")}>
+              <Button variant="tertiary" onClick={() => downloadCSV("/api/invoices/export/csv")}>
                 Export CSV
               </Button>
               <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>

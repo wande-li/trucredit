@@ -1,7 +1,7 @@
 // GET /api/customers/export/csv — Export all customers as CSV
-// Requires admin authentication, exports unfiltered list for current shop
+// Uses fetch()+JWT auth (App Bridge), NOT window.open() — no ?shop= param needed
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { resolveShop } from "~/services/shop-resolver.server";
+import { authenticate } from "~/shopify.server";
 import { exportToCsv, csvResponseHeaders } from "~/services/export.server";
 import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
@@ -27,11 +27,18 @@ type ExportRow = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { session } = await authenticate.admin(request);
+    const shopDomain = session.shop.trim();
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+    if (!shop) return new Response("Store not found.", { status: 404 });
 
     // Fetch customers with safety cap (prevent OOM on large shops)
     const customers = (await prisma.customer.findMany({
-      where: { shopId },
+      where: { shopId: shop.id },
       select: {
         name: true,
         company: true,
@@ -61,16 +68,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const csv = exportToCsv([...CSV_HEADERS], rows);
     const headers = csvResponseHeaders("customers-export");
 
-    return new Response(csv, {
-      status: 200,
-      headers,
-    });
+    return new Response(csv, { status: 200, headers });
   } catch (e: unknown) {
-    if (e instanceof Response) {
-      // Auth failure in new tab (no session cookie) — show friendly message instead of crashing
-      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Export</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#333}.box{text-align:center;max-width:420px;padding:2rem}.box h1{font-size:1.25rem;margin:0 0 .5rem}.box p{font-size:.875rem;color:#666;margin:0}</style></head><body><div class="box"><h1>Session expired</h1><p>Please return to the Shopify Admin, navigate to Customers, and click Export CSV again.</p></div></body></html>`;
-      return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
-    }
+    if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "Customer CSV export failed", msg);
     return new Response("Failed to export customers", { status: 500 });

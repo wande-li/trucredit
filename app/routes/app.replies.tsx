@@ -239,7 +239,7 @@ export default function RepliesPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Text as="span">
-                        {inv?.customerId ?? "—"}
+                        {inv?.customer?.name ?? inv?.customerId ?? "—"}
                       </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>

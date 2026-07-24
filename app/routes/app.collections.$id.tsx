@@ -29,7 +29,7 @@ import {
   deleteStep,
   addStep,
 } from "~/services/collection.server";
-import { COLLECTION } from "~/lib/constants";
+import { COLLECTION, TONE_LABELS } from "~/lib/constants";
 import type { Channel, TriggerType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -154,18 +154,8 @@ const TRIGGER_LABELS: Record<string, string> = {
   OVERDUE: "Overdue",
 };
 
-const TONE_LABELS: Record<number, string> = {
-  1: "1 - Friendly",
-  2: "2 - Polite",
-  3: "3 - Neutral",
-  4: "4 - Firm",
-  5: "5 - Strong",
-  6: "6 - Urgent",
-  7: "7 - Final",
-};
-
 const TONE_OPTIONS = COLLECTION.TONE_LEVELS.map((t) => ({
-  label: TONE_LABELS[t] ?? String(t),
+  label: `${t} - ${TONE_LABELS[t] ?? String(t)}`,
   value: String(t),
 }));
 

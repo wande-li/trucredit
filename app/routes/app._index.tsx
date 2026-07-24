@@ -488,7 +488,7 @@ export default function Dashboard() {
                 <InlineStack gap="200" blockAlign="center">
                   <TargetIcon style={{ width: 20, height: 20, color: "var(--p-color-text-caution)" }} />
                   <BlockStack gap="050">
-                    <Text as="span" variant="bodySm" tone="subdued">Active tasks</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">Active Tasks</Text>
                     <Text as="span" variant="headingLg" fontWeight="bold">{collectionStats.activeTasks}</Text>
                   </BlockStack>
                 </InlineStack>

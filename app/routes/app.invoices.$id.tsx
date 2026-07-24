@@ -14,6 +14,7 @@ import {
   Banner,
   Box,
   DataTable,
+  Link,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
@@ -409,8 +410,8 @@ export default function InvoiceDetail() {
                       ],
                       [
                         "Shopify Order",
-                        invoice.shopifyOrderName
-                          ? `https://admin.shopify.com/store/orders/${invoice.shopifyOrderId ?? ""}`
+                        invoice.shopifyOrderName && invoice.shopifyOrderId
+                          ? <Link url={`https://admin.shopify.com/store/orders/${invoice.shopifyOrderId}`} external target="_blank">{invoice.shopifyOrderName}</Link>
                           : "—",
                       ],
                       ["Created", new Date(invoice.createdAt).toLocaleDateString('en-US')],

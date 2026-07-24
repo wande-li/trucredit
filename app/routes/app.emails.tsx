@@ -22,7 +22,7 @@ import {
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
-import { PAGINATION } from "~/lib/constants";
+import { PAGINATION, TONE_LABELS, TONE_COLORS } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
@@ -114,25 +114,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 // ═══════════════════ Component ═══════════════════
 
-const TONE_LABELS: Record<number, string> = {
-  1: "Friendly",
-  2: "Helpful",
-  3: "Professional",
-  4: "Firm",
-  5: "Urgent",
-  6: "Serious",
-  7: "Final",
-};
 
-const TONE_COLORS: Record<number, "success" | "attention" | "warning" | "critical"> = {
-  1: "success",
-  2: "success",
-  3: "attention",
-  4: "attention",
-  5: "warning",
-  6: "critical",
-  7: "critical",
-};
 
 const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
   .filter(([key]) => key !== "OVERDUE_90") // not in template CRUD UI

@@ -138,10 +138,31 @@ export const CREDIT_SCORE = {
 // Collection engine
 export const COLLECTION = {
   DEFAULT_NET_TERMS: 30,
-  TONE_LEVELS: [1, 2, 3, 4, 5, 6, 7] as const, // 1=friendly, 7=legal
+  TONE_LEVELS: [1, 2, 3, 4, 5, 6, 7] as const,
   DEFAULT_TONE: 3,
   MAX_STEPS_PER_SEQUENCE: 10,
 } as const;
+
+/** Unified tone labels — single source of truth across Emails and Collections pages */
+export const TONE_LABELS: Record<number, string> = {
+  1: "Friendly",
+  2: "Polite",
+  3: "Neutral",
+  4: "Firm",
+  5: "Strong",
+  6: "Urgent",
+  7: "Final",
+};
+
+export const TONE_COLORS: Record<number, "success" | "attention" | "warning" | "critical"> = {
+  1: "success",
+  2: "success",
+  3: "attention",
+  4: "attention",
+  5: "warning",
+  6: "critical",
+  7: "critical",
+};
 
 // Pagination
 export const PAGINATION = {

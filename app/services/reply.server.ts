@@ -267,7 +267,7 @@ export async function listReplies(shopId: string, params?: {
         task: {
           include: {
             invoice: {
-              select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, customerId: true },
+              select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, customerId: true, customer: { select: { name: true } } },
             },
           },
         },

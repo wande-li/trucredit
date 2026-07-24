@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
+import { TONE_LABELS } from "~/lib/constants";
 import {
   Page,
   Card,
@@ -122,10 +123,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 // ═══════════════════ Component ═══════════════════
 
-const TONE_LABELS: Record<number, string> = {
-  1: "Friendly", 2: "Helpful", 3: "Professional", 4: "Firm",
-  5: "Urgent", 6: "Serious", 7: "Final",
-};
+
 
 const STAGE_LABELS: Record<string, string> = {
   STAGE_MINUS_7: "7 Days Before Due",

@@ -560,7 +560,7 @@ export default function CustomerDetailPage() {
                   </Text>
                   <DataTable
                     columnContentTypes={["text", "text", "text"]}
-                    headings={["Component", "Score", "Weight"]}
+                    headings={["Component", "Score", "Max Score"]}
                     rows={[
                       [
                         "Payment History",

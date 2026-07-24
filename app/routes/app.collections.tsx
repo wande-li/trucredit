@@ -36,6 +36,7 @@ import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+import { TONE_LABELS } from "~/lib/constants";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -136,15 +137,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   OVERDUE: "Overdue",
 };
 
-const TONE_LABELS: Record<number, string> = {
-  1: "Friendly",
-  2: "Polite",
-  3: "Neutral",
-  4: "Firm",
-  5: "Strong",
-  6: "Urgent",
-  7: "Final",
-};
+
 
 export default function CollectionsPage() {
   const location = useLocation();

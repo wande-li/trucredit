@@ -113,7 +113,12 @@ export default function Invoices() {
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Invoices</Text>
-            <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
+            <InlineStack gap="200">
+              <Button variant="tertiary" onClick={() => window.open("/api/invoices/export/csv", "_self")}>
+                Export CSV
+              </Button>
+              <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
+            </InlineStack>
           </InlineStack>
         </Card>
 

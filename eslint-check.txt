@@ -1,0 +1,7 @@
+⚠️ REMIX FUTURE CHANGE: The `@remix-run/eslint-config` package is deprecated and will not be included in React Router v7.  We recommend moving towards a streamlined ESLint config such as the ones included in the Remix templates. See https://github.com/remix-run/remix/blob/v2/templates/remix/.eslintrc.cjs.
+
+c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\app\services\__tests__\billing.server.test.ts
+  114:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 1 problem (1 error, 0 warnings)
+

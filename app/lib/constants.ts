@@ -120,6 +120,39 @@ export function resolvePlan(raw: string): PlanKey {
   return (PLAN_ALIASES[raw] ?? raw) as PlanKey;
 }
 
+// ── RBAC (Role-Based Access Control) ──
+export const ROLES = {
+  ADMIN: "admin",
+  MANAGER: "manager",
+  VIEWER: "viewer",
+} as const;
+
+export type Role = (typeof ROLES)[keyof typeof ROLES];
+
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  viewer: "Viewer",
+};
+
+/** Actions that can be guarded by permission checks */
+export const ROLE_PERMISSIONS: Record<Role, string[]> = {
+  admin: ["*"], // All permissions — wildcard
+  manager: ["view", "edit", "export", "send_email", "manage_collections"],
+  viewer: ["view"],
+};
+
+/** Ordered role hierarchy (lowest → highest) for comparison */
+export const ROLE_HIERARCHY: Role[] = ["viewer", "manager", "admin"];
+
+/**
+ * Check whether a numeric role level meets or exceeds a required level.
+ * viewer=0, manager=1, admin=2
+ */
+export function roleLevel(role: Role): number {
+  return ROLE_HIERARCHY.indexOf(role);
+}
+
 // Credit scoring
 export const CREDIT_SCORE = {
   MIN: 0,
@@ -133,6 +166,37 @@ export const CREDIT_SCORE = {
     D: 50,
     // below 50 = F
   },
+} as const;
+
+// Scoring weights — max score contribution per component + adjustment caps
+export const SCORING_WEIGHTS = {
+  PAYMENT_HISTORY: 40,          // max score for payment history component
+  CREDIT_UTILIZATION: 25,       // max score for credit utilization component
+  ORDER_VOLUME: 20,             // max score for order volume component
+  REVENUE_HISTORY: 15,          // max score for revenue history component
+  ORDER_LOG_DIVISOR: 2,         // log10 divisor for order volume normalization
+  REVENUE_LOG_DIVISOR: 3,       // log10 divisor for revenue normalization (scoring)
+  SCORE_FLOOR: 50,              // below this = high risk warning
+  ON_TIME_WARN: 0.7,            // below 70% on-time rate = warning
+  UTILIZATION_WARN: 0.8,        // above 80% utilization = warning
+  APPROVAL_SCORE_THRESHOLD: 70, // below this needs approval for >50% increase
+  MAX_INCREASE_RATIO: 1.5,      // max 50% increase without approval
+  MAX_RECOMMENDED_MULTIPLIER: 2, // never exceed 2x recommended
+  ORDER_BONUS_PER_ORDER: 100,   // bonus per order for repeat customers
+  MAX_ORDER_BONUS: 5000,        // cap on order volume bonus
+  REVENUE_MULTIPLIER_LOG_DIVISOR: 10, // divisor for revenue multiplier adjustment
+  MAX_REVENUE_MULTIPLIER: 2,    // cap on revenue-based multiplier
+  CRITICAL_RISK_ON_TIME: 0.3,   // below this on-time rate = FROZEN
+} as const;
+
+// Base credit limits by grade — starting point before revenue/order adjustments
+export const CREDIT_BASE_LIMITS: Record<string, number> = {
+  A_PLUS: 50000,
+  A: 25000,
+  B: 10000,
+  C: 5000,
+  D: 2000,
+  F: 500,
 } as const;
 
 // Collection engine
@@ -169,3 +233,33 @@ export const PAGINATION = {
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
 } as const;
+
+// Collection Retry — transient error handling for sweep/worker operations
+export const COLLECTION_RETRY = {
+  MAX_RETRIES: 3,
+  BASE_DELAY_MS: 5000,       // 5s base delay for step progression
+  MAX_DELAY_MS: 300000,       // 5 min max delay
+  RETRYABLE_PATTERNS: [       // error patterns that should trigger retry
+    "ETIMEDOUT",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "timeout",
+    "transient",
+    "rate limit",
+    "503",
+    "502",
+    "504",
+  ],
+} as const;
+
+/**
+ * Check whether an error is transient and should be retried.
+ * Matches error messages against COLLECTION_RETRY.RETRYABLE_PATTERNS (case-insensitive).
+ */
+export function isRetryableError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const lower = msg.toLowerCase();
+  return COLLECTION_RETRY.RETRYABLE_PATTERNS.some((pattern) =>
+    lower.includes(pattern.toLowerCase()),
+  );
+}

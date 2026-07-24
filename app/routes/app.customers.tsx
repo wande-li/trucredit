@@ -120,6 +120,10 @@ export default function CustomersPage() {
       subtitle={`${total} total`}
       secondaryActions={[
         {
+          content: "Export CSV",
+          onAction: () => window.open("/api/customers/export/csv", "_self"),
+        },
+        {
           content: isSyncing ? "Syncing..." : "Sync from Shopify",
           disabled: isSyncing,
           onAction: () =>

@@ -24,6 +24,7 @@ import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 
@@ -45,7 +46,8 @@ const ACTION_TONE: Record<CreditAction, "success" | "critical" | "warning" | "ne
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId, shopDomain, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
@@ -71,7 +73,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();

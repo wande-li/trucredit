@@ -322,9 +322,19 @@ export default function InvoiceDetail() {
                       </Text>
                     )}
                   </BlockStack>
-                  <Badge tone={statusTone[invoice.status] ?? "info"} size="large">
-                    {statusLabel[invoice.status] ?? invoice.status}
-                  </Badge>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button
+                      url={`/api/invoices/${invoice.id}/pdf`}
+                      external
+                      variant="primary"
+                      tone="success"
+                    >
+                      Download PDF
+                    </Button>
+                    <Badge tone={statusTone[invoice.status] ?? "info"} size="large">
+                      {statusLabel[invoice.status] ?? invoice.status}
+                    </Badge>
+                  </InlineStack>
                 </InlineStack>
 
                 <Divider />

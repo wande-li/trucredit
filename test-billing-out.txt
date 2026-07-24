@@ -1,0 +1,52 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mc:/Users/BW-LP-093/WorkBuddy/shopify-b2b-credit[39m
+
+[90mstdout[2m | app/services/__tests__/billing.server.test.ts
+[22m[39m[shopify-api/INFO] version 13.1.0, environment Remix (Node)
+
+ [31m❯[39m app/services/__tests__/billing.server.test.ts [2m([22m[2m19 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 21[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mhas all 4 plan types[32m 3[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mFREE plan has price 0 and no billing integration[32m 1[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mpaid plans have billingPlanName defined[32m 0[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mno duplicate plan keys[32m 0[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mSTARTER has lower quotas than PRO[32m 0[2mms[22m[39m
+   [32m✓[39m PLANS[2m > [22mENTERPRISE has unlimited quotas[32m 1[2mms[22m[39m
+   [32m✓[39m billingPlanToEnum[2m > [22mreturns FREE for null/empty plan name[32m 0[2mms[22m[39m
+[31m   [31m×[31m billingPlanToEnum[2m > [22mmaps monthly and annual variants to same enum[39m[32m 11[2mms[22m[39m
+[31m     → expected 'FREE' to be 'STARTER' // Object.is equality[39m
+   [32m✓[39m billingPlanToEnum[2m > [22mreturns FREE for unknown plan names[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingName[2m > [22mreturns null for FREE plan[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingName[2m > [22mreturns monthly billing name for STARTER[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingName[2m > [22mreturns null for unknown plan[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingNameAnnual[2m > [22mreturns null for FREE plan[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingNameAnnual[2m > [22mreturns annual billing name for PRO[32m 0[2mms[22m[39m
+   [32m✓[39m planToBillingNameAnnual[2m > [22mreturns null for unknown plan[32m 0[2mms[22m[39m
+   [32m✓[39m hasFeature[2m > [22mFREE has credit and collections, but not ai[32m 0[2mms[22m[39m
+   [32m✓[39m hasFeature[2m > [22mENTERPRISE has premium features[32m 0[2mms[22m[39m
+   [32m✓[39m hasFeature[2m > [22mreturns false for unknown plan[32m 0[2mms[22m[39m
+   [32m✓[39m hasFeature[2m > [22mreturns false for unknown feature[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m app/services/__tests__/billing.server.test.ts[2m > [22mbillingPlanToEnum[2m > [22mmaps monthly and annual variants to same enum
+[31m[1mAssertionError[22m: expected 'FREE' to be 'STARTER' // Object.is equality[39m
+
+Expected: [32m"STARTER"[39m
+Received: [31m"FREE"[39m
+
+[36m [2m❯[22m app/services/__tests__/billing.server.test.ts:[2m66:21[22m[39m
+    [90m 64| [39m    [35mconst[39m annual [33m=[39m [34mbillingPlanToEnum[39m([32m"Starter Annual"[39m)[33m;[39m
+    [90m 65| [39m    [34mexpect[39m(monthly)[33m.[39m[34mtoBe[39m(annual)[33m;[39m
+    [90m 66| [39m    [34mexpect[39m(monthly)[33m.[39m[34mtoBe[39m([32m"STARTER"[39m)[33m;[39m
+    [90m   | [39m                    [31m^[39m
+    [90m 67| [39m  })[33m;[39m
+    [90m 68| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m18 passed[39m[22m[90m (19)[39m
+[2m   Start at [22m 10:53:01
+[2m   Duration [22m 1.77s[2m (transform 240ms, setup 0ms, collect 943ms, tests 21ms, environment 0ms, prepare 414ms)[22m
+

@@ -30,13 +30,15 @@ import {
   addStep,
 } from "~/services/collection.server";
 import { COLLECTION, TONE_LABELS } from "~/lib/constants";
-import type { Channel, TriggerType } from "@prisma/client";
+import type { Channel } from "@prisma/client";
 import { logger } from "~/services/logger.server";
+import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "manage_collections");
 
     const sequenceId = params.id;
     if (!sequenceId) throw new Response("Not Found", { status: 404 });
@@ -55,7 +57,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "manage_collections");
 
     const sequenceId = params.id;
     if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });
@@ -67,7 +70,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "updateMeta": {
         const name = formData.get("name")?.toString()?.trim();
         const description = formData.get("description")?.toString()?.trim();
-        const triggerType = formData.get("triggerType")?.toString() as TriggerType | undefined;
         const triggerDays = formData.get("triggerDays")?.toString();
 
         if (!name) return json({ error: "Name is required" }, { status: 400 });
@@ -77,7 +79,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           shopId: shopId,
           name,
           description: description || undefined,
-          triggerType,
           triggerDays: triggerDays !== undefined ? parseInt(triggerDays, 10) : undefined,
         });
         if (!result.success) return json({ error: result.error }, { status: 400 });
@@ -148,12 +149,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 };
 
-const TRIGGER_LABELS: Record<string, string> = {
-  BEFORE_DUE: "Before Due Date",
-  ON_DUE: "On Due Date",
-  OVERDUE: "Overdue",
-};
-
 const TONE_OPTIONS = COLLECTION.TONE_LEVELS.map((t) => ({
   label: `${t} - ${TONE_LABELS[t] ?? String(t)}`,
   value: String(t),
@@ -173,7 +168,6 @@ export default function CollectionDetailPage() {
   // Meta form state
   const [name, setName] = useState(sequence.name);
   const [description, setDescription] = useState(sequence.description ?? "");
-  const [triggerType, setTriggerType] = useState(sequence.triggerType);
   const [triggerDays, setTriggerDays] = useState(String(sequence.triggerDays));
 
   // Step management
@@ -191,12 +185,11 @@ export default function CollectionDetailPage() {
         intent: "updateMeta",
         name,
         description,
-        triggerType,
         triggerDays,
       },
       { method: "POST" },
     );
-  }, [fetcher, name, description, triggerType, triggerDays]);
+  }, [fetcher, name, description, triggerDays]);
 
   const handleDeleteStep = useCallback(
     (stepId: string) => {
@@ -209,7 +202,6 @@ export default function CollectionDetailPage() {
   const hasChanges =
     name !== sequence.name ||
     description !== (sequence.description ?? "") ||
-    triggerType !== sequence.triggerType ||
     triggerDays !== String(sequence.triggerDays);
 
   return (
@@ -253,24 +245,14 @@ export default function CollectionDetailPage() {
                 autoComplete="off"
                 multiline={2}
               />
-              <FormLayout.Group condensed>
-                <Select
-                  label="Trigger"
-                  value={triggerType}
-                  onChange={(value, _id) => setTriggerType(value as TriggerType)}
-                  options={["BEFORE_DUE", "ON_DUE", "OVERDUE"].map((v) => ({
-                    label: TRIGGER_LABELS[v] ?? v,
-                    value: v,
-                  }))}
-                />
-                <TextField
-                  label={triggerType === "BEFORE_DUE" ? "Days Before Due" : "Days After Due"}
-                  value={triggerDays}
-                  onChange={setTriggerDays}
-                  type="number"
-                  autoComplete="off"
-                />
-              </FormLayout.Group>
+              <TextField
+                label="Trigger Days"
+                value={triggerDays}
+                onChange={setTriggerDays}
+                type="number"
+                autoComplete="off"
+                helpText="Days relative to due date (negative = before, 0 = on due, positive = after)"
+              />
 
               <InlineStack align="end">
                 <Button

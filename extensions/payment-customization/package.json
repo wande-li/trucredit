@@ -1,0 +1,12 @@
+{
+  "name": "trucredit-payment-customization",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@shopify/shopify_function": "^1.0.0"
+  },
+  "devDependencies": {
+    "@shopify/function-runner": "^4.0.0"
+  }
+}

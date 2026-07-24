@@ -10,16 +10,16 @@ import type {
   CreditScoreComponents,
   CreditRecommendation,
 } from "~/types/credit";
-import { CREDIT_SCORE } from "~/lib/constants";
+import { CREDIT_SCORE, SCORING_WEIGHTS, CREDIT_BASE_LIMITS } from "~/lib/constants";
 
 /**
  * Calculate credit score (0-100) from customer payment behavior
  *
- * Scoring model:
- * - Payment History (40%): onTimePaymentRate × 40
- * - Credit Utilization (25%): inverse of creditUsed/creditLimit
- * - Order Volume (20%): log10(totalOrders+1) × 10
- * - Revenue History (15%): log10(totalRevenue+1) × 7.5
+ * Scoring model (weights defined in SCORING_WEIGHTS):
+ * - Payment History: onTimePaymentRate × PAYMENT_HISTORY (max PAYMENT_HISTORY pts)
+ * - Credit Utilization: inverse of creditUsed/creditLimit × CREDIT_UTILIZATION
+ * - Order Volume: log10(totalOrders+1) / ORDER_LOG_DIVISOR × ORDER_VOLUME
+ * - Revenue History: log10(totalRevenue+1) / REVENUE_LOG_DIVISOR × REVENUE_HISTORY
  */
 export function calculateCreditScore(params: {
   onTimePaymentRate: number | null;
@@ -28,28 +28,30 @@ export function calculateCreditScore(params: {
   totalOrders: number;
   totalRevenue: number;
 }): { score: number; components: CreditScoreComponents } {
-  // Payment History: 0-40
+  const W = SCORING_WEIGHTS;
+
+  // Payment History
   const paymentHistory = Math.round(
-    (params.onTimePaymentRate ?? 0.5) * 40,
+    (params.onTimePaymentRate ?? 0.5) * W.PAYMENT_HISTORY,
   );
 
-  // Credit Utilization: 0-25 (more available = higher score)
+  // Credit Utilization (more available = higher score)
   const utilization =
     params.creditLimit > 0
       ? 1 - params.creditUsed / params.creditLimit
       : 0;
   const creditUtilization = Math.round(
-    Math.max(0, Math.min(1, utilization)) * 25,
+    Math.max(0, Math.min(1, utilization)) * W.CREDIT_UTILIZATION,
   );
 
-  // Order Volume: 0-20
+  // Order Volume
   const orderVolume = Math.round(
-    Math.min(1, Math.log10(params.totalOrders + 1) / 2) * 20,
+    Math.min(1, Math.log10(params.totalOrders + 1) / W.ORDER_LOG_DIVISOR) * W.ORDER_VOLUME,
   );
 
-  // Revenue History: 0-15
+  // Revenue History
   const revenueHistory = Math.round(
-    Math.min(1, Math.log10(params.totalRevenue + 1) / 3) * 15,
+    Math.min(1, Math.log10(params.totalRevenue + 1) / W.REVENUE_LOG_DIVISOR) * W.REVENUE_HISTORY,
   );
 
   const score = Math.min(
@@ -99,6 +101,10 @@ export function gradeToRisk(grade: CreditGrade | null): RiskLevel {
 
 /**
  * Recommend credit limit based on score and existing data
+ *
+ * Uses CREDIT_BASE_LIMITS by grade, then adjusts by:
+ * - Revenue multiplier (capped by MAX_REVENUE_MULTIPLIER)
+ * - Order volume bonus (capped by MAX_ORDER_BONUS, ORDER_BONUS_PER_ORDER per order)
  */
 export function recommendCreditLimit(params: {
   score: number;
@@ -107,32 +113,29 @@ export function recommendCreditLimit(params: {
   totalOrders: number;
   existingLimit: number;
 }): number {
-  // Base limit by grade
-  const baseByGrade: Record<CreditGrade, number> = {
-    A_PLUS: 50000,
-    A: 25000,
-    B: 10000,
-    C: 5000,
-    D: 2000,
-    F: 500,
-  };
+  const W = SCORING_WEIGHTS;
 
-  const base = baseByGrade[params.grade];
+  const base = CREDIT_BASE_LIMITS[params.grade] ?? CREDIT_SCORE.DEFAULT_LIMIT;
 
-  // Adjust by revenue history (up to 2x for high revenue)
+  // Adjust by revenue history (capped by MAX_REVENUE_MULTIPLIER)
   const revenueMultiplier = Math.min(
-    2,
-    1 + Math.log10(Math.max(1, params.totalRevenue)) / 10,
+    W.MAX_REVENUE_MULTIPLIER,
+    1 + Math.log10(Math.max(1, params.totalRevenue)) / W.REVENUE_MULTIPLIER_LOG_DIVISOR,
   );
 
-  // Adjust by order volume (small bonus for repeat customers)
-  const orderBonus = Math.min(5000, params.totalOrders * 100);
+  // Adjust by order volume (bonus for repeat customers, capped by MAX_ORDER_BONUS)
+  const orderBonus = Math.min(W.MAX_ORDER_BONUS, params.totalOrders * W.ORDER_BONUS_PER_ORDER);
 
   return Math.round(base * revenueMultiplier + orderBonus);
 }
 
 /**
  * Full credit assessment — score + grade + risk + recommendations
+ *
+ * Warnings generated using SCORING_WEIGHTS thresholds:
+ * - SCORE_FLOOR: high risk warning
+ * - ON_TIME_WARN: below threshold on-time payment rate
+ * - UTILIZATION_WARN: above threshold credit utilization
  */
 export function assessCredit(params: {
   onTimePaymentRate: number | null;
@@ -152,13 +155,14 @@ export function assessCredit(params: {
     existingLimit: params.creditLimit,
   });
 
+  const W = SCORING_WEIGHTS;
   const warnings: string[] = [];
-  if (score < 50) warnings.push("High credit risk — consider requiring prepayment");
-  if (params.onTimePaymentRate !== null && params.onTimePaymentRate < 0.7) {
-    warnings.push("Below 70% on-time payment rate");
+  if (score < W.SCORE_FLOOR) warnings.push("High credit risk — consider requiring prepayment");
+  if (params.onTimePaymentRate !== null && params.onTimePaymentRate < W.ON_TIME_WARN) {
+    warnings.push(`Below ${Math.round(W.ON_TIME_WARN * 100)}% on-time payment rate`);
   }
-  if (params.creditLimit > 0 && params.creditUsed / params.creditLimit > 0.8) {
-    warnings.push("Credit utilization over 80%");
+  if (params.creditLimit > 0 && params.creditUsed / params.creditLimit > W.UTILIZATION_WARN) {
+    warnings.push(`Credit utilization over ${Math.round(W.UTILIZATION_WARN * 100)}%`);
   }
 
   return { score, grade, riskLevel, recommendedLimit, components, warnings };
@@ -166,6 +170,8 @@ export function assessCredit(params: {
 
 /**
  * Determine customer status based on risk and payment behavior
+ *
+ * Uses SCORING_WEIGHTS.CRITICAL_RISK_ON_TIME to decide FROZEN status.
  */
 export function determineCustomerStatus(
   currentStatus: CustomerStatus,
@@ -175,7 +181,7 @@ export function determineCustomerStatus(
   // Already blacklisted stays blacklisted (manual intervention required)
   if (currentStatus === "BLACKLISTED") return "BLACKLISTED";
 
-  if (riskLevel === "CRITICAL" && (onTimePaymentRate ?? 0) < 0.3) {
+  if (riskLevel === "CRITICAL" && (onTimePaymentRate ?? 0) < SCORING_WEIGHTS.CRITICAL_RISK_ON_TIME) {
     return "FROZEN";
   }
 
@@ -191,6 +197,10 @@ export function calcAvailableCredit(creditLimit: number, creditUsed: number): nu
 
 /**
  * Validate credit limit adjustment — returns true if change is within bounds
+ *
+ * Uses SCORING_WEIGHTS thresholds:
+ * - APPROVAL_SCORE_THRESHOLD + MAX_INCREASE_RATIO for auto-approval ceiling
+ * - MAX_RECOMMENDED_MULTIPLIER for absolute cap on recommended limit
  */
 export function validateCreditAdjustment(params: {
   currentLimit: number;
@@ -198,19 +208,21 @@ export function validateCreditAdjustment(params: {
   recommendedLimit: number;
   score: number;
 }): { valid: boolean; reason?: string } {
-  // Max 50% increase without manager approval for scores below 70
-  if (params.score < 70 && params.newLimit > params.currentLimit * 1.5) {
+  const W = SCORING_WEIGHTS;
+
+  // Scores below threshold require approval for increases beyond the max ratio
+  if (params.score < W.APPROVAL_SCORE_THRESHOLD && params.newLimit > params.currentLimit * W.MAX_INCREASE_RATIO) {
     return {
       valid: false,
-      reason: `Score ${params.score} requires approval for increases > 50%`,
+      reason: `Score ${params.score} requires approval for increases > ${Math.round((W.MAX_INCREASE_RATIO - 1) * 100)}%`,
     };
   }
 
-  // Never exceed 2x recommended limit automatically
-  if (params.newLimit > params.recommendedLimit * 2) {
+  // Never exceed the recommended multiplier cap automatically
+  if (params.newLimit > params.recommendedLimit * W.MAX_RECOMMENDED_MULTIPLIER) {
     return {
       valid: false,
-      reason: `New limit ${params.newLimit} exceeds 2x recommended (${params.recommendedLimit})`,
+      reason: `New limit ${params.newLimit} exceeds ${W.MAX_RECOMMENDED_MULTIPLIER}x recommended (${params.recommendedLimit})`,
     };
   }
 

@@ -3,12 +3,38 @@
 // This mirrors the same fallback logic in app/routes/app.tsx layout loader.
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
+import type { Role } from "~/lib/constants";
 
 export interface ResolvedShop {
   shopDomain: string;
   shopId: string;
   plan: string;
   subscriptionStatus: string;
+  /** RBAC role — defaults to "admin" for account owners, "viewer" for collaborators */
+  role: Role;
+}
+
+/**
+ * Derive the user's RBAC role from the Prisma session record.
+ * Falls back to "admin" if no session is found (safe default for account owners).
+ *
+ * Future: when a TeamMember or staff table is added, this function should
+ * look up the specific user's assigned role instead of defaulting.
+ */
+async function deriveRole(shopDomain: string): Promise<Role> {
+  try {
+    const dbSession = await prisma.session.findFirst({
+      where: { shop: shopDomain },
+      orderBy: { id: "desc" },
+      select: { accountOwner: true, collaborator: true },
+    });
+    if (dbSession?.accountOwner) return "admin";
+    // Collaborators default to viewer (until a proper staff table exists)
+    return "viewer";
+  } catch {
+    // DB lookup failed — safest default is admin (can't lock out the owner)
+    return "admin";
+  }
 }
 
 /**
@@ -28,6 +54,8 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
       throw new Response("Shop not in session", { status: 401 });
     }
 
+    const role = await deriveRole(shopDomain);
+
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
       select: { id: true, plan: true, subscriptionStatus: true },
@@ -39,6 +67,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
         shopId: shop.id,
         plan: shop.plan || "FREE",
         subscriptionStatus: shop.subscriptionStatus || "NONE",
+        role,
       };
     }
 
@@ -52,6 +81,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
       shopId: newShop.id,
       plan: newShop.plan || "FREE",
       subscriptionStatus: newShop.subscriptionStatus || "NONE",
+      role,
     };
   } catch (e: unknown) {
     // authenticate.admin() throws Response on auth failure
@@ -94,6 +124,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
             shopId: shop.id,
             plan: shop.plan || "FREE",
             subscriptionStatus: shop.subscriptionStatus || "NONE",
+            role: "admin", // DB fallback: assume account owner
           };
         }
       }

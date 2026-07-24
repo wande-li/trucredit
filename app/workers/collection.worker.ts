@@ -6,6 +6,7 @@ import { runCollectionSweep } from "~/services/collection.server";
 import { processReply } from "~/services/reply.server";
 import { recalculateCreditScore, freezeCustomer } from "~/services/customer.server";
 import prisma from "~/db.server";
+import { isRetryableError } from "~/lib/constants";
 import {
   sweepQueue,
   invoiceQueue,
@@ -98,171 +99,181 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
       const { invoiceId, sequenceId, stepOrder } = job.data;
       const logCtx = { invoiceId, sequenceId, stepOrder };
 
-      const [invoice, sequence] = await Promise.all([
-        prisma.invoice.findUnique({
-          where: { id: invoiceId },
-          include: { customer: true, shop: { select: { id: true, shopDomain: true } } },
-        }),
-        prisma.collectionSequence.findUnique({
-          where: { id: sequenceId },
-          include: { steps: { orderBy: { order: "asc" } } },
-        }),
-      ]);
+      try {
+        const [invoice, sequence] = await Promise.all([
+          prisma.invoice.findUnique({
+            where: { id: invoiceId },
+            include: { customer: true, shop: { select: { id: true, shopDomain: true } } },
+          }),
+          prisma.collectionSequence.findUnique({
+            where: { id: sequenceId },
+            include: { steps: { orderBy: { order: "asc" } } },
+          }),
+        ]);
 
-      if (!invoice) {
-        logger.app("WARN", "Invoice worker: invoice not found", undefined, logCtx);
-        return { skipped: true, reason: "Invoice not found" };
-      }
-      if (!sequence) {
-        logger.app("WARN", "Invoice worker: sequence not found", undefined, logCtx);
-        return { skipped: true, reason: "Sequence not found" };
-      }
-      if (!invoice.customer) {
-        logger.app("WARN", "Invoice worker: customer not found", undefined, logCtx);
-        return { skipped: true, reason: "Customer not found" };
-      }
-      if (invoice.customer.isFrozen) {
-        return { skipped: true, reason: "Customer frozen" };
-      }
+        if (!invoice) {
+          logger.app("WARN", "Invoice worker: invoice not found", undefined, logCtx);
+          return { skipped: true, reason: "Invoice not found" };
+        }
+        if (!sequence) {
+          logger.app("WARN", "Invoice worker: sequence not found", undefined, logCtx);
+          return { skipped: true, reason: "Sequence not found" };
+        }
+        if (!invoice.customer) {
+          logger.app("WARN", "Invoice worker: customer not found", undefined, logCtx);
+          return { skipped: true, reason: "Customer not found" };
+        }
+        if (invoice.customer.isFrozen) {
+          return { skipped: true, reason: "Customer frozen" };
+        }
 
-      const step = sequence.steps[stepOrder - 1];
-      if (!step) {
-        logger.app("WARN", "Invoice worker: step not found", undefined, logCtx);
-        return { skipped: true, reason: `Step ${stepOrder} not found` };
-      }
+        const step = sequence.steps[stepOrder - 1];
+        if (!step) {
+          logger.app("WARN", "Invoice worker: step not found", undefined, logCtx);
+          return { skipped: true, reason: `Step ${stepOrder} not found` };
+        }
 
-      const existingTask = await prisma.collectionTask.findFirst({
-        where: {
-          invoiceId,
-          sequenceId,
-          status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
-        },
-      });
-
-      if (!existingTask) {
-        const created = await prisma.collectionTask.create({
-          data: {
-            sequenceId,
-            customerId: invoice.customerId,
+        const existingTask = await prisma.collectionTask.findFirst({
+          where: {
             invoiceId,
-            status: "ACTIVE",
-            currentStep: stepOrder,
-            nextStepAt: new Date(),
-            startedAt: new Date(),
+            sequenceId,
+            status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
           },
         });
 
-        // P1-2: Dedup — check if event for this task+step already exists (retry safety)
-        const existingEvent = await prisma.collectionEvent.findFirst({
-          where: { taskId: created.id, stepOrder, type: "EMAIL_SENT" },
-        });
-        if (!existingEvent) {
-          await prisma.collectionEvent.create({
+        if (!existingTask) {
+          const created = await prisma.collectionTask.create({
             data: {
-              taskId: created.id,
-              type: "EMAIL_SENT",
-              channel: step.channel,
-              stepOrder,
-              toneLevel: step.toneLevel,
-              aiGenerated: step.useAI,
+              sequenceId,
+              customerId: invoice.customerId,
+              invoiceId,
+              status: "ACTIVE",
+              currentStep: stepOrder,
+              nextStepAt: new Date(),
+              startedAt: new Date(),
             },
           });
+
+          // P1-2: Dedup — check if event for this task+step already exists (retry safety)
+          const existingEvent = await prisma.collectionEvent.findFirst({
+            where: { taskId: created.id, stepOrder, type: "EMAIL_SENT" },
+          });
+          if (!existingEvent) {
+            await prisma.collectionEvent.create({
+              data: {
+                taskId: created.id,
+                type: "EMAIL_SENT",
+                channel: step.channel,
+                stepOrder,
+                toneLevel: step.toneLevel,
+                aiGenerated: step.useAI,
+              },
+            });
+          }
+
+          // Enqueue actual email delivery
+          const daysOverdue = Math.floor(
+            (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          const shopId = invoice.shop?.id ?? "";
+          const paymentLink = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
+          await enqueueEmail({
+            shopId,
+            toEmail: invoice.customer.email,
+            stage: daysToCollectionStage(daysOverdue),
+            useAI: step.useAI,
+            toneLevel: step.toneLevel,
+            vars: {
+              customerName: invoice.customer.name,
+              companyName: invoice.customer.company ?? undefined,
+              invoiceNumber: invoice.invoiceNumber,
+              amount: String(invoice.amount),
+              currency: invoice.currency,
+              dueDate: invoice.dueDate.toISOString().slice(0, 10),
+              daysOverdue,
+              paymentLink,
+            },
+            taskId: created.id,
+            stepOrder,
+          });
+
+          logger.app("INFO", "Invoice worker: task created + email queued", undefined, {
+            ...logCtx,
+            customerName: invoice.customer.name,
+          });
+          return { created: true, step: stepOrder };
         }
 
-        // Enqueue actual email delivery
-        const daysOverdue = Math.floor(
-          (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const shopId = invoice.shop?.id ?? "";
-        const paymentLink = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
-        await enqueueEmail({
-          shopId,
-          toEmail: invoice.customer.email,
-          stage: daysToCollectionStage(daysOverdue),
-          useAI: step.useAI,
-          toneLevel: step.toneLevel,
-          vars: {
-            customerName: invoice.customer.name,
-            companyName: invoice.customer.company ?? undefined,
-            invoiceNumber: invoice.invoiceNumber,
-            amount: String(invoice.amount),
-            currency: invoice.currency,
-            dueDate: invoice.dueDate.toISOString().slice(0, 10),
-            daysOverdue,
-            paymentLink,
-          },
-          taskId: created.id,
-          stepOrder,
-        });
-
-        logger.app("INFO", "Invoice worker: task created + email queued", undefined, {
-          ...logCtx,
-          customerName: invoice.customer.name,
-        });
-        return { created: true, step: stepOrder };
-      }
-
-      if (existingTask.currentStep < stepOrder) {
-        await prisma.collectionTask.update({
-          where: { id: existingTask.id },
-          data: {
-            currentStep: stepOrder,
-            nextStepAt: new Date(),
-          },
-        });
-
-        // P1-2: Dedup — check before creating advance event
-        const existingAdvanceEvent = await prisma.collectionEvent.findFirst({
-          where: { taskId: existingTask.id, stepOrder, type: "EMAIL_SENT" },
-        });
-        if (!existingAdvanceEvent) {
-          await prisma.collectionEvent.create({
+        if (existingTask.currentStep < stepOrder) {
+          await prisma.collectionTask.update({
+            where: { id: existingTask.id },
             data: {
-              taskId: existingTask.id,
-              type: "EMAIL_SENT",
-              channel: step.channel,
-              stepOrder,
-              toneLevel: step.toneLevel,
-              aiGenerated: step.useAI,
+              currentStep: stepOrder,
+              nextStepAt: new Date(),
             },
           });
+
+          // P1-2: Dedup — check before creating advance event
+          const existingAdvanceEvent = await prisma.collectionEvent.findFirst({
+            where: { taskId: existingTask.id, stepOrder, type: "EMAIL_SENT" },
+          });
+          if (!existingAdvanceEvent) {
+            await prisma.collectionEvent.create({
+              data: {
+                taskId: existingTask.id,
+                type: "EMAIL_SENT",
+                channel: step.channel,
+                stepOrder,
+                toneLevel: step.toneLevel,
+                aiGenerated: step.useAI,
+              },
+            });
+          }
+
+          // Enqueue actual email delivery
+          const daysOverdue = Math.floor(
+            (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          const shopId = invoice.shop?.id ?? "";
+          const paymentLink2 = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
+          await enqueueEmail({
+            shopId,
+            toEmail: invoice.customer.email,
+            stage: daysToCollectionStage(daysOverdue),
+            useAI: step.useAI,
+            toneLevel: step.toneLevel,
+            vars: {
+              customerName: invoice.customer.name,
+              companyName: invoice.customer.company ?? undefined,
+              invoiceNumber: invoice.invoiceNumber,
+              amount: String(invoice.amount),
+              currency: invoice.currency,
+              dueDate: invoice.dueDate.toISOString().slice(0, 10),
+              daysOverdue,
+              paymentLink: paymentLink2,
+            },
+            taskId: existingTask.id,
+            stepOrder,
+          });
+
+          logger.app("INFO", "Invoice worker: task advanced + email queued", undefined, {
+            ...logCtx,
+            from: existingTask.currentStep,
+            to: stepOrder,
+          });
+          return { advanced: true, from: existingTask.currentStep, to: stepOrder };
         }
 
-        // Enqueue actual email delivery
-        const daysOverdue = Math.floor(
-          (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const shopId = invoice.shop?.id ?? "";
-        const paymentLink2 = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
-        await enqueueEmail({
-          shopId,
-          toEmail: invoice.customer.email,
-          stage: daysToCollectionStage(daysOverdue),
-          useAI: step.useAI,
-          toneLevel: step.toneLevel,
-          vars: {
-            customerName: invoice.customer.name,
-            companyName: invoice.customer.company ?? undefined,
-            invoiceNumber: invoice.invoiceNumber,
-            amount: String(invoice.amount),
-            currency: invoice.currency,
-            dueDate: invoice.dueDate.toISOString().slice(0, 10),
-            daysOverdue,
-            paymentLink: paymentLink2,
-          },
-          taskId: existingTask.id,
-          stepOrder,
-        });
-
-        logger.app("INFO", "Invoice worker: task advanced + email queued", undefined, {
-          ...logCtx,
-          from: existingTask.currentStep,
-          to: stepOrder,
-        });
-        return { advanced: true, from: existingTask.currentStep, to: stepOrder };
+        return { skipped: true, reason: "Already at or past this step" };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isRetryableError(e)) {
+          logger.app("WARN", "Invoice worker: transient error, will retry", msg, logCtx);
+          throw e; // Re-throw so BullMQ retries with backoff
+        }
+        logger.app("ERROR", "Invoice worker: non-retryable error", msg, logCtx);
+        return { skipped: true, reason: `Internal error: ${msg}` };
       }
-
-      return { skipped: true, reason: "Already at or past this step" };
     },
     {
       connection: { url: REDIS_URL },
@@ -286,22 +297,43 @@ export function createReplyWorker(): Worker<ReplyJob> {
     async (job) => {
       const { taskId, fromEmail, subject, body, emailMessageId } = job.data;
 
-      const result = await processReply({
-        taskId,
-        fromEmail,
-        subject,
-        body,
-        emailMessageId,
-      });
+      try {
+        const result = await processReply({
+          taskId,
+          fromEmail,
+          subject,
+          body,
+          emailMessageId,
+        });
 
-      logger.app("INFO", "Reply worker: processed", undefined, {
-        taskId,
-        intent: result.intent,
-        confidence: result.confidence,
-        canAutoResolve: result.canAutoResolve,
-      });
+        logger.app("INFO", "Reply worker: processed", undefined, {
+          taskId,
+          intent: result.intent,
+          confidence: result.confidence,
+          canAutoResolve: result.canAutoResolve,
+        });
 
-      return result;
+        return result;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isRetryableError(e)) {
+          logger.app("WARN", "Reply worker: transient error, will retry", msg, { taskId });
+          throw e; // Re-throw so BullMQ retries with backoff
+        }
+        logger.app("ERROR", "Reply worker: non-retryable error", msg, { taskId });
+        return {
+          success: false,
+          taskId,
+          intent: "UNRELATED" as const,
+          confidence: 0,
+          isDispute: false,
+          summary: "",
+          suggestedAction: "",
+          canAutoResolve: false,
+          autoResponse: null,
+          error: `Internal error: ${msg}`,
+        };
+      }
     },
     {
       connection: { url: REDIS_URL },

@@ -12,7 +12,7 @@ import type {
   ToneLevel,
 } from "~/types/collection";
 import type { TaskStatus, Channel, ReplyIntent, TriggerType } from "@prisma/client";
-import { COLLECTION, PAGINATION } from "~/lib/constants";
+import { COLLECTION, COLLECTION_RETRY, PAGINATION, isRetryableError } from "~/lib/constants";
 
 // ═══════════════════ Sequence CRUD ═══════════════════
 
@@ -523,20 +523,47 @@ export async function runCollectionSweep(): Promise<SweepResult> {
     });
 
     for (const { shopId } of activeSequences) {
-      try {
-        const shopResult = await sweepShop(shopId, todayStr, today);
-        result.shopsProcessed++;
-        result.invoicesMatched += shopResult.invoicesMatched;
-        result.emailsSent += shopResult.emailsSent;
-        result.emailsSkipped += shopResult.emailsSkipped;
-        result.tasksCreated += shopResult.tasksCreated;
-        result.tasksAdvanced += shopResult.tasksAdvanced;
-        result.errors += shopResult.errors;
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", `Shop ${shopId} sweep failed`, msg);
+      let swept = false;
+      let lastError: unknown;
+
+      for (let attempt = 0; attempt <= COLLECTION_RETRY.MAX_RETRIES; attempt++) {
+        try {
+          const shopResult = await sweepShop(shopId, todayStr, today);
+          result.shopsProcessed++;
+          result.invoicesMatched += shopResult.invoicesMatched;
+          result.emailsSent += shopResult.emailsSent;
+          result.emailsSkipped += shopResult.emailsSkipped;
+          result.tasksCreated += shopResult.tasksCreated;
+          result.tasksAdvanced += shopResult.tasksAdvanced;
+          result.errors += shopResult.errors;
+          swept = true;
+          break; // Success — exit retry loop
+        } catch (e: unknown) {
+          lastError = e;
+          const msg = e instanceof Error ? e.message : String(e);
+
+          if (!isRetryableError(e) || attempt === COLLECTION_RETRY.MAX_RETRIES) {
+            break; // Non-retryable or exhausted retries
+          }
+
+          const delay = Math.min(
+            COLLECTION_RETRY.BASE_DELAY_MS * Math.pow(2, attempt),
+            COLLECTION_RETRY.MAX_DELAY_MS,
+          );
+          logger.app(
+            "WARN",
+            `Shop ${shopId} sweep failed (attempt ${attempt + 1}/${COLLECTION_RETRY.MAX_RETRIES + 1}), retrying in ${delay}ms`,
+            msg,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+
+      if (!swept) {
+        const msg = lastError instanceof Error ? (lastError as Error).message : String(lastError ?? "Unknown error");
+        logger.app("WARN", `Shop ${shopId} sweep failed after retries`, msg);
         result.errors++;
-        result.errorsList.push(msg);
+        result.errorsList.push(`Shop ${shopId}: ${msg}`);
       }
     }
   } finally {

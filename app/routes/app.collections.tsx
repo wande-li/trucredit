@@ -15,7 +15,6 @@ import {
   EmptyState,
   Modal,
   TextField,
-  Select,
   FormLayout,
   InlineStack,
   BlockStack,
@@ -31,16 +30,17 @@ import {
   deleteSequence,
   updateSequence,
 } from "~/services/collection.server";
-import type { TriggerType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import { TONE_LABELS } from "~/lib/constants";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "manage_collections");
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
@@ -61,7 +61,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "manage_collections");
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -82,7 +83,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         const name = formData.get("name")?.toString()?.trim();
         const description = formData.get("description")?.toString()?.trim();
-        const triggerType = (formData.get("triggerType")?.toString() ?? "OVERDUE") as TriggerType;
         const triggerDays = parseInt(formData.get("triggerDays")?.toString() ?? "0", 10);
 
         if (!name) return json({ error: "Name is required" }, { status: 400 });
@@ -91,7 +91,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           shopId,
           name,
           description: description || undefined,
-          triggerType,
+          triggerType: "OVERDUE",
           triggerDays,
         });
         return redirect(`/app/collections/${seq!.id}`);
@@ -130,14 +130,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };
-
-const TRIGGER_LABELS: Record<string, string> = {
-  BEFORE_DUE: "Before Due Date",
-  ON_DUE: "On Due Date",
-  OVERDUE: "Overdue",
-};
-
-
 
 export default function CollectionsPage() {
   const location = useLocation();
@@ -221,7 +213,6 @@ export default function CollectionsPage() {
               selectable={false}
               headings={[
                 { title: "Name" },
-                { title: "Trigger" },
                 { title: "Steps" },
                 { title: "Tone Range" },
                 { title: "Status" },
@@ -244,18 +235,6 @@ export default function CollectionsPage() {
                           <Text as="span" fontWeight="bold">{seq.name}</Text>
                         </Link>
                         {seq.isDefault && <Tag>Default</Tag>}
-                      </InlineStack>
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>
-                      <InlineStack gap="100">
-                        <Badge tone="info">{TRIGGER_LABELS[seq.triggerType] ?? seq.triggerType}</Badge>
-                        <Text as="span" tone="subdued">
-                          {seq.triggerType === "BEFORE_DUE"
-                            ? `${Math.abs(seq.triggerDays)}d before`
-                            : seq.triggerDays === 0
-                              ? "immediately"
-                              : `${seq.triggerDays}d after`}
-                        </Text>
                       </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
@@ -371,7 +350,6 @@ function CreateSequenceModal({
   const formRef = useRef<HTMLFormElement>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [triggerType, setTriggerType] = useState("OVERDUE");
   const [triggerDays, setTriggerDays] = useState("0");
 
   const handleSubmit = useCallback(() => {
@@ -413,24 +391,14 @@ function CreateSequenceModal({
               multiline={2}
               placeholder="Optional description of when this sequence applies"
             />
-            <Select
-              label="Trigger"
-              name="triggerType"
-              value={triggerType}
-              onChange={setTriggerType}
-              options={["BEFORE_DUE", "ON_DUE", "OVERDUE"].map((v) => ({
-                label: TRIGGER_LABELS[v] ?? v,
-                value: v,
-              }))}
-            />
             <TextField
-              label={triggerType === "BEFORE_DUE" ? "Days Before Due" : "Days After Due"}
+              label="Trigger Days"
               name="triggerDays"
               value={triggerDays}
               onChange={setTriggerDays}
               type="number"
               autoComplete="off"
-              helpText={triggerType === "BEFORE_DUE" ? "Start this many days before the due date" : "Start this many days after the due date"}
+              helpText="Days relative to due date (negative = before, 0 = on due, positive = after)"
             />
           </FormLayout>
         </form>

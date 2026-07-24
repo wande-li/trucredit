@@ -27,6 +27,7 @@ import {
 import type { RuleConditions, RuleActionValue } from "~/services/credit-rule.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
+import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 
 const ACTION_OPTIONS: Array<{ label: string; value: CreditAction }> = [
@@ -50,7 +51,8 @@ const GRADE_OPTIONS = [
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const isNew = params.id === "new";
     if (isNew) {
@@ -75,7 +77,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();

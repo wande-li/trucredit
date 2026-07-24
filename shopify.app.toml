@@ -10,6 +10,9 @@ handle = "trucredit"
 [build]
 automatically_update_urls_on_dev = false
 
+extension_directories = ["extensions/"]
+web_directories = ["."]
+
 [webhooks]
 api_version = "2025-10"
 

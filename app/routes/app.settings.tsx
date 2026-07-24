@@ -16,10 +16,13 @@ import {
   Spinner,
   Box,
   InlineStack,
+  Badge,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
+import { getAvailableActions } from "~/services/rbac.server";
+import { ROLE_LABELS, type Role } from "~/lib/constants";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 
@@ -54,7 +57,7 @@ type ActionData = {
 // ── Loader ──
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopDomain } = await resolveShop(request);
+    const { shopDomain, role } = await resolveShop(request);
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
       select: { currency: true, timezone: true, emailFromName: true, emailReplyTo: true },
@@ -62,7 +65,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
-    return json({ settings: shop });
+    return json({
+      settings: shop,
+      role,
+      roleLabel: ROLE_LABELS[role],
+      permissions: getAvailableActions(role),
+    });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -124,8 +132,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 // ── Component ──
+function roleBadgeTone(role: Role): "success" | "attention" | "info" {
+  if (role === "admin") return "success";
+  if (role === "manager") return "attention";
+  return "info";
+}
+
 export default function SettingsPage() {
-  const { settings } = useLoaderData<typeof loader>();
+  const { settings, role, roleLabel, permissions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
   const isSubmitting = fetcher.state === "submitting";
   const [dismissedSuccess, setDismissedSuccess] = useState(false);
@@ -221,6 +235,36 @@ export default function SettingsPage() {
                 </Button>
               </FormLayout>
             </fetcher.Form>
+          </BlockStack>
+        </Card>
+
+        {/* ═══ Role & Permissions ═══ */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Role & Permissions
+            </Text>
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="span" variant="bodyMd" tone="subdued">
+                Your role:
+              </Text>
+              <Badge tone={roleBadgeTone(role)}>{roleLabel}</Badge>
+            </InlineStack>
+            <BlockStack gap="200">
+              <Text as="span" variant="bodyMd" tone="subdued">
+                Allowed actions:
+              </Text>
+              <InlineStack gap="200" wrap>
+                {permissions.map((perm) => (
+                  <Badge key={perm} tone="info">
+                    {perm.replace(/_/g, " ")}
+                  </Badge>
+                ))}
+              </InlineStack>
+            </BlockStack>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Role is derived from your Shopify account type. Account owners default to Admin. Collaborators default to Viewer. Contact your account owner if you need elevated permissions.
+            </Text>
           </BlockStack>
         </Card>
 

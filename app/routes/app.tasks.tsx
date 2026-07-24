@@ -26,6 +26,7 @@ import { PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 const STATUS_MAP: Record<string, { label: string; tone: "success" | "attention" | "critical" | "info" | "new" }> = {
   PENDING: { label: "Pending", tone: "new" },
@@ -282,6 +283,7 @@ export default function TasksPage() {
       title="Collection Tasks"
       subtitle={`${summary.active} active, ${summary.paused} paused, ${summary.escalated} escalated`}
     >
+      <ActionToast fetcher={fetcher} successMessage="Task updated successfully" />
       <BlockStack gap="400">
         {actionError && !errorDismissed && (
           <Banner tone="critical" onDismiss={() => setErrorDismissed(true)}>

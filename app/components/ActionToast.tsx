@@ -18,7 +18,7 @@ interface Props {
   errorMessage?: string;
 }
 
-export function ActionToast({ fetcher, successMessage, errorMessage }: Props) {
+export default function ActionToast({ fetcher, successMessage, errorMessage }: Props) {
   const { showSuccess, showError } = useAppToast();
   const lastFiredRef = useRef<unknown>(null);
 

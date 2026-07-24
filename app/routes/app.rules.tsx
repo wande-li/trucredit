@@ -17,7 +17,7 @@ import {
   Pagination,
   Button,
 } from "@shopify/polaris";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server";
 import prisma from "~/db.server";
@@ -27,6 +27,7 @@ import { checkPlanAccess } from "~/services/billing.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+import ActionToast from "~/components/ActionToast";
 
 const ACTION_LABELS: Record<CreditAction, string> = {
   SET_LIMIT: "Set Limit",
@@ -209,21 +210,6 @@ export default function RulesPage() {
   const navigate = useNavigate();
   const { items, page, totalPages, total } = result;
   const actionError = fetcher.data?.error;
-  const successHandledRef = useRef(false);
-  const [visibleSuccess, setVisibleSuccess] = useState(false);
-
-  // Auto-dismiss success banner (Remix auto-revalidates loader after action)
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.success && !successHandledRef.current) {
-      successHandledRef.current = true;
-      setVisibleSuccess(true);
-      const t = setTimeout(() => setVisibleSuccess(false), 3000);
-      return () => clearTimeout(t);
-    }
-    if (fetcher.state === "submitting") {
-      successHandledRef.current = false;
-    }
-  }, [fetcher.state, fetcher.data?.success]);
 
   const handlePageChange = useCallback(
     (newPage: number) => {
@@ -240,9 +226,9 @@ export default function RulesPage() {
       title="Credit Rules"
       subtitle={`${total} total`}
     >
+      <ActionToast fetcher={fetcher} successMessage="Action completed successfully" />
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
-        {visibleSuccess && <Banner tone="success">Action completed successfully.</Banner>}
 
         <Card>
           <InlineStack align="space-between" blockAlign="center">

@@ -24,6 +24,7 @@ import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
 import { checkInvoiceQuota } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -185,6 +186,7 @@ export default function NewInvoice() {
       title="Create Invoice"
       backAction={{ content: "Invoices", url: "/app/invoices" }}
     >
+      <ActionToast fetcher={fetcher} successMessage="Invoice created successfully" />
       <BlockStack gap="400">
         {fetcher.data?.error && (
           <Banner tone="critical" onDismiss={() => {}}>

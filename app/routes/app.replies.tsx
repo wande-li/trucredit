@@ -28,6 +28,7 @@ import type { ReplyIntent } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 const REPLY_INTENT_LABELS: Record<string, string> = {
   WILL_PAY: "Will Pay",
@@ -178,6 +179,7 @@ export default function RepliesPage() {
       title="Reply Inbox"
       subtitle="Customer email replies — AI-classified for fast triage"
     >
+      <ActionToast fetcher={fetcher} successMessage="Reply resolved successfully" />
       <BlockStack gap="400">
         {actionData?.error && !bannerDismissed && (
           <Banner tone="critical" onDismiss={() => setBannerDismissed(true)}>

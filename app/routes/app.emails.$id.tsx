@@ -26,6 +26,7 @@ import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 // ═══════════════════ Loader ═══════════════════
 
@@ -159,24 +160,12 @@ export default function EmailTemplateDetail() {
   const [aiStage, setAiStage] = useState("STAGE_PLUS_7");
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null);
 
-  // Toast
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastMessage(null), 3000);
-  }, []);
-
   // Watch fetcher for update/delete results
   const prevState = useRef(fetcher.state);
   if (prevState.current !== fetcher.state && fetcher.state === "idle" && fetcherData) {
     prevState.current = fetcher.state;
     if (fetcherData.success && fetcherData.generatedEmail) {
       setGeneratedEmail(fetcherData.generatedEmail);
-      showToast("AI email generated");
-    } else if (fetcherData.success && !fetcherData.generatedEmail) {
-      showToast("Template saved");
     } else if (!fetcherData.success) {
       // Error shown via banner
     }
@@ -239,13 +228,7 @@ export default function EmailTemplateDetail() {
         { content: "Delete", destructive: true, onAction: () => setShowDelete(true) },
       ]}
     >
-      {/* Toast */}
-      {toastMessage && (
-        <Banner tone="success" onDismiss={() => setToastMessage(null)}>
-          {toastMessage}
-        </Banner>
-      )}
-
+      <ActionToast fetcher={fetcher} successMessage="Changes saved successfully" />
       {/* Error */}
       {fetcherData && !fetcherData.success && (
         <Banner tone="critical">

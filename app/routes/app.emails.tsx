@@ -29,6 +29,7 @@ import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+import ActionToast from "~/components/ActionToast";
 
 // ═══════════════════ Loader ═══════════════════
 
@@ -135,7 +136,6 @@ export default function EmailsPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [dismissedSuccess, setDismissedSuccess] = useState(false);
 
   const handlePageChange = useCallback(
     (newPage: number) => {
@@ -155,8 +155,6 @@ export default function EmailsPage() {
     );
     setDeleteTarget(null);
   }, [deleteTarget, fetcher]);
-
-  const showSuccess = fetcher.data?.success && !dismissedSuccess;
 
   const rowMarkup = items.map((tpl, index) => (
     <IndexTable.Row
@@ -213,6 +211,7 @@ export default function EmailsPage() {
         </Button>
       }
     >
+      <ActionToast fetcher={fetcher} successMessage="Template saved successfully" />
       <BlockStack gap="400">
         {/* Error banner */}
         {fetcher.data && !fetcher.data.success && (fetcher.data as { error?: string }).error && (
@@ -221,12 +220,6 @@ export default function EmailsPage() {
             onDismiss={() => revalidator.revalidate()}
           >
             <Text as="p">{(fetcher.data as { error?: string }).error}</Text>
-          </Banner>
-        )}
-
-        {showSuccess && (
-          <Banner tone="success" onDismiss={() => setDismissedSuccess(true)}>
-            <Text as="p">Template saved successfully</Text>
           </Banner>
         )}
 
@@ -284,7 +277,6 @@ export default function EmailsPage() {
         onClose={() => setShowCreate(false)}
         onCreated={() => {
           setShowCreate(false);
-          setDismissedSuccess(false);
         }}
       />
 

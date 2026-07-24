@@ -36,6 +36,7 @@ import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import { TONE_LABELS } from "~/lib/constants";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -188,6 +189,7 @@ export default function CollectionsPage() {
       subtitle="Manage automated collection workflows — configure timing, tone, and channels"
       primaryAction={items.length > 0 ? { content: "Create Sequence", onAction: toggleCreate } : undefined}
     >
+      <ActionToast fetcher={fetcher} successMessage="Sequence saved successfully" />
       <BlockStack gap="400">
         {actionData?.error && !errorDismissed && (
           <Banner tone="critical" onDismiss={() => setErrorDismissed(true)}>

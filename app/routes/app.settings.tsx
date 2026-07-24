@@ -25,6 +25,7 @@ import { getAvailableActions } from "~/services/rbac.server";
 import { ROLE_LABELS, type Role } from "~/lib/constants";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+import ActionToast from "~/components/ActionToast";
 
 // ── Constants ──
 const TIMEZONES = [
@@ -142,30 +143,16 @@ export default function SettingsPage() {
   const { settings, role, roleLabel, permissions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
   const isSubmitting = fetcher.state === "submitting";
-  const [dismissedSuccess, setDismissedSuccess] = useState(false);
   const [dismissedError, setDismissedError] = useState(false);
 
-  // Reset dismiss flags when new fetcher data arrives
-  const successMsg =
-    fetcher.data && "success" in fetcher.data ? fetcher.data.success : null;
+  // Error message from fetcher data
   const errorMsg =
     fetcher.data && "error" in fetcher.data ? fetcher.data.error : null;
 
   return (
     <Page fullWidth title="Settings" subtitle="Manage your shop preferences">
+      <ActionToast fetcher={fetcher} successMessage="Settings saved successfully" />
       <BlockStack gap="500">
-        {/* Success Banner */}
-        {successMsg && !dismissedSuccess && (
-          <Banner
-            tone="success"
-            onDismiss={() => setDismissedSuccess(true)}
-          >
-            <Text as="p" variant="bodyMd">
-              {successMsg}
-            </Text>
-          </Banner>
-        )}
-
         {/* Error Banner */}
         {errorMsg && !dismissedError && (
           <Banner
@@ -187,7 +174,6 @@ export default function SettingsPage() {
             <fetcher.Form
               method="post"
               onSubmit={() => {
-                setDismissedSuccess(false);
                 setDismissedError(false);
               }}
             >

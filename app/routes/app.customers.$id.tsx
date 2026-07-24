@@ -33,6 +33,7 @@ import { CustomerStatusBadge } from "~/components/credit/CustomerStatusBadge";
 import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
 import prisma from "~/db.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -212,11 +213,9 @@ export default function CustomerDetailPage() {
       subtitle={customer.company ?? customer.email}
       backAction={{ url: "/app/customers" }}
     >
+      <ActionToast fetcher={fetcher} successMessage="Action completed successfully" />
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
-        {fetcher.data?.success && !actionError && (
-          <Banner tone="success">Action completed successfully.</Banner>
-        )}
 
         <Layout>
           {/* Credit Summary */}

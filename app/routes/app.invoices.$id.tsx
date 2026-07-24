@@ -24,8 +24,9 @@ import { logger } from "~/services/logger.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import prisma from "~/db.server";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -228,29 +229,17 @@ export default function InvoiceDetail() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [busyIntent, setBusyIntent] = useState<string | null>(null);
-  const [visibleSuccess, setVisibleSuccess] = useState(false);
-  const successHandledRef = useRef(false);
 
   const isPaid = invoice.status === "PAID";
   const isVoid = invoice.status === "VOID";
   const isEditable = !isPaid && !isVoid;
 
-  // Per-intent loading + auto-dismiss success (Remix auto-revalidates loader after action)
+  // Per-intent loading
   useEffect(() => {
-    if (fetcher.state === "submitting") {
-      successHandledRef.current = false;
-      return;
-    }
     if (fetcher.state === "idle") {
       setBusyIntent(null);
-      if (fetcher.data?.success && !successHandledRef.current) {
-        successHandledRef.current = true;
-        setVisibleSuccess(true);
-        const t = setTimeout(() => setVisibleSuccess(false), 3000);
-        return () => clearTimeout(t);
-      }
     }
-  }, [fetcher.state, fetcher.data?.success]);
+  }, [fetcher.state]);
 
   const handleMarkPaid = useCallback(() => {
     setShowPaymentMethod(true);
@@ -261,7 +250,6 @@ export default function InvoiceDetail() {
       const formData = new FormData();
       formData.set("intent", "mark-paid");
       if (paymentMethod) formData.set("paymentMethod", paymentMethod);
-      setVisibleSuccess(false);
       setBusyIntent("mark-paid");
       fetcher.submit(formData, { method: "POST" });
       setShowPaymentMethod(false);
@@ -274,7 +262,6 @@ export default function InvoiceDetail() {
       const formData = new FormData();
       formData.set("intent", "update-status");
       formData.set("newStatus", newStatus);
-      setVisibleSuccess(false);
       setBusyIntent("update-status");
       fetcher.submit(formData, { method: "POST" });
     },
@@ -288,19 +275,13 @@ export default function InvoiceDetail() {
       title={`Invoice ${invoice.invoiceNumber}`}
       backAction={{ content: "Invoices", url: "/app/invoices" }}
     >
+      <ActionToast fetcher={fetcher} successMessage="Invoice updated successfully" />
       <BlockStack gap="400">
         {/* Feedback */}
         {fetcher.data?.error && (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
               {fetcher.data.error}
-            </Text>
-          </Banner>
-        )}
-        {visibleSuccess && (
-          <Banner tone="success">
-            <Text as="p" variant="bodyMd">
-              Invoice updated successfully.
             </Text>
           </Banner>
         )}

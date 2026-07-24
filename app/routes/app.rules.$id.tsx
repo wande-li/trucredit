@@ -29,6 +29,7 @@ import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 const ACTION_OPTIONS: Array<{ label: string; value: CreditAction }> = [
   { label: "Set Credit Limit", value: "SET_LIMIT" },
@@ -312,6 +313,7 @@ export default function RuleEditPage() {
       title={isNew ? "Add Credit Rule" : "Edit Credit Rule"}
       backAction={{ url: "/app/rules" }}
     >
+      <ActionToast fetcher={fetcher} successMessage="Rule saved successfully" />
       <BlockStack gap="400">
         {error && <Banner tone="critical">{error}</Banner>}
 

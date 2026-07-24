@@ -34,6 +34,7 @@ import type { Channel } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -210,6 +211,7 @@ export default function CollectionDetailPage() {
       subtitle={sequence.isDefault ? "Default Sequence" : "Custom Sequence"}
       backAction={{ content: "Sequences", url: "/app/collections" }}
     >
+      <ActionToast fetcher={fetcher} successMessage="Changes saved successfully" />
       <Layout>
         {/* Main Column */}
         <Layout.Section>
@@ -217,14 +219,6 @@ export default function CollectionDetailPage() {
             <Box paddingBlockEnd="400">
               <Banner tone="critical" onDismiss={() => {}}>
                 {actionData.error}
-              </Banner>
-            </Box>
-          )}
-
-          {actionData?.success && !actionData.error && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="success" onDismiss={() => {}}>
-                Changes saved successfully.
               </Banner>
             </Box>
           )}

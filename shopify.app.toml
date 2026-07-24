@@ -25,7 +25,9 @@ api_version = "2025-10"
     "customers/update",
     "companies/create",
     "companies/update",
-    "app_subscriptions/update"
+    "app_subscriptions/update",
+    "draft_orders/complete",
+    "draft_orders/delete"
   ]
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 

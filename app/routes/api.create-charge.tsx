@@ -2,8 +2,8 @@
 // Uses admin.graphql() directly to bypass SDK billing layer and get detailed errors
 import type { ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
-import { authenticate } from '~/shopify.server';
 import {
+  authenticate,
   PLAN_STARTER_MONTHLY,
   PLAN_STARTER_ANNUAL,
   PLAN_PRO_MONTHLY,

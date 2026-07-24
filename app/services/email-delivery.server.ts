@@ -7,10 +7,10 @@ import { getTemplate, fillTemplate, stageToTemplateKey } from "~/services/email.
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { TemplateType } from "@prisma/client";
 import type { CollectionStage, ToneLevel } from "~/types/collection";
-import redis from "~/lib/redis.server";
+import redis, { REDIS_PREFIX } from "~/lib/redis.server";
 
 // P2-7: Rate limit — 1 test email per 60s per recipient
-const TEST_EMAIL_RATE = { max: 1, window: 60, prefix: "b2b:test-email-rate:" };
+const TEST_EMAIL_RATE = { max: 1, window: 60, prefix: `${REDIS_PREFIX}email:test:rate:` };
 
 // ═══════════════════ SES Client ═══════════════════
 

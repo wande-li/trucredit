@@ -111,7 +111,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+    logger.app("ERROR", "Replies action failed", msg);
+    return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };
 
@@ -238,7 +239,7 @@ export default function RepliesPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Text as="span">
-                        {evt.task?.customer?.name ?? evt.task?.invoice?.customer?.name ?? "—"}
+                        {inv?.customerId ?? "—"}
                       </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>

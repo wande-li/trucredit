@@ -56,11 +56,17 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
   } catch (e: unknown) {
     // authenticate.admin() throws Response on auth failure
     if (e instanceof Response) {
-      // Fallback: look up shop from DB session table
       const shopParam = url.searchParams.get("shop") || undefined;
 
+      // SECURITY: shopParam is required for DB fallback — without it,
+      // we cannot determine tenant and MUST redirect to auth.
+      if (!shopParam) {
+        throw e;
+      }
+
+      // Fallback: look up shop from DB session table (tenant-scoped by shopParam)
       const dbSession = await prisma.session.findFirst({
-        where: shopParam ? { shop: shopParam } : undefined,
+        where: { shop: shopParam },
         orderBy: { id: "desc" },
         select: { shop: true },
       });
@@ -68,7 +74,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
       let shopDomain: string | null = null;
       if (dbSession?.shop) {
         shopDomain = dbSession.shop.trim();
-      } else if (shopParam) {
+      } else {
         const anyShop = await prisma.shop.findFirst({
           where: { shopDomain: shopParam },
           select: { shopDomain: true },
@@ -92,7 +98,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
         }
       }
 
-      // No shop or session in DB at all — must redirect to auth
+      // No shop or session in DB — must redirect to auth
       throw e;
     }
 

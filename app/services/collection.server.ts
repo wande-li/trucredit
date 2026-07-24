@@ -3,7 +3,7 @@
 
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
-import redis from "~/lib/redis.server";
+import redis, { keys } from "~/lib/redis.server";
 import { daysToStage, stageToTone, isValidTransition } from "~/types/collection";
 import type {
   SweepResult,
@@ -350,8 +350,9 @@ export async function advanceTask(params: {
 
   // Check if sequence is complete
   if (nextStep > steps.length) {
-    await prisma.collectionTask.update({
-      where: { id: params.taskId },
+    // P1-4: DB-level status guard — prevent overwriting webhook-completed tasks
+    await prisma.collectionTask.updateMany({
+      where: { id: params.taskId, status: { notIn: ["COMPLETED", "STOPPED"] } },
       data: {
         status: "COMPLETED",
         completedAt: new Date(),
@@ -370,8 +371,9 @@ export async function advanceTask(params: {
   const nextStepAt = new Date();
   nextStepAt.setDate(nextStepAt.getDate() + stepDef.delayDays);
 
-  await prisma.collectionTask.update({
-    where: { id: params.taskId },
+  // P1-4: DB-level status guard — use task.status to prevent TOCTOU race
+  await prisma.collectionTask.updateMany({
+    where: { id: params.taskId, status: task.status },
     data: {
       status: targetStatus,
       currentStep: nextStep,
@@ -390,18 +392,25 @@ export async function pauseTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
-  await prisma.collectionTask.update({
-    where: { id: params.taskId, sequence: { shopId: params.shopId } },
-    data: {
-      status: "PAUSED",
-      events: {
-        create: {
-          type: "MANUAL_NOTE",
-          actionTaken: `PAUSED: ${params.reason}`,
-        },
+  // P1-4: DB-level status guard — only pause active/pending tasks
+  // Split into updateMany + event.create because updateMany doesn't support nested create
+  await prisma.$transaction([
+    prisma.collectionTask.updateMany({
+      where: {
+        id: params.taskId,
+        sequence: { shopId: params.shopId },
+        status: { in: ["ACTIVE", "PENDING", "ESCALATED"] },
       },
-    },
-  });
+      data: { status: "PAUSED" },
+    }),
+    prisma.collectionEvent.create({
+      data: {
+        taskId: params.taskId,
+        type: "MANUAL_NOTE",
+        actionTaken: `PAUSED: ${params.reason}`,
+      },
+    }),
+  ]);
 }
 
 /**
@@ -412,8 +421,13 @@ export async function stopTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
-  await prisma.collectionTask.update({
-    where: { id: params.taskId, sequence: { shopId: params.shopId } },
+  // P1-4: DB-level status guard — only stop non-completed tasks
+  await prisma.collectionTask.updateMany({
+    where: {
+      id: params.taskId,
+      sequence: { shopId: params.shopId },
+      status: { notIn: ["COMPLETED", "STOPPED"] },
+    },
     data: {
       status: "STOPPED",
       completedAt: new Date(),
@@ -430,26 +444,33 @@ export async function escalateTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
-  await prisma.collectionTask.update({
-    where: { id: params.taskId, sequence: { shopId: params.shopId } },
-    data: {
-      status: "ESCALATED",
-      events: {
-        create: {
-          type: "ESCALATED",
-          actionTaken: params.reason,
-        },
+  // P1-4: DB-level status guard — only escalate active tasks
+  // Split into updateMany + event.create because updateMany doesn't support nested create
+  await prisma.$transaction([
+    prisma.collectionTask.updateMany({
+      where: {
+        id: params.taskId,
+        sequence: { shopId: params.shopId },
+        status: "ACTIVE",
       },
-    },
-  });
+      data: { status: "ESCALATED" },
+    }),
+    prisma.collectionEvent.create({
+      data: {
+        taskId: params.taskId,
+        type: "ESCALATED",
+        actionTaken: params.reason,
+      },
+    }),
+  ]);
 }
 
 // ═══════════════════ Sweep Engine ═══════════════════
 // Adapted from CollectFlow's runCollectionSweep()
 
 // P1-1: Redis distributed lock to prevent overlapping sweeps
-const SWEEP_LOCK_KEY = "b2b:sweep:lock";
 const SWEEP_LOCK_TTL = 300; // 5-minute lock
+const SWEEP_LOCK_KEY = keys.sweepLock("global");
 
 /**
  * Run a full collection sweep — match overdue invoices to sequences, create/advance tasks

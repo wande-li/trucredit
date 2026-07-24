@@ -27,6 +27,7 @@ import prisma from "~/db.server";
 import { getShopBilling } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
 import { logger } from "~/services/logger.server";
+import redis, { keys } from "~/lib/redis.server";
 import OnboardingGuide from "~/components/OnboardingGuide";
 import QuickTips from "~/components/QuickTips";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -36,50 +37,87 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
 
-    const shop = await prisma.shop.findUnique({
-      where: { id: shopId },
-      include: {
-        _count: { select: { customers: true, invoices: true } },
-      },
-    });
+    // P2: Redis cache — avoid 9 DB queries on every dashboard load (TTL 30s)
+    const cacheKey = keys.dashboardCache(shopId);
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return json(JSON.parse(cached), {
+          headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
+        });
+      }
+    } catch {
+      // Redis unavailable → fall through to DB
+    }
 
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    // P1-4: Cache stampede protection — distributed lock when cache is cold
+    const lockKey = keys.dashboardLock(shopId);
+    let lockAcquired = false;
+    try {
+      lockAcquired = (await redis.set(lockKey, "1", "EX", 5, "NX")) === "OK";
+    } catch {
+      // Redis lock unavailable → proceed without lock
+    }
 
-    const [overdueInvoices, activeCustomers, frozenCustomers, billing, agingReport, activeTasks, totalRules] =
-      await Promise.all([
-        prisma.invoice.count({ where: { shopId: shop.id, status: "OVERDUE" } }),
-        prisma.customer.count({ where: { shopId: shop.id, status: "ACTIVE" } }),
-        prisma.customer.count({ where: { shopId: shop.id, isFrozen: true } }),
-        getShopBilling(shop.id),
-        getARAgingReport(shop.id),
-        prisma.collectionTask.count({
-          where: {
-            sequence: { shopId: shop.id },
-            status: { in: ["PENDING", "ACTIVE", "PAUSED", "ESCALATED"] },
-          },
-        }),
-        prisma.creditRule.count({ where: { shopId: shop.id } }),
-      ]);
+    if (!lockAcquired) {
+      // Another request is rebuilding — wait briefly then retry cache
+      await new Promise((r) => setTimeout(r, 150));
+      try {
+        const retried = await redis.get(cacheKey);
+        if (retried) {
+          return json(JSON.parse(retried), {
+            headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
+          });
+        }
+      } catch {
+        // Fall through to DB
+      }
+    }
 
-    const recentCustomers = await prisma.customer.findMany({
-      where: { shopId: shop.id },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, name: true, company: true, creditGrade: true, status: true },
-    });
+    // Eliminate duplicate shop read: getShopBilling already fetches shop + _count
+    const billing = await getShopBilling(shopId);
 
-    const overdueTotal = await prisma.invoice.aggregate({
-      where: { shopId: shop.id, status: "OVERDUE" },
-      _sum: { amount: true },
-    });
+    // Parallelize all remaining reads (7 queries) + eliminate separate shop.findUnique
+    const [
+      overdueInvoices,
+      activeCustomers,
+      frozenCustomers,
+      agingReport,
+      activeTasks,
+      totalRules,
+      recentCustomers,
+      overdueTotal,
+    ] = await Promise.all([
+      prisma.invoice.count({ where: { shopId, status: "OVERDUE" } }),
+      prisma.customer.count({ where: { shopId, status: "ACTIVE" } }),
+      prisma.customer.count({ where: { shopId, isFrozen: true } }),
+      getARAgingReport(shopId),
+      prisma.collectionTask.count({
+        where: {
+          sequence: { shopId },
+          status: { in: ["PENDING", "ACTIVE", "PAUSED", "ESCALATED"] },
+        },
+      }),
+      prisma.creditRule.count({ where: { shopId } }),
+      prisma.customer.findMany({
+        where: { shopId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, name: true, company: true, creditGrade: true, status: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { shopId, status: "OVERDUE" },
+        _sum: { amount: true },
+      }),
+    ]);
 
-    return json({
+    const payload = {
       plan: billing.plan,
       planName: billing.planName,
       subscriptionStatus: billing.subscriptionStatus,
       stats: {
-        totalCustomers: shop._count.customers,
-        totalInvoices: shop._count.invoices,
+        totalCustomers: billing.customerCount,
+        totalInvoices: billing.invoiceCount,
         overdueInvoices,
         activeCustomers,
         frozenCustomers,
@@ -109,6 +147,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       collectionStats: { activeTasks },
       recentCustomers,
+    };
+
+    // Cache for 30 seconds
+    try {
+      await redis.setex(cacheKey, 30, JSON.stringify(payload));
+    } catch {
+      // Redis write failed — non-blocking
+    }
+
+    // Release lock if we hold it (non-blocking — TTL will expire otherwise)
+    if (lockAcquired) {
+      try { await redis.del(lockKey); } catch { /* non-critical */ }
+    }
+
+    return json(payload, {
+      headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
     });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -345,8 +399,8 @@ export default function Dashboard() {
                 </InlineStack>
 
                 <BlockStack gap="400">
-                  {aging.buckets.map((bucket) => {
-                    const maxAmount = Math.max(...aging.buckets.map((b) => Number(b.totalAmount)), 1);
+                  {aging.buckets.map((bucket: { label: string; count: number; totalAmount: string }) => {
+                    const maxAmount = Math.max(...aging.buckets.map((b: { totalAmount: string }) => Number(b.totalAmount)), 1);
                     const pct = Math.round((Number(bucket.totalAmount) / maxAmount) * 100) || 2;
                     const color = agingBarColor(bucket.label);
                     return (
@@ -487,7 +541,7 @@ export default function Dashboard() {
                 </Box>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-                  {recentCustomers.map((c) => (
+                  {recentCustomers.map((c: { id: string; name: string; company?: string | null; creditGrade: string; status: string }) => (
                     <CustomerCard key={c.id} customer={c} />
                   ))}
                 </div>

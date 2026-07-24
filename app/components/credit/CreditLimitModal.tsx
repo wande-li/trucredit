@@ -39,7 +39,7 @@ export function CreditLimitModal({
   const isBusy = fetcher.state === "submitting";
   const error = fetcher.data?.error;
 
-  const numericNewLimit = parseFloat(newLimit);
+  const numericNewLimit = parseFloat(newLimit) || 0;
   const isOver2x = numericNewLimit > recommendation.recommendedLimit * 2;
   const isOver50pct =
     recommendation.score < 70 &&

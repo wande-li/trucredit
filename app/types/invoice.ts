@@ -18,6 +18,7 @@ export interface InvoiceRecord {
   issueDate: Date;
   dueDate: Date;
   paidDate: Date | null;
+  voidedAt?: Date | null;
   netTermsDays: number;
   status: InvoiceStatus;
   daysOverdue: number;

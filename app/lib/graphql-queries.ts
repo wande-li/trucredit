@@ -120,7 +120,7 @@ export const DRAFT_ORDER_CREATE = `#graphql
 export const DRAFT_ORDER_INVOICE_SEND = `#graphql
   mutation DraftOrderInvoiceSend($id: ID!, $email: EmailInput) {
     draftOrderInvoiceSend(id: $id, email: $email) {
-      draftOrder { id invoiceSentAt }
+      draftOrder { id invoiceUrl invoiceSentAt }
       userErrors { field message }
     }
   }

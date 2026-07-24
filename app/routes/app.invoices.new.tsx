@@ -104,14 +104,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const shopifyOrderName = formData.get("shopifyOrderName")?.toString() || undefined;
 
     if (!customerId) return json({ error: "Please select a customer." }, { status: 400 });
-    if (!amountStr || isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0) {
+    const amount = parseFloat(amountStr || "0");
+    if (!amountStr || Number.isNaN(amount) || amount <= 0) {
       return json({ error: "Please enter a valid amount." }, { status: 400 });
     }
     if (!invoiceNumber) {
       return json({ error: "Invoice number is required." }, { status: 400 });
     }
-
-    const amount = parseFloat(amountStr);
     const netTermsDays = parseInt(netTermsDaysStr ?? String(COLLECTION.DEFAULT_NET_TERMS), 10);
 
     const invoice = await createInvoice({
@@ -134,7 +133,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+    logger.app("ERROR", "New invoice action failed", msg);
+    return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };
 

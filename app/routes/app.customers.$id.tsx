@@ -501,9 +501,7 @@ export default function CustomerDetailPage() {
                         borderWidth="025"
                         borderRadius="200"
                         padding="200"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => navigate(`/app/invoices/${inv.id}`)}
-                      >
+                      ><div style={{ cursor: "pointer" }} onClick={() => navigate(`/app/invoices/${inv.id}`)}>
                           <InlineStack align="space-between" blockAlign="center">
                             <BlockStack gap="050">
                               <Text as="span" variant="bodyMd" fontWeight="bold">
@@ -531,7 +529,7 @@ export default function CustomerDetailPage() {
                               </Badge>
                             </BlockStack>
                           </InlineStack>
-                        </Box>
+                      </div></Box>
                     ))}
                   </BlockStack>
                 </Card>

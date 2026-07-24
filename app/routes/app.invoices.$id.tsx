@@ -121,7 +121,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const currentInvoice = await prisma.invoice.findFirst({
           where: { id: params.id, shopId },
-          select: { status: true, paidDate: true },
+          select: { id: true, status: true, paidDate: true, amount: true, customerId: true },
         });
 
         if (!currentInvoice) {
@@ -143,12 +143,50 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
         if (newStatus === "VOID") {
           updateData.daysOverdue = 0;
+          updateData.voidedAt = new Date();
         }
 
-        await prisma.invoice.update({
-          where: { id: params.id, shopId },
-          data: updateData,
+        const isReleasingCredit =
+          (newStatus === "PAID" || newStatus === "VOID") &&
+          currentInvoice.status !== "PAID";
+
+        const invoiceAmount = Number(currentInvoice.amount);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.invoice.update({
+            where: { id: params.id, shopId },
+            data: updateData,
+          });
+
+          // Release credit when transitioning to PAID or VOID
+          if (isReleasingCredit) {
+            await tx.customer.update({
+              where: { id: currentInvoice.customerId },
+              data: {
+                creditUsed: { decrement: invoiceAmount },
+                creditAvailable: { increment: invoiceAmount },
+              },
+            });
+
+            // Complete active collection tasks
+            await tx.collectionTask.updateMany({
+              where: { invoiceId: currentInvoice.id, status: "ACTIVE" },
+              data: {
+                status: "COMPLETED",
+                completedAt: new Date(),
+                completedReason: newStatus === "PAID" ? "paid" : "voided",
+              },
+            });
+          }
         });
+
+        // Sync metafield after credit release
+        if (isReleasingCredit) {
+          syncCreditMetafield(admin, shopDomain, currentInvoice.customerId).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Metafield sync failed after status change", msg);
+          });
+        }
 
         return json({ success: true });
       }

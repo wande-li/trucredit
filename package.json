@@ -1,5 +1,6 @@
 {
   "name": "trucredit",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "build": "prisma generate && remix vite:build",
@@ -19,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "shopify": "shopify",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
@@ -56,6 +58,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@remix-run/eslint-config": "^2.16.1",
     "@shopify/api-codegen-preset": "^1.1.1",
     "@types/eslint": "^9.6.1",

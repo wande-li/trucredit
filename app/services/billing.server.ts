@@ -2,7 +2,7 @@
 // Server-only, follows Wandex pattern: pure data in, pure data out
 
 import prisma from "~/db.server";
-import { PLAN_QUOTAS, resolvePlan, type PlanKey } from "~/lib/constants";
+import { PLAN_QUOTAS, PLAN_FEATURES, resolvePlan, type PlanKey } from "~/lib/constants";
 import {
   PLAN_STARTER_MONTHLY,
   PLAN_STARTER_ANNUAL,
@@ -288,13 +288,16 @@ export async function checkPlanAccess(shopId: string): Promise<{
     shop._count.customers >= quota.customers ||
     shop._count.invoices >= quota.invoices;
 
-  // Self-heal: if plan is non-FREE, the merchant has paid. Auto-correct stale status.
+  // Log mismatch: if plan is non-FREE but subscriptionStatus is not ACTIVE,
+  // this indicates a stale status that should be corrected by the webhook handler.
+  // Do NOT auto-heal here — only the Shopify Billing webhook can authoritatively
+  // confirm the subscription is truly active.
   if (resolvedPlan !== "FREE" && shop.subscriptionStatus !== "ACTIVE") {
-    await prisma.shop.update({
-      where: { id: shopId },
-      data: { subscriptionStatus: "ACTIVE" },
+    logger.app("WARN", "checkPlanAccess — subscriptionStatus mismatch (not auto-healed)", {
+      shopId,
+      plan: resolvedPlan,
+      status: shop.subscriptionStatus,
     });
-    logger.app("INFO", "checkPlanAccess — auto-healed subscriptionStatus to ACTIVE", { shopId, plan: resolvedPlan });
   }
 
   return {
@@ -330,14 +333,15 @@ export async function checkInvoiceQuota(
 
 /**
  * Check whether current plan has a specific feature.
- * Returns false for FREE plan and plans without the feature.
+ * Uses PLAN_FEATURES matrix (constants.ts) for type-safe feature lookup.
+ * Resolves plan aliases (e.g., GROWTH → STARTER) before checking.
  */
-export function hasFeature(plan: Plan, feature: keyof typeof import("~/lib/constants").PLAN_FEATURES): boolean {
-  // Dynamic import not possible at module level; use the PLAN_DEFINITIONS check instead
-  const def = PLANS.find((p) => p.key === plan);
-  if (!def) return false;
-  const feat = def.features.find((f) => f.key === feature);
-  return feat?.included ?? false;
+export function hasFeature(plan: Plan, feature: keyof typeof PLAN_FEATURES): boolean {
+  const resolvedPlan = resolvePlan(plan);
+  const featMap = PLAN_FEATURES[feature];
+  if (!featMap) return false;
+  // Type-keyed access on const object with PlanKey keys
+  return (featMap as Record<string, boolean>)[resolvedPlan] ?? false;
 }
 
 // ─── Webhook Handler ───────────────────────────────────────
@@ -379,9 +383,8 @@ export async function handleSubscriptionUpdate(
     data.trialDays = charge.trialDays;
   }
   if (charge.price) {
-    data.priceAmount = typeof charge.price === "string"
-      ? parseFloat(charge.price)
-      : charge.price;
+    const raw = typeof charge.price === "string" ? parseFloat(charge.price) : charge.price;
+    data.priceAmount = Number.isNaN(raw) ? 0 : raw;
   }
 
   // Update quota based on new plan
@@ -405,6 +408,12 @@ export async function handleSubscriptionUpdate(
     await prisma.shop.update({
       where: { shopDomain },
       data,
+    });
+    logger.app("INFO", "Subscription updated via webhook", undefined, {
+      shopDomain,
+      plan: String(data.plan),
+      status: String(data.subscriptionStatus),
+      chargeId: charge.id,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

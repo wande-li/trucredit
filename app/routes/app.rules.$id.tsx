@@ -124,8 +124,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const revMax = formData.get("revenueMax")?.toString();
     if (revMin || revMax) {
       conditions.totalRevenue = {};
-      if (revMin) conditions.totalRevenue.min = parseFloat(revMin);
-      if (revMax) conditions.totalRevenue.max = parseFloat(revMax);
+      if (revMin) {
+        const n = parseFloat(revMin);
+        conditions.totalRevenue.min = isNaN(n) ? 0 : n;
+      }
+      if (revMax) {
+        const n = parseFloat(revMax);
+        conditions.totalRevenue.max = isNaN(n) ? 0 : n;
+      }
     }
 
     const payMin = formData.get("payMin")?.toString();

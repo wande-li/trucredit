@@ -318,6 +318,7 @@ model Invoice {
   // Status
   status              InvoiceStatus  @default(PENDING)
   daysOverdue         Int            @default(0)
+  voidedAt            DateTime?
 
   // Payment
   paymentUrl          String?

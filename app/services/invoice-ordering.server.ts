@@ -19,14 +19,14 @@ interface GraphQLResult<T = unknown> {
 
 interface DraftOrderCreateResult {
   draftOrderCreate?: {
-    draftOrder?: { id: string };
+    draftOrder?: { id: string; invoiceUrl: string | null };
     userErrors: Array<{ field: string; message: string }>;
   };
 }
 
 interface DraftOrderInvoiceSendResult {
   draftOrderInvoiceSend?: {
-    draftOrder?: { id: string };
+    draftOrder?: { id: string; invoiceUrl: string | null };
     userErrors: Array<{ field: string; message: string }>;
   };
 }
@@ -141,7 +141,7 @@ export async function createCollectionDraftOrder(args: {
   customerEmail: string;
   shopifyCustomerId: string;
 }): Promise<{ draftOrderId: string | null; invoiceUrl: string | null }> {
-  const { shopId, customerId, invoiceId, invoiceNumber, amount, currency, customerEmail, shopifyCustomerId } = args;
+  const { shopId, customerId: _customerId, invoiceId, invoiceNumber, amount, currency: _currency, customerEmail, shopifyCustomerId } = args;
 
   // Get shop access token
   const shopToken = await getShopToken(shopId);
@@ -217,7 +217,7 @@ export async function createCollectionDraftOrder(args: {
       // Continue — draft order is still valid without payment terms
     }
 
-    // 3. Send invoice email
+    // 3. Send invoice email and get checkout URL
     const invoiceResult = await shopifyGraphQL<DraftOrderInvoiceSendResult>(
       domain,
       token,
@@ -237,7 +237,18 @@ export async function createCollectionDraftOrder(args: {
       return { draftOrderId: draftOrderGid, invoiceUrl: null };
     }
 
-    // 4. Record CollectionEvent via emailBody (no actionTaken field on schema)
+    // Extract Shopify checkout URL from the invoice-send response
+    const invoiceUrl = invoiceResult.data?.draftOrderInvoiceSend?.draftOrder?.invoiceUrl ?? null;
+
+    // 4. Persist payment URL + draft order ID to the invoice
+    if (invoiceUrl) {
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: { paymentUrl: invoiceUrl, shopifyDraftOrderId: draftOrderGid },
+      });
+    }
+
+    // 5. Record CollectionEvent via emailBody (no actionTaken field on schema)
     try {
       const task = await prisma.collectionTask.findFirst({
         where: { invoiceId, status: "ACTIVE" },
@@ -255,6 +266,7 @@ export async function createCollectionDraftOrder(args: {
             emailBody: JSON.stringify({
               source: "shopify_draft_order",
               draftOrderGid,
+              invoiceUrl,
               action: "invoice_sent_for_collection",
             }),
           },
@@ -265,13 +277,14 @@ export async function createCollectionDraftOrder(args: {
       logger.app("WARN", "Failed to record collection event for draft order", msg, { draftOrderGid });
     }
 
-    logger.app("INFO", "Collection draft order created + invoice sent", undefined, {
+    logger.app("INFO", "Collection draft order created + invoice sent + payment link stored", undefined, {
       shopId,
       invoiceId,
       draftOrderGid,
+      hasInvoiceUrl: !!invoiceUrl,
     });
 
-    return { draftOrderId: draftOrderGid, invoiceUrl: null };
+    return { draftOrderId: draftOrderGid, invoiceUrl };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "Collection draft order creation failed", msg, {

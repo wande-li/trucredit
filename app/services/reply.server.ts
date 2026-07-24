@@ -168,18 +168,24 @@ export async function processReply(params: {
   // Step 5: Handle dispute — auto-pause
   if (parsed.isDispute) {
     try {
-      await prisma.collectionTask.update({
-        where: { id: taskId },
-        data: {
-          status: "PAUSED",
-          events: {
-            create: {
-              type: "MANUAL_NOTE",
-              actionTaken: `PAUSED: Customer dispute — ${parsed.summary}`,
-            },
+      // P1-4: DB-level status guard — only pause active/pending tasks
+      // Split into updateMany + event.create because updateMany doesn't support nested create
+      await prisma.$transaction([
+        prisma.collectionTask.updateMany({
+          where: {
+            id: taskId,
+            status: { in: ["ACTIVE", "PENDING", "ESCALATED"] },
           },
-        },
-      });
+          data: { status: "PAUSED" },
+        }),
+        prisma.collectionEvent.create({
+          data: {
+            taskId,
+            type: "MANUAL_NOTE",
+            actionTaken: `PAUSED: Customer dispute — ${parsed.summary}`,
+          },
+        }),
+      ]);
       logger.app("INFO", "Task auto-paused due to dispute", { taskId });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

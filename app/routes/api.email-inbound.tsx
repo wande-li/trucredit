@@ -62,11 +62,13 @@ async function verifySnsSignature(body: Record<string, string>): Promise<boolean
   if (type === "Notification") {
     signableKeys.unshift("SubscribeURL" as never); // not actually used for Notification, but for ordering
   }
-  // Build exactly per AWS spec
+  // Build exactly per AWS spec:
+  // Notification: Message\nMessageId\nSubject\nTimestamp\nTopicArn\nType
+  // SubscriptionConfirmation: Message\nMessageId\nSubscribeURL\nTimestamp\nTopicArn\nType
   const stringToSign = [
     "Message",
     "MessageId",
-    ...(type === "Notification" ? [] : ["SubscribeURL"]),
+    ...(type === "Notification" ? ["Subject"] : ["SubscribeURL"]),
     "Timestamp",
     "TopicArn",
     "Type",

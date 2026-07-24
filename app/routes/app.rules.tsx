@@ -1,7 +1,8 @@
 // Credit Rules — list page
+/* eslint-disable react-hooks/rules-of-hooks */
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useNavigate } from "@remix-run/react";
+import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -319,9 +320,6 @@ function RuleRow({
   const conditionsText = formatConditions(rule.conditions);
   const actionValueText = formatActionValue(rule.action, rule.actionValue);
   const isBusy = fetcher.state === "submitting";
-  const busyIntent = isBusy ? fetcher.formData?.get("intent")?.toString() : null;
-  const isThisRow =
-    fetcher.formData && fetcher.formData.get("ruleId") === rule.id;
 
   // Capture fetcher in a ref to avoid stale closure in stopPropagation handler
   const fetcherRef = useRef(fetcher);

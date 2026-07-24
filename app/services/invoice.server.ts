@@ -12,6 +12,8 @@ import type {
   AgingBucket,
   PaginatedResult,
 } from "~/types";
+import { createCollectionDraftOrder } from "~/services/invoice-ordering.server";
+import { logger } from "~/services/logger.server";
 
 // Reusable select row types to avoid implicit any
 type InvListRow = {
@@ -246,21 +248,23 @@ export async function refreshOverdueDays(shopId: string): Promise<number> {
       status: { in: ["PENDING", "OVERDUE", "PARTIALLY_PAID", "DISPUTED"] },
       dueDate: { lt: now },
     },
-    select: { id: true, dueDate: true, daysOverdue: true },
+    select: { id: true, dueDate: true, daysOverdue: true, status: true },
   });
 
   let updated = 0;
 
   // Batch update: collect all changed invoices, then update concurrently in a transaction
-  const changes: Array<{ id: string; daysOverdue: number; status: InvoiceStatus }> = [];
+  const changes: Array<{ id: string; daysOverdue: number; status?: InvoiceStatus }> = [];
 
   for (const inv of overdueInvoices) {
     const newDays = calcOverdueDays(inv.dueDate, now);
     if (newDays !== inv.daysOverdue) {
+      // Preserve manual statuses (DISPUTED, PARTIALLY_PAID) — only auto-transition PENDING↔OVERDUE
+      const shouldUpdateStatus = !["DISPUTED", "PARTIALLY_PAID"].includes(inv.status as string);
       changes.push({
         id: inv.id,
         daysOverdue: newDays,
-        status: newDays > 0 ? "OVERDUE" : "PENDING",
+        ...(shouldUpdateStatus ? { status: (newDays > 0 ? "OVERDUE" : "PENDING") as InvoiceStatus } : {}),
       });
     }
   }
@@ -300,41 +304,64 @@ export async function createInvoice(params: {
   const dueDate = new Date(issueDate);
   dueDate.setDate(dueDate.getDate() + netTerms);
 
-  const invoice = await prisma.invoice.create({
-    data: {
+  const invoice = await prisma.$transaction(async (tx) => {
+    const inv = await tx.invoice.create({
+      data: {
+        shopId: params.shopId,
+        customerId: params.customerId,
+        invoiceNumber: params.invoiceNumber,
+        amount: params.amount,
+        currency: params.currency ?? "USD",
+        issueDate,
+        dueDate,
+        netTermsDays: netTerms,
+        status: "PENDING",
+        shopifyOrderId: params.shopifyOrderId,
+        shopifyOrderName: params.shopifyOrderName,
+        shopifyDraftOrderId: params.shopifyDraftOrderId,
+        paymentUrl: params.paymentUrl,
+      },
+    });
+
+    // Atomic credit utilization — no read-then-write race
+    const customer = await tx.customer.findUniqueOrThrow({
+      where: { id: params.customerId },
+      select: { creditLimit: true, creditUsed: true, email: true, shopifyCustomerId: true },
+    });
+
+    await tx.customer.update({
+      where: { id: params.customerId },
+      data: {
+        creditUsed: { increment: params.amount },
+        creditAvailable: { decrement: params.amount },
+        totalOrders: { increment: 1 },
+        totalRevenue: { increment: params.amount },
+      },
+    });
+
+    return { inv, customer };
+  });
+
+  // Fire-and-forget: create Shopify draft order to generate real payment link for collection emails
+  const customerEmail = invoice.customer.email;
+  const customerShopifyId = invoice.customer.shopifyCustomerId;
+  if (customerEmail && customerShopifyId) {
+    void createCollectionDraftOrder({
       shopId: params.shopId,
       customerId: params.customerId,
-      invoiceNumber: params.invoiceNumber,
+      invoiceId: invoice.inv.id,
+      invoiceNumber: invoice.inv.invoiceNumber,
       amount: params.amount,
       currency: params.currency ?? "USD",
-      issueDate,
-      dueDate,
-      netTermsDays: netTerms,
-      status: "PENDING",
-      shopifyOrderId: params.shopifyOrderId,
-      shopifyOrderName: params.shopifyOrderName,
-      shopifyDraftOrderId: params.shopifyDraftOrderId,
-      paymentUrl: params.paymentUrl,
-    },
-  });
+      customerEmail,
+      shopifyCustomerId: customerShopifyId,
+    }).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "Draft order creation failed for new invoice", msg, { invoiceId: invoice.inv.id });
+    });
+  }
 
-  // Update customer credit utilization
-  const customer = await prisma.customer.findUniqueOrThrow({
-    where: { id: params.customerId },
-  });
-  const newUsed = Number(customer.creditUsed) + params.amount;
-
-  await prisma.customer.update({
-    where: { id: params.customerId },
-    data: {
-      creditUsed: newUsed,
-      creditAvailable: Math.max(0, Number(customer.creditLimit) - newUsed),
-      totalOrders: { increment: 1 },
-      totalRevenue: { increment: params.amount },
-    },
-  });
-
-  return { ...invoice, amount: invoice.amount.toString() };
+  return { ...invoice.inv, amount: invoice.inv.amount.toString() };
 }
 
 /**
@@ -367,13 +394,7 @@ export async function markInvoicePaid(params: {
     });
 
     // Update customer credit utilization and payment stats
-    const customer = await tx.customer.findUniqueOrThrow({
-      where: { id: invoice.customerId },
-    });
-
-    const newUsed = Math.max(0, Number(customer.creditUsed) - Number(invoice.amount));
-
-    // Calculate new on-time rate
+    // Payment stats (onTimeRate/avgPaymentDays) need absolute reads — safe inside $transaction
     const paidHistory: Array<{ dueDate: Date; paidDate: Date }> = await tx.invoice.findMany({
       where: {
         customerId: invoice.customerId,
@@ -402,11 +423,12 @@ export async function markInvoicePaid(params: {
         ? paymentDays.reduce((s: number, d: number) => s + d, 0) / paymentDays.length
         : null;
 
+    const invoiceAmount = Number(invoice.amount);
     await tx.customer.update({
       where: { id: invoice.customerId },
       data: {
-        creditUsed: newUsed,
-        creditAvailable: Math.max(0, Number(customer.creditLimit) - newUsed),
+        creditUsed: { decrement: invoiceAmount },
+        creditAvailable: { increment: invoiceAmount },
         onTimePaymentRate: onTimeRate,
         avgPaymentDays,
         lastPaymentDate: paidDate,

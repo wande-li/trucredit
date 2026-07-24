@@ -143,7 +143,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+    logger.app("ERROR", "Collections detail action failed", msg);
+    return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };
 

@@ -59,8 +59,9 @@ export async function enqueueReplyJob(params: {
   customerName?: string;
 }) {
   try {
+    // P2-9: Deterministic jobId prevents duplicate reply jobs
     await replyQueue.add("process-reply", params, {
-      jobId: `reply:${params.taskId}:${Date.now()}`,
+      jobId: `reply:${params.taskId}`,
     });
     logger.app("INFO", "Reply job enqueued", { taskId: params.taskId });
   } catch (e: unknown) {

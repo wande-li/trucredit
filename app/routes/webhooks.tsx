@@ -3,7 +3,7 @@ import { authenticate } from "~/shopify.server";
 import { handleSubscriptionUpdate } from "~/services/billing.server";
 import { upsertCustomerFromShopify } from "~/services/customer.server";
 import { upsertCompanyContact } from "~/services/company.server";
-import { syncCreditMetafield } from "~/services/metafield.server";
+import { syncCreditMetafield, clearCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
 
@@ -30,115 +30,181 @@ interface ShopifyPayload {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { topic, payload, admin } = await authenticate.webhook(request);
-  const p = payload as ShopifyPayload;
-  const shopDomain: string = String(p.shop_domain || p.myshopify_domain || "");
-  const shopifyAdmin = admin; // may be undefined, guard before use
+  let topic = "";
+  let p: ShopifyPayload = {};
+  let shopDomain = "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Shopify SDK AdminApiContext type varies by version
+  let shopifyAdmin: any;
 
-  logger.app("INFO", `Webhook received: ${topic}`, undefined, { shopDomain, topic });
+  // P0-2: Top-level try-catch — all handlers MUST return 200 to prevent Shopify retry cascading
+  try {
+    const auth = await authenticate.webhook(request);
+    topic = String(auth.topic ?? "");
+    p = auth.payload as ShopifyPayload;
+    shopDomain = String(p.shop_domain || p.myshopify_domain || "");
+    shopifyAdmin = auth.admin;
+
+    logger.app("INFO", `Webhook received: ${topic}`, undefined, { shopDomain, topic });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Webhook authentication/parsing failed", msg);
+    return new Response(null, { status: 200 }); // 200 to prevent Shopify retry
+  }
+
+  // P0-2: Wrap each handler in try-catch → log + return 200
+  const safe = async (name: string, fn: () => Promise<Response>): Promise<Response> => {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("ERROR", `Webhook ${name} handler failed`, msg, { shopDomain, topic });
+      return new Response(null, { status: 200 });
+    }
+  };
 
   // ─── App Uninstall ────────────────────────────────
   if (topic === "APP_UNINSTALLED") {
-    if (shopDomain) {
-      await prisma.shop.updateMany({
-        where: { shopDomain: shopDomain.trim() },
-        data: { uninstalledAt: new Date() },
-      });
-    }
-    return new Response(null, { status: 200 });
+    return safe("APP_UNINSTALLED", async () => {
+      if (shopDomain) {
+        if (shopifyAdmin) {
+          try {
+            const customers = await prisma.customer.findMany({
+              where: { shop: { shopDomain: shopDomain.trim() } },
+              select: { shopifyCustomerId: true },
+            });
+            const validIds = customers
+              .map((c) => c.shopifyCustomerId)
+              .filter((id): id is string => Boolean(id));
+            const BATCH = 5;
+            let cleared = 0;
+            for (let i = 0; i < validIds.length; i += BATCH) {
+              const batch = validIds.slice(i, i + BATCH);
+              await Promise.allSettled(
+                batch.map((id) => clearCreditMetafield(shopifyAdmin, shopDomain, id)),
+              );
+              cleared += batch.length;
+            }
+            logger.app("INFO", "APP_UNINSTALLED: metafield cleanup complete", undefined, {
+              shopDomain,
+              customersCleared: cleared,
+            });
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "APP_UNINSTALLED: metafield cleanup failed (non-blocking)", undefined, {
+              shopDomain,
+              error: msg,
+            });
+          }
+        }
+        // P1-2 GDPR note: APP_UNINSTALLED keeps data for Shopify 48h reinstall window.
+        // Full data deletion happens via SHOP_REDACT (explicit GDPR request).
+        await prisma.shop.updateMany({
+          where: { shopDomain: shopDomain.trim() },
+          data: { uninstalledAt: new Date() },
+        });
+      }
+      return new Response(null, { status: 200 });
+    });
   }
 
-  // ─── Subscription Update ──────────────────────────
-  if (topic === "APP_SUBSCRIPTIONS_UPDATE") {
-    const domain = shopDomain || String(p.shop_domain || p.myshopify_domain || "");
-    if (!domain) throw new Response("Missing shop domain", { status: 400 });
+  // ─── Subscription Create / Update ────────────────
+  if (topic === "APP_SUBSCRIPTIONS_CREATE" || topic === "APP_SUBSCRIPTIONS_UPDATE") {
+    return safe(topic, async () => {
+      const domain = shopDomain || String(p.shop_domain || p.myshopify_domain || "");
+      if (!domain) throw new Response("Missing shop domain", { status: 400 });
 
-    const sub = p.app_subscription as ShopifyPayload | undefined;
-    const charge = {
-      id: String(sub?.admin_graphql_api_id || sub?.id || ""),
-      name: String(sub?.name || ""),
-      status: String(sub?.status || "UNKNOWN"),
-      currentPeriodEnd: sub?.current_period_end as string | undefined,
-      trialDays: sub?.trial_days as number | undefined,
-      cancelledAt: sub?.cancelled_at as string | undefined,
-      price: sub?.capped_amount || sub?.price,
-    };
+      const sub = p.app_subscription as ShopifyPayload | undefined;
+      const charge = {
+        id: String(sub?.admin_graphql_api_id || sub?.id || ""),
+        name: String(sub?.name || ""),
+        status: String(sub?.status || "UNKNOWN"),
+        currentPeriodEnd: sub?.current_period_end as string | undefined,
+        trialDays: sub?.trial_days as number | undefined,
+        cancelledAt: sub?.cancelled_at as string | undefined,
+        price: sub?.capped_amount || sub?.price,
+      };
 
-    await handleSubscriptionUpdate(String(domain).trim(), charge);
-    return new Response(null, { status: 200 });
+      await handleSubscriptionUpdate(String(domain).trim(), charge);
+      return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Customer Update ──────────────────────────────
   if (topic === "CUSTOMERS_UPDATE") {
-    if (!shopDomain) throw new Response("Missing shop domain", { status: 400 });
+    return safe("CUSTOMERS_UPDATE", async () => {
+      if (!shopDomain) throw new Response("Missing shop domain", { status: 400 });
 
-    const dbShop = await prisma.shop.findUnique({
-      where: { shopDomain: shopDomain.trim() },
-      select: { id: true },
-    });
-    if (!dbShop) throw new Response("Shop not found", { status: 404 });
-
-    const shopifyCustomerId = String(p.id);
-    const email = String(p.email || "");
-    const name = `${String(p.first_name || "")} ${String(p.last_name || "")}`.trim() || email;
-    const company: string | undefined = p.default_address?.company || undefined;
-    const phone: string | undefined = p.phone || undefined;
-
-    if (email) {
-      await upsertCustomerFromShopify({
-        shopId: dbShop.id,
-        shopifyCustomerId,
-        email,
-        name: name || email,
-        company,
-        phone,
+      const dbShop = await prisma.shop.findUnique({
+        where: { shopDomain: shopDomain.trim() },
+        select: { id: true },
       });
-    }
+      if (!dbShop) throw new Response("Shop not found", { status: 404 });
 
-    return new Response(null, { status: 200 });
+      const shopifyCustomerId = String(p.id);
+      const email = String(p.email || "");
+      const name = `${String(p.first_name || "")} ${String(p.last_name || "")}`.trim() || email;
+      const company: string | undefined = p.default_address?.company || undefined;
+      const phone: string | undefined = p.phone || undefined;
+
+      if (email) {
+        await upsertCustomerFromShopify({
+          shopId: dbShop.id,
+          shopifyCustomerId,
+          email,
+          name: name || email,
+          company,
+          phone,
+        });
+      }
+
+      return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Company Create / Update ──────────────────────
   if (topic === "COMPANIES_CREATE" || topic === "COMPANIES_UPDATE") {
-    if (!shopDomain) throw new Response("Missing shop domain", { status: 400 });
+    return safe(topic, async () => {
+      if (!shopDomain) throw new Response("Missing shop domain", { status: 400 });
 
-    const dbShop = await prisma.shop.findUnique({
-      where: { shopDomain: shopDomain.trim() },
-      select: { id: true },
-    });
-    if (!dbShop) throw new Response("Shop not found", { status: 404 });
-
-    const companyName = String(p.name || "");
-    const contacts: Array<{
-      id: string;
-      customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string };
-    }> = Array.isArray(p.contacts) ? p.contacts : [];
-
-    for (const contact of contacts) {
-      const c = contact.customer;
-      if (!c?.id || !c?.email) continue;
-
-      await upsertCompanyContact(dbShop.id, {
-        shopifyCustomerId: String(c.id),
-        email: String(c.email),
-        firstName: c.firstName ? String(c.firstName) : undefined,
-        lastName: c.lastName ? String(c.lastName) : undefined,
-        companyName,
-        phone: c.phone ? String(c.phone) : undefined,
+      const dbShop = await prisma.shop.findUnique({
+        where: { shopDomain: shopDomain.trim() },
+        select: { id: true },
       });
-    }
+      if (!dbShop) throw new Response("Shop not found", { status: 404 });
 
-    logger.app("INFO", `Company ${topic} processed`, undefined, {
-      shopId: dbShop.id,
-      companyName,
-      contactCount: contacts.length,
+      const companyName = String(p.name || "");
+      const contacts: Array<{
+        id: string;
+        customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string };
+      }> = Array.isArray(p.contacts) ? p.contacts : [];
+
+      for (const contact of contacts) {
+        const c = contact.customer;
+        if (!c?.id || !c?.email) continue;
+
+        await upsertCompanyContact(dbShop.id, {
+          shopifyCustomerId: String(c.id),
+          email: String(c.email),
+          firstName: c.firstName ? String(c.firstName) : undefined,
+          lastName: c.lastName ? String(c.lastName) : undefined,
+          companyName,
+          phone: c.phone ? String(c.phone) : undefined,
+        });
+      }
+
+      logger.app("INFO", `Company ${topic} processed`, undefined, {
+        shopId: dbShop.id,
+        companyName,
+        contactCount: contacts.length,
+      });
+
+      return new Response(null, { status: 200 });
     });
-
-    return new Response(null, { status: 200 });
   }
 
   // ─── Order Create — occupy credit + create invoice ─
   if (topic === "ORDERS_CREATE") {
+    return safe("ORDERS_CREATE", async () => {
     const orderingCustomerId = p.customer && typeof p.customer === "object"
       ? String((p.customer as ShopifyPayload).id ?? "")
       : "";
@@ -168,21 +234,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const orderName = p.name ? String(p.name) : `#${orderId}`;
     const totalPrice = Number(p.total_price ?? 0);
     const currency = String(p.currency ?? "USD");
+    const sourceName = String(p.source_name ?? "");
 
     const existing = await prisma.invoice.findFirst({
       where: { shopifyOrderId: orderId, shopId: dbShop.id },
       select: { id: true },
     });
 
+    // Prevent duplicate: if this order came from a draft conversion, link to existing manual invoice
+    if (!existing && sourceName === "draft_order") {
+      const draftInvoice = await prisma.invoice.findFirst({
+        where: {
+          shopId: dbShop.id,
+          customerId: customer.id,
+          shopifyDraftOrderId: { not: null },
+          shopifyOrderId: null,
+          status: { not: "PAID" },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (draftInvoice) {
+        await prisma.invoice.update({
+          where: { id: draftInvoice.id },
+          data: { shopifyOrderId: orderId, shopifyOrderName: orderName },
+        });
+        logger.app("INFO", "Linked draft invoice to order (ORDER_CREATE)", undefined, {
+          invoiceId: draftInvoice.id,
+          orderId,
+          orderName,
+        });
+        return new Response(null, { status: 200 });
+      }
+    }
+
     if (!existing && totalPrice > 0) {
       const dueDays = 30;
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + dueDays);
-
-      // Construct payment URL — the customer can pay via their Shopify account order page
-      const paymentUrl = shopDomain
-        ? `https://${shopDomain}/account/orders/${orderName.replace("#", "")}`
-        : undefined;
 
       await prisma.$transaction(async (tx) => {
         await tx.invoice.create({
@@ -197,7 +286,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             status: "PENDING",
             shopifyOrderId: orderId,
             shopifyOrderName: orderName,
-            paymentUrl,
           },
         });
 
@@ -228,16 +316,137 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return new Response(null, { status: 200 });
+    });
+  }
+
+  // ─── Draft Order Complete — bridge DraftOrder → Order ID ──
+  // When a customer pays a Draft Order invoice via Shopify checkout,
+  // the draft is converted to a real Order. We must link the invoice's
+  // shopifyDraftOrderId to the resulting shopifyOrderId so that
+  // ORDERS_PAID / ORDERS_UPDATED webhooks can find the invoice.
+  if (topic === "DRAFT_ORDERS_COMPLETE") {
+    return safe("DRAFT_ORDERS_COMPLETE", async () => {
+    const draftOrderId = String(p.id ?? "");
+    const resultingOrderId = p.order_id ? String(p.order_id) : "";
+
+    if (draftOrderId && resultingOrderId && shopDomain) {
+      // Shopify REST webhook sends numeric IDs; our DB stores GID format
+      const draftOrderGid = `gid://shopify/DraftOrder/${draftOrderId}`;
+
+      const result = await prisma.invoice.updateMany({
+        where: {
+          shop: { shopDomain: shopDomain.trim() },
+          shopifyDraftOrderId: draftOrderGid,
+          shopifyOrderId: null,
+        },
+        data: { shopifyOrderId: resultingOrderId },
+      });
+
+      if (result.count > 0) {
+        logger.app("INFO", "Draft order completed — bridged to order ID", undefined, {
+          shopDomain: shopDomain.trim(),
+          draftOrderId,
+          resultingOrderId,
+          updatedInvoices: result.count,
+        });
+      }
+    }
+
+    return new Response(null, { status: 200 });
+    });
+  }
+
+  // ─── Draft Order Deleted — void linked invoice + release credit ─
+  if (topic === "DRAFT_ORDERS_DELETE") {
+    return safe("DRAFT_ORDERS_DELETE", async () => {
+    const draftOrderId = String(p.id ?? "");
+    if (draftOrderId && shopDomain) {
+      const draftOrderGid = `gid://shopify/DraftOrder/${draftOrderId}`;
+      const invoice = await prisma.invoice.findFirst({
+        where: {
+          shop: { shopDomain: shopDomain.trim() },
+          shopifyDraftOrderId: draftOrderGid,
+          status: { notIn: ["PAID", "VOID"] },
+        },
+        select: { id: true, customerId: true, amount: true, status: true },
+      });
+
+      if (invoice) {
+        await prisma.$transaction([
+          prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { status: "VOID", voidedAt: new Date() },
+          }),
+          prisma.customer.update({
+            where: { id: invoice.customerId },
+            data: {
+              creditUsed: { decrement: Number(invoice.amount) },
+              creditAvailable: { increment: Number(invoice.amount) },
+            },
+          }),
+          prisma.collectionTask.updateMany({
+            where: { invoiceId: invoice.id, status: "ACTIVE" },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+              completedReason: "draft_order_deleted",
+            },
+          }),
+        ]);
+
+        if (shopifyAdmin) {
+          await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.app("WARN", "Metafield sync failed after draft order deleted", msg);
+          });
+        }
+
+        logger.app("INFO", "Draft order deleted — invoice voided", undefined, {
+          shopDomain: shopDomain.trim(),
+          draftOrderId,
+          invoiceId: invoice.id,
+        });
+      }
+    }
+
+    return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Order Paid — release credit + mark PAID ──────
   if (topic === "ORDERS_PAID") {
+    return safe("ORDERS_PAID", async () => {
     const orderId = String(p.id ?? "");
 
-    const invoice = await prisma.invoice.findFirst({
+    let invoice = await prisma.invoice.findFirst({
       where: { shopifyOrderId: orderId },
       select: { id: true, customerId: true, amount: true, status: true },
     });
+
+    // Fallback: DRAFT_ORDERS_COMPLETE webhook might not have been processed yet.
+    // Search by shop + unmatched shopifyDraftOrderId (draft-order-converted invoice).
+    if (!invoice && shopDomain) {
+      invoice = await prisma.invoice.findFirst({
+        where: {
+          shop: { shopDomain: shopDomain.trim() },
+          shopifyDraftOrderId: { not: null },
+          shopifyOrderId: null,
+          status: { not: "PAID" },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, customerId: true, amount: true, status: true },
+      });
+      if (invoice) {
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { shopifyOrderId: orderId },
+        });
+        logger.app("INFO", "ORDERS_PAID fallback: bridged draft→order", undefined, {
+          invoiceId: invoice.id,
+          orderId,
+        });
+      }
+    }
 
     if (invoice && invoice.status !== "PAID") {
       await prisma.$transaction([
@@ -272,18 +481,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Order Updated ────────────────────────────────
   if (topic === "ORDERS_UPDATED") {
+    return safe("ORDERS_UPDATED", async () => {
     const orderId = String(p.id ?? "");
     const financialStatus = String(p.financial_status ?? "pending");
 
     if (financialStatus === "paid") {
-      const invoice = await prisma.invoice.findFirst({
+      let invoice = await prisma.invoice.findFirst({
         where: { shopifyOrderId: orderId },
         select: { id: true, customerId: true, amount: true, status: true },
       });
+
+      // Fallback: same as ORDERS_PAID — draft-order-converted invoice
+      if (!invoice && shopDomain) {
+        invoice = await prisma.invoice.findFirst({
+          where: {
+            shop: { shopDomain: shopDomain.trim() },
+            shopifyDraftOrderId: { not: null },
+            shopifyOrderId: null,
+            status: { not: "PAID" },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, customerId: true, amount: true, status: true },
+        });
+        if (invoice) {
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { shopifyOrderId: orderId },
+          });
+        }
+      }
 
       if (invoice && invoice.status !== "PAID") {
         await prisma.$transaction([
@@ -298,6 +529,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               creditAvailable: { increment: Number(invoice.amount) },
             },
           }),
+          prisma.collectionTask.updateMany({
+            where: { invoiceId: invoice.id, status: "ACTIVE" },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+              completedReason: "paid",
+            },
+          }),
         ]);
 
         if (shopifyAdmin) {
@@ -309,31 +548,79 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    // P1-1: Sync invoice amount when order total changes (non-payment updates)
+    if (financialStatus !== "paid") {
+      const currentTotal = Number(p.total_price ?? 0);
+      if (currentTotal > 0) {
+        const syncInvoice = await prisma.invoice.findFirst({
+          where: { shopifyOrderId: orderId, status: { notIn: ["PAID", "VOID"] } },
+          select: { id: true, amount: true },
+        });
+        if (syncInvoice && Number(syncInvoice.amount) !== currentTotal) {
+          await prisma.invoice.update({
+            where: { id: syncInvoice.id },
+            data: { amount: currentTotal },
+          });
+          logger.app("INFO", "ORDERS_UPDATED: synced invoice amount", undefined, {
+            orderId,
+            invoiceId: syncInvoice.id,
+            oldAmount: syncInvoice.amount,
+            newAmount: currentTotal,
+          });
+        }
+      }
+    }
+
     return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Order Cancelled ──────────────────────────────
   if (topic === "ORDERS_CANCELLED") {
+    return safe("ORDERS_CANCELLED", async () => {
     const orderId = String(p.id ?? "");
 
-    const invoice = await prisma.invoice.findFirst({
+    let invoice = await prisma.invoice.findFirst({
       where: { shopifyOrderId: orderId },
       select: { id: true, customerId: true, amount: true, status: true },
     });
 
-    if (invoice && invoice.status !== "PAID") {
+    // Fallback: draft-order-converted invoice
+    if (!invoice && shopDomain) {
+      invoice = await prisma.invoice.findFirst({
+        where: {
+          shop: { shopDomain: shopDomain.trim() },
+          shopifyDraftOrderId: { not: null },
+          shopifyOrderId: null,
+          status: { not: "PAID" },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, customerId: true, amount: true, status: true },
+      });
+    }
+
+    if (invoice && invoice.status !== "PAID" && invoice.status !== "VOID") {
+      // PARTIALLY_PAID: skip credit release (unknown paid amount, admin adjusts manually)
+      const isPartiallyPaid = invoice.status === "PARTIALLY_PAID";
+
+      const creditOps = isPartiallyPaid
+        ? []
+        : [
+            prisma.customer.update({
+              where: { id: invoice.customerId },
+              data: {
+                creditUsed: { decrement: Number(invoice.amount) },
+                creditAvailable: { increment: Number(invoice.amount) },
+              },
+            }),
+          ];
+
       await prisma.$transaction([
         prisma.invoice.update({
           where: { id: invoice.id },
-          data: { status: "VOID" },
+          data: { status: "VOID", voidedAt: new Date() },
         }),
-        prisma.customer.update({
-          where: { id: invoice.customerId },
-          data: {
-            creditUsed: { decrement: Number(invoice.amount) },
-            creditAvailable: { increment: Number(invoice.amount) },
-          },
-        }),
+        ...creditOps,
         prisma.collectionTask.updateMany({
           where: { invoiceId: invoice.id, status: "ACTIVE" },
           data: {
@@ -353,11 +640,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return new Response(null, { status: 200 });
+    });
   }
 
   // ─── Refund Created — release credit proportionally ─
   if (topic === "REFUNDS_CREATE") {
+    return safe("REFUNDS_CREATE", async () => {
+    // P0-1: Idempotency — prevent double credit release on Shopify retry
+    const refundId = String(p.id ?? "");
     const orderId = String(p.order_id ?? "");
+    const dedupTag = `refund:${refundId}:order:${orderId}`;
+    if (refundId && orderId) {
+      const dupEvent = await prisma.creditEvent.findFirst({
+        where: {
+          triggeredBy: "webhook:refunds_create",
+          reason: { contains: dedupTag },
+          createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) }, // 30-min window
+        },
+        select: { id: true },
+      });
+      if (dupEvent) {
+        logger.app("INFO", "REFUNDS_CREATE duplicate — skipping (idempotency guard)", undefined, {
+          refundId,
+          orderId,
+          previousEventId: dupEvent.id,
+        });
+        return new Response(null, { status: 200 });
+      }
+    }
     const refundLineItems: Array<{ quantity?: number; subtotal?: number | string }> =
       Array.isArray(p.refund_line_items) ? p.refund_line_items : [];
     let refundTotal = 0;
@@ -375,16 +685,68 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (orderId && refundTotal > 0) {
-      const invoice = await prisma.invoice.findFirst({
+      let invoice = await prisma.invoice.findFirst({
         where: { shopifyOrderId: orderId },
         select: { id: true, customerId: true, amount: true, status: true },
       });
+
+      // Fallback: draft-order-converted invoice
+      if (!invoice && shopDomain) {
+        invoice = await prisma.invoice.findFirst({
+          where: {
+            shop: { shopDomain: shopDomain.trim() },
+            shopifyDraftOrderId: { not: null },
+            shopifyOrderId: null,
+            status: { not: "PAID" },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, customerId: true, amount: true, status: true },
+        });
+      }
 
       if (invoice && invoice.status !== "VOID") {
         const invoiceAmount = Number(invoice.amount);
         const releasedAmount = Math.min(refundTotal, invoiceAmount);
         const remainingAfter = invoiceAmount - releasedAmount;
         const isFullyRefunded = remainingAfter <= 0.01;
+        // Skip credit release for PAID (already released by ORDERS_PAID) and
+        // PARTIALLY_PAID (unknown paid amount → safe/conservative, admin adjusts manually)
+        const wasAlreadyPaid = invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID";
+
+        // P1-2: Fetch customer credit state BEFORE transaction for audit log
+        const customer = await prisma.customer.findUnique({
+          where: { id: invoice.customerId },
+          select: { creditUsed: true, creditAvailable: true },
+        });
+        const prevCreditUsed = Number(customer?.creditUsed ?? 0);
+        const prevCreditAvailable = Number(customer?.creditAvailable ?? 0);
+
+        // If already PAID, credit was released by ORDERS_PAID — don't double-release
+        const creditTxn = wasAlreadyPaid
+          ? []
+          : [
+              prisma.customer.update({
+                where: { id: invoice.customerId },
+                data: {
+                  creditUsed: { decrement: releasedAmount },
+                  creditAvailable: { increment: releasedAmount },
+                },
+              }),
+              // P1-2: Audit trail for credit release on refund
+              prisma.creditEvent.create({
+                data: {
+                  customerId: invoice.customerId,
+                  type: "LIMIT_CHANGE",
+                  previousValue: { creditUsed: prevCreditUsed, creditAvailable: prevCreditAvailable },
+                  newValue: {
+                    creditUsed: Math.max(0, prevCreditUsed - releasedAmount),
+                    creditAvailable: prevCreditAvailable + releasedAmount,
+                  },
+                  reason: `Refund ${refundTotal} → ${releasedAmount} credit released, invoice #${invoice.id} [${dedupTag}]`,
+                  triggeredBy: "webhook:refunds_create",
+                },
+              }),
+            ];
 
         await prisma.$transaction([
           prisma.invoice.update({
@@ -395,13 +757,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 : { amount: remainingAfter }),
             },
           }),
-          prisma.customer.update({
-            where: { id: invoice.customerId },
-            data: {
-              creditUsed: { decrement: releasedAmount },
-              creditAvailable: { increment: releasedAmount },
-            },
-          }),
+          ...creditTxn,
           // Stop active collection tasks if fully refunded
           ...(isFullyRefunded
             ? [
@@ -431,10 +787,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return new Response(null, { status: 200 });
+    });
   }
 
   // ─── GDPR: Customers Data Request ─────────────────
   if (topic === "CUSTOMERS_DATA_REQUEST") {
+    return safe("CUSTOMERS_DATA_REQUEST", async () => {
     const customerId = String(p.id ?? "");
     if (!shopDomain) return new Response(null, { status: 400 });
 
@@ -483,10 +841,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { shopDomain: shopDomain.trim(), customers },
       { status: 200 },
     );
+    });
   }
 
   // ─── GDPR: Customers Redact ────────────────────────
   if (topic === "CUSTOMERS_REDACT") {
+    return safe("CUSTOMERS_REDACT", async () => {
     const customerId = String(p.id ?? "");
     if (!shopDomain) return new Response(null, { status: 400 });
 
@@ -517,10 +877,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return new Response(null, { status: 200 });
+    });
   }
 
   // ─── GDPR: Shop Redact ─────────────────────────────
   if (topic === "SHOP_REDACT") {
+    return safe("SHOP_REDACT", async () => {
     if (!shopDomain) return new Response(null, { status: 400 });
 
     const shop = await prisma.shop.findUnique({
@@ -550,7 +912,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return new Response(null, { status: 200 });
+    });
   }
 
-  throw new Response(`Unhandled webhook topic: ${topic}`, { status: 400 });
+  logger.app("WARN", "Unhandled webhook topic — returning 200 to prevent retry cascade", undefined, { topic });
+  return new Response(null, { status: 200 });
 };

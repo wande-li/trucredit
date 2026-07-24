@@ -28,6 +28,7 @@ import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 
 // ═══════════════════ Loader ═══════════════════
 
@@ -64,10 +65,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent === "create") {
       const name = formData.get("name") as string;
-      const type = formData.get("type") as TemplateType;
+      const rawType = (formData.get("type") as string) || "CUSTOM";
       const subject = formData.get("subject") as string;
       const body = formData.get("body") as string;
       const toneLevel = parseInt(formData.get("toneLevel") as string, 10);
+
+      // Validate template type against Prisma enum
+      const VALID_TYPES: TemplateType[] = [
+        "REMINDER_BEFORE_DUE", "REMINDER_ON_DUE",
+        "COLLECTION_GENTLE", "COLLECTION_FIRM", "COLLECTION_URGENT", "COLLECTION_FINAL",
+        "PAYMENT_RECEIVED", "CREDIT_APPROVED", "CREDIT_FROZEN", "CUSTOM",
+      ];
+      if (!VALID_TYPES.includes(rawType as TemplateType)) {
+        return json({ success: false, error: `Invalid template type: "${rawType}"` });
+      }
+      const type = rawType as TemplateType;
 
       if (!name.trim() || !subject.trim() || !body.trim()) {
         return json({ success: false, error: "Name, subject, and body are required" });
@@ -76,7 +88,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await createTemplate({
         shopId: shopDomain,
         name: name.trim(),
-        type: type || "CUSTOM",
+        type,
         subject: subject.trim(),
         body: body.trim(),
         toneLevel: isNaN(toneLevel) ? 3 : toneLevel,
@@ -128,7 +140,7 @@ const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
 
 export default function EmailsPage() {
   const location = useLocation();
-  // Render child route (app.emails.$id) when path is deeper than /app/emails
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- Remix layout pattern: early Outlet return before list hooks
   if (location.pathname !== "/app/emails") {
     return <Outlet />;
   }
@@ -425,5 +437,10 @@ function CreateTemplateModal({
 // Route-level ErrorBoundary
 export function ErrorBoundary() {
   return <RouteErrorBoundary />;
+}
+
+// Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 

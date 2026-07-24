@@ -159,6 +159,10 @@ export async function checkCreditEligibility(input: CreditCheckInput): Promise<C
 /**
  * Reserve credit for a pending checkout (atomic, race-condition safe).
  * Uses a conditional UPDATE WHERE to prevent double-spending under concurrency.
+ *
+ * Idempotency: tracks reservations by orderName via CreditEvent records.
+ * Duplicate calls for the same orderName within 30 minutes return success
+ * without double-deducting credit.
  */
 export async function reserveCredit(params: {
   customerId: string;
@@ -166,6 +170,24 @@ export async function reserveCredit(params: {
   orderName: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
+    // Idempotency: check if credit was already reserved for this order
+    const existingEvent = await prisma.creditEvent.findFirst({
+      where: {
+        customerId: params.customerId,
+        triggeredBy: "checkout",
+        reason: params.orderName,
+        createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) }, // 30-min window
+      },
+    });
+    if (existingEvent) {
+      logger.app("INFO", "Credit reservation — idempotent skip (already reserved)", undefined, {
+        customerId: params.customerId,
+        orderName: params.orderName,
+        eventId: existingEvent.id,
+      });
+      return { success: true };
+    }
+
     // Atomic: only UPDATE if creditLimit >= creditUsed + amount AND not frozen
     // Returns count of updated rows (0 = failed, 1 = success)
     const result = await prisma.$executeRaw<number>`
@@ -192,6 +214,17 @@ export async function reserveCredit(params: {
         error: `Insufficient credit: need ${params.amount}, available ${available}`,
       };
     }
+
+    // Record reservation event for idempotency
+    await prisma.creditEvent.create({
+      data: {
+        customerId: params.customerId,
+        type: "LIMIT_CHANGE",
+        reason: params.orderName,
+        triggeredBy: "checkout",
+        newValue: { amount: params.amount },
+      },
+    });
 
     logger.app("INFO", "Credit reserved for checkout", undefined, {
       customerId: params.customerId,

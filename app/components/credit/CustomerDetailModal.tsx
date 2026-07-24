@@ -121,6 +121,7 @@ export function CustomerDetailModal({
       setEditorReason("");
       lastDataRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, customerId]);
 
   // Stale-while-revalidate: preserve last good data during refetch to prevent content flash
@@ -186,6 +187,7 @@ export function CustomerDetailModal({
     if (actionFetcher.state === "idle" && !actionFetcher.data?.success) {
       setBusyIntent(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionFetcher.state, actionFetcher.data?.success, actionFetcher.data?.error, customerId]);
 
   const isBusy = (intent: string) => busyIntent === intent && actionBusy;
@@ -195,6 +197,7 @@ export function CustomerDetailModal({
     if (assessment) {
       setEditorLimit(String(assessment.recommendedLimit));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessment?.recommendedLimit]);
 
   const utilizationPct =
@@ -246,7 +249,7 @@ export function CustomerDetailModal({
   };
 
   // Editor validation
-  const numericEditorLimit = parseFloat(editorLimit);
+  const numericEditorLimit = parseFloat(editorLimit) || 0;
   const isOver2x = assessment && numericEditorLimit > assessment.recommendedLimit * 2;
   const isOver50pct =
     assessment &&
@@ -304,13 +307,14 @@ export function CustomerDetailModal({
                   <Text as="h2" variant="headingMd">
                     Credit Summary
                   </Text>
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma enum types from JSON serialized loader data */}
+                  {/* eslint-disable @typescript-eslint/no-explicit-any -- Prisma enum types from JSON serialized loader data */}
                   <CustomerStatusBadge
                     status={customer.status as any}
                     riskLevel={customer.riskLevel as any}
                     creditGrade={customer.creditGrade as any}
                     isFrozen={customer.isFrozen}
                   />
+                  {/* eslint-enable @typescript-eslint/no-explicit-any */}
                 </InlineStack>
 
                 <Divider />

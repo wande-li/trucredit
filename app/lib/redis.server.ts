@@ -50,5 +50,8 @@ export const keys = {
   taskLock: (taskId: string) => `${REDIS_PREFIX}lock:task:${taskId}`,
   creditCache: (customerId: string) => `${REDIS_PREFIX}credit:${customerId}`,
   dashboardCache: (shopId: string) => `${REDIS_PREFIX}dashboard:${shopId}`,
+  dashboardLock: (shopId: string) => `${REDIS_PREFIX}dashboard:lock:${shopId}`,
   syncLock: (shop: string) => `${REDIS_PREFIX}sync:lock:${shop}`,
+  sweepLock: (shopId: string) => `${REDIS_PREFIX}sweep:lock:${shopId}`,
+  emailRateLimit: (shopId: string, emailType: string) => `${REDIS_PREFIX}email:rate:${emailType}:${shopId}`,
 } as const;

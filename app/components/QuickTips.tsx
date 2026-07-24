@@ -1,6 +1,7 @@
-// TruCredit QuickTips — Contextual tips for returning users.
+// TruCredit QuickTips — Contextual, data-driven tips for returning users.
+// Prioritizes tips based on what the merchant hasn't set up yet.
 // Shown on Dashboard when >=1 customer exists. Dismissed via cookie or auto-hide when fully set up.
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   BlockStack,
@@ -12,18 +13,50 @@ import {
   Button,
 } from "@shopify/polaris";
 
-const TIPS = [
+interface Tip {
+  title: string;
+  body: string;
+  link: string;
+  linkLabel: string;
+  /** Priority filter: tip shown only when this condition is unmet */
+  condition?: (s: QuickTipsProps) => boolean;
+}
+
+const TIPS: Tip[] = [
   {
-    title: "Review Aging AR",
-    body: "Check the Current tab for overdue invoices sorted by days past due. Prioritize 90+ day buckets first.",
-    link: "/app/invoices",
-    linkLabel: "View Invoices",
+    title: "Import Your Customers",
+    body: "Sync Shopify B2B customers to start tracking credit limits, risk grades, and payment history.",
+    link: "/app/customers",
+    linkLabel: "Go to Customers",
+    condition: (s) => s.totalCustomers === 0 || s.totalCustomers <= s.totalInvoices,
   },
   {
-    title: "Automate Reminders",
-    body: 'Configure collection rules with escalating tones — "Friendly" → "Firm" → "Final Notice". TruCredit sends them automatically.',
+    title: "Create Your First Invoice",
+    body: "Issue net-terms invoices directly from TruCredit — track due dates, payment status, and aging automatically.",
+    link: "/app/invoices/new",
+    linkLabel: "New Invoice",
+    condition: (s) => s.totalInvoices === 0,
+  },
+  {
+    title: "Set Up Collection Rules",
+    body: 'Configure automated collection rules with escalating tones — "Friendly" → "Firm" → "Final Notice". TruCredit sends them on schedule.',
     link: "/app/rules",
     linkLabel: "Manage Rules",
+    condition: (s) => s.totalRules === 0,
+  },
+  {
+    title: "Review Aging AR",
+    body: "Check overdue invoices sorted by days past due. Prioritize 90+ day buckets first.",
+    link: "/app/invoices",
+    linkLabel: "View Invoices",
+    condition: (s) => s.totalInvoices > 0, // only if they have invoices
+  },
+  {
+    title: "Task Board",
+    body: "Review daily collection tasks — who to call, which invoices are due, and upcoming payment milestones.",
+    link: "/app/tasks",
+    linkLabel: "Open Tasks",
+    condition: (s) => s.activeTasks > 0,
   },
   {
     title: "Check Customer Health",
@@ -32,20 +65,8 @@ const TIPS = [
     linkLabel: "View Customers",
   },
   {
-    title: "Task Board",
-    body: "Review daily collection tasks — who to call, which invoices are due, and upcoming payment milestones.",
-    link: "/app/tasks",
-    linkLabel: "Open Tasks",
-  },
-  {
-    title: "Customer Credit Overview",
-    body: "Review all synced B2B customers, their credit grades, risk levels, and current credit usage.",
-    link: "/app/customers",
-    linkLabel: "View Customers",
-  },
-  {
     title: "Email Templates",
-    body: "Customize the email templates TruCredit uses for payment reminders. Add your brand voice and payment instructions.",
+    body: "Customize email templates TruCredit uses for payment reminders. Add your brand voice and payment instructions.",
     link: "/app/settings",
     linkLabel: "Settings",
   },
@@ -54,13 +75,14 @@ const TIPS = [
     body: "Need to invoice multiple customers at once? Use bulk create from the Invoices page to save time.",
     link: "/app/invoices/new",
     linkLabel: "New Invoice",
+    condition: (s) => s.totalInvoices >= 5,
   },
 ];
 
 const ROTATION_INTERVAL = 6000; // 6 seconds per tip
 const DISMISS_COOKIE = "trucredit:quickTipsDismissed";
 
-interface QuickTipsProps {
+export interface QuickTipsProps {
   totalCustomers: number;
   totalInvoices: number;
   activeTasks: number;
@@ -78,17 +100,28 @@ function setCookie(name: string, value: string) {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
-export default function QuickTips({
-  totalCustomers,
-  totalInvoices,
-  activeTasks,
-  totalRules,
-}: QuickTipsProps) {
+export default function QuickTips(props: QuickTipsProps) {
+  const { totalCustomers, totalInvoices, activeTasks, totalRules } = props;
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dismissed, setDismissed] = useState<boolean | null>(null); // null = loading from cookie
+  const [dismissed, setDismissed] = useState<boolean | null>(null);
 
-  // Check if auto-dismiss conditions are met (all 4 pillars in place)
-  const fullySetup = totalCustomers > 0 && totalInvoices > 0 && activeTasks > 0 && totalRules > 0;
+  // P2: Data-driven filtering — prioritize tips for what user hasn't done yet
+  const filteredTips = useMemo(() => {
+    const applicable = TIPS.filter((tip) => {
+      if (!tip.condition) return true;
+      return tip.condition(props);
+    });
+    // Always show at least 2 tips (fallback to generic ones)
+    if (applicable.length < 2) {
+      const generic = TIPS.filter((t) => !t.condition);
+      return [...applicable, ...generic].slice(0, Math.max(2, applicable.length + 1));
+    }
+    return applicable;
+  }, [props]);
+
+  // Auto-dismiss: all 4 pillars in place
+  const fullySetup =
+    totalCustomers > 0 && totalInvoices > 0 && activeTasks > 0 && totalRules > 0;
 
   useEffect(() => {
     try {
@@ -99,8 +132,8 @@ export default function QuickTips({
   }, []);
 
   const next = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % TIPS.length);
-  }, []);
+    setCurrentIndex((prev) => (prev + 1) % filteredTips.length);
+  }, [filteredTips.length]);
 
   useEffect(() => {
     const timer = setInterval(next, ROTATION_INTERVAL);
@@ -112,12 +145,11 @@ export default function QuickTips({
     setDismissed(true);
   };
 
-  // Hidden: user explicitly dismissed OR auto-dismiss when fully set up
   if (dismissed === true || fullySetup) return null;
-  // Still loading cookie — don't flash
   if (dismissed === null) return null;
+  if (filteredTips.length === 0) return null;
 
-  const tip = TIPS[currentIndex]!;
+  const tip = filteredTips[currentIndex]!;
 
   return (
     <Card padding="500">
@@ -128,7 +160,7 @@ export default function QuickTips({
               Quick Tips
             </Text>
             <Text as="span" variant="bodySm" tone="subdued">
-              {currentIndex + 1} / {TIPS.length}
+              {currentIndex + 1} / {filteredTips.length}
             </Text>
           </InlineStack>
           <Button
@@ -156,10 +188,9 @@ export default function QuickTips({
           </Link>
         </InlineStack>
 
-        {/* Dot indicators */}
         <Box paddingBlockStart="200">
           <InlineStack gap="100" align="center">
-            {TIPS.map((_, i) => (
+            {filteredTips.map((_, i) => (
               <button
                 key={i}
                 type="button"
@@ -184,7 +215,7 @@ export default function QuickTips({
         </Box>
 
         <ProgressBar
-          progress={(currentIndex / (TIPS.length - 1)) * 100}
+          progress={(currentIndex / (filteredTips.length - 1)) * 100}
           size="small"
           tone="primary"
         />

@@ -44,7 +44,7 @@ export async function adminGraphQL<T>(
     async () => {
       const raw = await admin.graphql(query, { variables });
       const normalized = await normalizeResponse<T>(raw);
-      logger.app("DEBUG", "GraphQL response normalized", undefined, {
+      logger.app("INFO", "GraphQL response normalized", undefined, {
         shopDomain,
         isResponse: typeof (raw as Response).json === "function",
         hasData: !!normalized.data,

@@ -57,8 +57,9 @@ export interface EmailJobData {
 export async function enqueueEmail(data: EmailJobData) {
   try {
     const q = getEmailQueue();
+    // P2-9: Deterministic jobId prevents duplicate emails on retry
     await q.add("send-email", data, {
-      jobId: `email:${data.vars.invoiceNumber}:${Date.now()}`,
+      jobId: `email:${data.taskId ?? data.vars.invoiceNumber}:${data.stepOrder ?? 0}`,
     });
     logger.app("INFO", "Email job enqueued", {
       invoice: data.vars.invoiceNumber,

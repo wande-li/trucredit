@@ -214,3 +214,35 @@ export async function verifyCreditMetafield(
 
   return { matches, shopifyValue, dbValue };
 }
+
+/**
+ * P1-3: Zero out a single customer's credit metafield (used during app uninstall).
+ * Uses METAFIELDS_SET with a zeroed payload — effectively disables credit at checkout.
+ * Doesn't require reading the existing metafield ID first.
+ */
+export async function clearCreditMetafield(
+  admin: AdminApiContext,
+  shopDomain: string,
+  shopifyCustomerId: string,
+): Promise<void> {
+  const zeroPayload = JSON.stringify({
+    creditLimit: 0,
+    creditUsed: 0,
+    creditAvailable: 0,
+    isFrozen: false,
+    grade: "N/A",
+    netTermsDays: 0,
+  });
+
+  await adminGraphQL(admin, shopDomain, METAFIELDS_SET, {
+    metafields: [
+      {
+        ownerId: `gid://shopify/Customer/${shopifyCustomerId}`,
+        namespace: "trucredit",
+        key: "credit_status",
+        type: "json",
+        value: zeroPayload,
+      },
+    ],
+  });
+}

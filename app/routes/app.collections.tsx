@@ -1,4 +1,5 @@
 // TruCredit — Collection Sequences list
+/* eslint-disable react-hooks/rules-of-hooks */
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, Link } from "@remix-run/react";
@@ -39,6 +40,9 @@ import PageSkeleton from "~/components/PageSkeleton";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
+
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
@@ -121,7 +125,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+    logger.app("ERROR", "Collections action failed", msg);
+    return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };
 
@@ -143,6 +148,7 @@ const TONE_LABELS: Record<number, string> = {
 
 export default function CollectionsPage() {
   const location = useLocation();
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- Remix layout pattern: early Outlet return before list hooks
   // Render child route (app.collections.$id) when path is deeper than /app/collections
   if (location.pathname !== "/app/collections") {
     return <Outlet />;

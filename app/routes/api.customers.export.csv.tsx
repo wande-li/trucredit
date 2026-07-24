@@ -66,7 +66,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       headers,
     });
   } catch (e: unknown) {
-    if (e instanceof Response) throw e;
+    if (e instanceof Response) {
+      // Auth failure in new tab (no session cookie) — show friendly message instead of crashing
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Export</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#333}.box{text-align:center;max-width:420px;padding:2rem}.box h1{font-size:1.25rem;margin:0 0 .5rem}.box p{font-size:.875rem;color:#666;margin:0}</style></head><body><div class="box"><h1>Session expired</h1><p>Please return to the Shopify Admin, navigate to Customers, and click Export CSV again.</p></div></body></html>`;
+      return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "Customer CSV export failed", msg);
     return new Response("Failed to export customers", { status: 500 });

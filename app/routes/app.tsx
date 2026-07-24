@@ -24,7 +24,6 @@ import {
   ActionList,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
-import prisma from "~/db.server";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "~/services/logger.server";
 import { RouteError } from "~/services/error-boundary.shared";
@@ -43,116 +42,28 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const startTime = Date.now();
   const url = new URL(request.url);
   const hostParam = url.searchParams.get("host") || "";
 
-  // Use resolveShop which handles authenticate.admin() + DB fallback
-  // for .data requests where shop may be null in session.
   try {
     const { shopDomain, plan, subscriptionStatus } = await resolveShop(request);
-
-    const elapsed = Date.now() - startTime;
-    return json(
-      {
-        apiKey: process.env.SHOPIFY_API_KEY || "",
-        shop: shopDomain,
-        host: hostParam,
-        authed: true,
-        plan,
-        subscriptionStatus,
-      },
-      {
-        headers: {
-          "Cache-Control": "private, max-age=30, must-revalidate",
-          "X-Response-Time": `${elapsed}ms`,
-        },
-      },
-    );
+    return json({
+      apiKey: process.env.SHOPIFY_API_KEY || "",
+      shop: shopDomain,
+      host: hostParam,
+      authed: true,
+      plan,
+      subscriptionStatus,
+    });
   } catch (e: unknown) {
-    // Dev mode: auto-seed database on cold start
-    if (process.env.NODE_ENV === "development") {
-      const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
-      try {
-        const existingShop = await prisma.shop.findFirst({ take: 1 });
-        if (!existingShop) {
-          logger.app("INFO", "Cold start — auto-seeding dev data");
-          await prisma.session.create({
-            data: {
-              id: "dev-session",
-              shop: devShop,
-              state: "dev",
-              isOnline: false,
-              accessToken: "dev-token",
-              scope:
-                "read_companies,read_customers,write_customers,read_orders,write_orders,read_draft_orders,write_draft_orders,read_metafields,write_metafields,read_payment_terms,write_payment_terms",
-              expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            },
-          });
-          await prisma.shop.create({
-            data: {
-              shopDomain: devShop,
-              accessToken: "dev-token",
-              plan: "FREE",
-              uninstalledAt: null,
-            },
-          });
-          logger.app("INFO", "Cold start — auto-seed complete");
-          const shop = await prisma.shop.findUnique({
-            where: { shopDomain: devShop },
-          });
-          const elapsed = Date.now() - startTime;
-          return json(
-            {
-              apiKey: process.env.SHOPIFY_API_KEY || "",
-              shop: devShop,
-              host: hostParam,
-              authed: true,
-              plan: shop?.plan || "FREE",
-              subscriptionStatus: shop?.subscriptionStatus || "NONE",
-            },
-            {
-              headers: {
-                "Cache-Control": "private, max-age=30, must-revalidate",
-                "X-Response-Time": `${elapsed}ms`,
-              },
-            },
-          );
-        }
-
-        // Data already seeded — use existing
-        logger.app("INFO", "Dev mode — using existing seeded data");
-        const shop = await prisma.shop.findFirst({ where: { shopDomain: devShop } });
-        const elapsed = Date.now() - startTime;
-        return json(
-          {
-            apiKey: process.env.SHOPIFY_API_KEY || "",
-            shop: shop?.shopDomain || "",
-            host: hostParam,
-            authed: true,
-            plan: shop?.plan || "FREE",
-            subscriptionStatus: shop?.subscriptionStatus || "NONE",
-          },
-          {
-            headers: {
-              "Cache-Control": "private, max-age=30, must-revalidate",
-              "X-Response-Time": `${elapsed}ms`,
-            },
-          },
-        );
-      } catch (seedErr: unknown) {
-        logger.app("ERROR", "Cold start auto-seed failed", seedErr);
-      }
-    }
-
     logger.app(
       "WARN",
-      "OAuth failed",
+      "Layout auth failed",
       e instanceof Error ? e.message : String(e),
     );
   }
 
-  // Final fallback: unauthed
+  // Unauthed fallback
   return json({
     apiKey: process.env.SHOPIFY_API_KEY || "",
     shop: "",

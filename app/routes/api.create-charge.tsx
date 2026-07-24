@@ -73,10 +73,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const pricing = PLAN_PRICING[billingName];
   if (!pricing) return json({ error: `No pricing config for "${billingName}"` }, { status: 400 });
 
-  const isTest =
-    process.env.BILLING_TEST_MODE !== undefined
-      ? process.env.BILLING_TEST_MODE === 'true'
-      : process.env.NODE_ENV === 'development';
+  // BILLING_TEST_MODE must be explicitly set in Railway. Defaults to false (production).
+  // Never falls back to NODE_ENV — test mode in production would silently bill $0.
+  const isTest = process.env.BILLING_TEST_MODE === 'true';
 
   // After charge confirmation, Shopify redirects user to returnUrl in top-level window.
   // We route through /billing/callback to redirect back into Shopify Admin iframe.

@@ -46,10 +46,13 @@ async function verifySnsSignature(body: Record<string, string>): Promise<boolean
     return false;
   }
 
-  // Download the certificate
+  // Download the certificate (10s timeout)
   let certPem: string;
   try {
-    const resp = await fetch(certUrl);
+    const certCtrl = new AbortController();
+    const certTimer = setTimeout(() => certCtrl.abort(), 10_000);
+    const resp = await fetch(certUrl, { signal: certCtrl.signal });
+    clearTimeout(certTimer);
     certPem = await resp.text();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -130,7 +133,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         topicArn: snsEnvelope.TopicArn,
       });
       try {
-        await fetch(snsEnvelope.SubscribeURL);
+        const subCtrl = new AbortController();
+        const subTimer = setTimeout(() => subCtrl.abort(), 10_000);
+        await fetch(snsEnvelope.SubscribeURL, { signal: subCtrl.signal });
+        clearTimeout(subTimer);
         logger.app("INFO", "SNS subscription confirmed");
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);

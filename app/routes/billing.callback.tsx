@@ -50,12 +50,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let chargeValid = false;
   try {
+    // AbortController: prevent hanging if Shopify API is slow (10s timeout)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch(apiUrl, {
+      signal: controller.signal,
       headers: {
         'X-Shopify-Access-Token': token,
         'Content-Type': 'application/json',
       },
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const body = (await res.json()) as {

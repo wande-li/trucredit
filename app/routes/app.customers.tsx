@@ -121,7 +121,7 @@ export default function CustomersPage() {
       secondaryActions={[
         {
           content: "Export CSV",
-          onAction: () => window.open("/api/customers/export/csv", "_self"),
+          onAction: () => window.open("/api/customers/export/csv", "_blank"),
         },
         {
           content: isSyncing ? "Syncing..." : "Sync from Shopify",

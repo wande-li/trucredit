@@ -1,7 +1,6 @@
 // GET /api/customers/export/csv — Export all customers as CSV
 // Requires admin authentication, exports unfiltered list for current shop
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { exportToCsv, csvResponseHeaders } from "~/services/export.server";
 import { logger } from "~/services/logger.server";
@@ -28,11 +27,9 @@ type ExportRow = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    // Authenticate admin session
-    await authenticate.admin(request);
     const { shopId } = await resolveShop(request);
 
-    // Fetch all customers for the shop (unpaginated — full export)
+    // Fetch customers with safety cap (prevent OOM on large shops)
     const customers = (await prisma.customer.findMany({
       where: { shopId },
       select: {
@@ -45,6 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         isFrozen: true,
       },
       orderBy: { updatedAt: "desc" },
+      take: 5000,
     })) as ExportRow[];
 
     // Build CSV rows

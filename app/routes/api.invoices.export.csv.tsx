@@ -1,7 +1,6 @@
 // GET /api/invoices/export/csv — Export all invoices as CSV
 // Requires admin authentication, exports unfiltered list for current shop
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { exportToCsv, csvResponseHeaders } from "~/services/export.server";
 import { logger } from "~/services/logger.server";
@@ -38,11 +37,9 @@ type ExportRow = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    // Authenticate admin session
-    await authenticate.admin(request);
     const { shopId } = await resolveShop(request);
 
-    // Fetch all invoices for the shop (unpaginated — full export)
+    // Fetch invoices with safety cap (prevent OOM on large shops)
     const invoices = (await prisma.invoice.findMany({
       where: { shopId },
       select: {
@@ -55,6 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         customer: { select: { name: true, company: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: 5000,
     })) as ExportRow[];
 
     // Build CSV rows

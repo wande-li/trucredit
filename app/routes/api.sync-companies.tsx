@@ -5,6 +5,7 @@ import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { syncAllCompanies } from "~/services/company.server";
 import { logger } from "~/services/logger.server";
+import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
 import prisma from "~/db.server";
 
 /**
@@ -19,6 +20,16 @@ import prisma from "~/db.server";
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return json({ success: false, error: "Method Not Allowed" }, { status: 405 });
+  }
+
+  // Rate limit: 10 syncs per minute per shop (protects Shopify API quota)
+  const rateLimitKey = getRateLimitKey(request, "sync-companies");
+  const allowed = await checkRateLimit(rateLimitKey);
+  if (!allowed) {
+    return json(
+      { success: false, error: "Too many sync requests. Please wait a moment." },
+      { status: 429 },
+    );
   }
 
   const { session, admin } = await authenticate.admin(request);

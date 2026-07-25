@@ -19,19 +19,34 @@ export interface ResolvedShop {
  * Derive the user's RBAC role.
  *
  * Lookup order:
- * 1. isAccountOwner (from Shopify session.onlineAccessInfo) → "admin" (owner cannot be demoted)
- * 2. TeamMember table (explicit role assignment for collaborators)
- * 3. Default → "viewer" (unknown collaborator without explicit team member record)
+ * 1. isAccountOwner (from Shopify online session's onlineAccessInfo) → "admin"
+ * 2. DB session.accountOwner (offline sessions lack onlineAccessInfo — dev/install fallback)
+ * 3. TeamMember table (explicit role assignment for collaborators)
+ * 4. Default → "viewer" (unknown collaborator without explicit team member record)
  */
 async function deriveRole(
   shopId: string,
+  shopDomain: string,
   isAccountOwner: boolean,
   userEmail?: string | null,
 ): Promise<Role> {
-  // 1. Account owner ALWAYS gets admin — no DB lookup, direct from Shopify session
+  // 1. Account owner from online session (authoritative for real Shopify users)
   if (isAccountOwner) return "admin";
 
-  // 2. Non-owner: check TeamMember table for explicit role
+  // 2. DB fallback — offline sessions (dev auto-seed, install) don't carry onlineAccessInfo
+  try {
+    const dbSession = await prisma.session.findFirst({
+      where: { shop: shopDomain },
+      orderBy: { id: "desc" },
+      select: { accountOwner: true },
+    });
+    if (dbSession?.accountOwner) return "admin";
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "Session accountOwner lookup failed", msg, { shopDomain });
+  }
+
+  // 3. Non-owner: check TeamMember table for explicit role
   if (userEmail) {
     try {
       const member = await prisma.teamMember.findUnique({
@@ -41,11 +56,11 @@ async function deriveRole(
       if (member) return member.role as Role;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "TeamMember role lookup failed — defaulting to viewer", msg, { shopId, email: userEmail });
+      logger.app("WARN", "TeamMember role lookup failed", msg, { shopId, email: userEmail });
     }
   }
 
-  // 3. Default: viewer (safe for unknown collaborators)
+  // 4. Default: viewer (safe for unknown collaborators)
   return "viewer";
 }
 
@@ -75,7 +90,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
     });
 
     if (shop) {
-      const role = await deriveRole(shop.id, isAccountOwner, userEmail);
+      const role = await deriveRole(shop.id, shopDomain, isAccountOwner, userEmail);
       return {
         shopDomain,
         shopId: shop.id,

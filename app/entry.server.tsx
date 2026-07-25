@@ -37,6 +37,7 @@ if (process.env.NODE_ENV === "development") {
                 scope:
                   "read_orders,write_orders,read_customers,write_customers",
                 expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                accountOwner: true,
               },
             }),
             prisma.shop.upsert({

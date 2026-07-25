@@ -20,7 +20,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { getTemplateById, updateTemplate, deleteTemplate } from "~/services/email.server";
+import { getTemplateById, updateTemplate, deleteTemplate, sendTestEmail } from "~/services/email.server";
 import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
@@ -111,6 +111,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
 
       return json({ success: true, generatedEmail: generated });
+    }
+
+    // P3: Send test email
+    if (intent === "sendTest") {
+      const testEmail = formData.get("testEmail") as string;
+      if (!testEmail?.trim()) {
+        return json({ success: false, error: "Email address required" });
+      }
+      const result = await sendTestEmail({
+        shopId,
+        templateId: params.id!,
+        testEmail: testEmail.trim(),
+      });
+      return json(result);
     }
 
     return json({ success: false, error: "Unknown intent" });
@@ -419,6 +433,22 @@ export default function EmailTemplateDetail() {
                       </BlockStack>
                     </Box>
                   </BlockStack>
+                  {/* P3: Test send */}
+                  <Divider />
+                  <FormLayout>
+                    <Text variant="headingSm" as="h4">Send Test Email</Text>
+                    <TextField
+                      name="testEmail"
+                      label="Recipient Email"
+                      type="email"
+                      placeholder="test@example.com"
+                      autoComplete="email"
+                    />
+                    <input type="hidden" name="intent" value="sendTest" />
+                    <Button submit variant="primary">
+                      Send Test
+                    </Button>
+                  </FormLayout>
                 </>
               )}
             </BlockStack>

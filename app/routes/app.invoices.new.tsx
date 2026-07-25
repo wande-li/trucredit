@@ -41,7 +41,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.customer.findMany({
         where: { shopId, status: { not: "BLACKLISTED" } },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, company: true },
+        select: { id: true, name: true, company: true, creditLimit: true, creditAvailable: true },
       }),
       getNextInvoiceSequence(shopId),
     ]);
@@ -109,6 +109,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!amountStr || Number.isNaN(amount) || amount <= 0) {
       return json({ error: "Please enter a valid amount." }, { status: 400 });
     }
+
+    // P1: Check credit limit before creating invoice
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { creditAvailable: true, creditLimit: true, isFrozen: true, name: true },
+    });
+    if (!customer) return json({ error: "Customer not found." }, { status: 400 });
+    if (customer.isFrozen) {
+      return json({ error: `${customer.name}'s account is frozen. Cannot create invoice.` }, { status: 400 });
+    }
+    if (amount > Number(customer.creditAvailable)) {
+      return json(
+        {
+          error: `Amount (${currency} ${amount.toFixed(2)}) exceeds ${customer.name}'s available credit (${currency} ${Number(customer.creditAvailable).toFixed(2)}). Current credit limit: ${currency} ${Number(customer.creditLimit).toFixed(2)}.`,
+        },
+        { status: 400 },
+      );
+    }
     if (!invoiceNumber) {
       return json({ error: "Invoice number is required." }, { status: 400 });
     }
@@ -160,16 +178,26 @@ export default function NewInvoice() {
   const isSubmitting = fetcher.state === "submitting";
   const canSubmit = customerId && amount && parseFloat(amount) > 0;
 
+  // P1: Show selected customer's available credit
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => c.id === customerId),
+    [customers, customerId],
+  );
+  const availableCredit = selectedCustomer ? Number(selectedCustomer.creditAvailable) : null;
+  const parsedAmount = parseFloat(amount) || 0;
+  const exceedsCredit = availableCredit !== null && parsedAmount > availableCredit;
+
   const customerOptions = useMemo(
     () =>
       customers.map((c) => ({
-        label: c.company ? `${c.name} (${c.company})` : c.name,
+        label: `${c.company ? `${c.name} (${c.company})` : c.name} — Available: ${Number(c.creditAvailable).toLocaleString(undefined, { minimumFractionDigits: 2 })} of ${Number(c.creditLimit).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
         value: c.id,
       })),
     [customers],
   );
 
   const handleSubmit = useCallback(() => {
+    if (exceedsCredit) return; // P1: client-side guard
     const formData = new FormData();
     formData.set("intent", "create");
     formData.set("customerId", customerId);
@@ -179,7 +207,7 @@ export default function NewInvoice() {
     formData.set("invoiceNumber", nextNumber);
     if (shopifyOrderName) formData.set("shopifyOrderName", shopifyOrderName);
     fetcher.submit(formData, { method: "POST" });
-  }, [customerId, amount, netTermsDays, currency, nextNumber, shopifyOrderName, fetcher]);
+  }, [customerId, amount, netTermsDays, currency, nextNumber, shopifyOrderName, fetcher, exceedsCredit]);
 
   return (
     <Page
@@ -218,7 +246,7 @@ export default function NewInvoice() {
               />
 
               <TextField
-                label="Amount"
+                label={exceedsCredit ? "Amount (Exceeds Credit!)" : "Amount"}
                 type="number"
                 value={amount}
                 onChange={(v) => setAmount(v)}
@@ -228,6 +256,7 @@ export default function NewInvoice() {
                 disabled={isSubmitting}
                 min={0.01}
                 step={0.01}
+                error={exceedsCredit ? `Exceeds available credit of ${currency} ${availableCredit!.toFixed(2)}` : undefined}
               />
 
               <Select

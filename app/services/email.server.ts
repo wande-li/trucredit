@@ -174,6 +174,36 @@ export async function deleteTemplate(
   return { success: true };
 }
 
+/**
+ * P3: Send a test email using a template preview
+ */
+export async function sendTestEmail(params: {
+  shopId: string;
+  templateId: string;
+  testEmail: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { shopId, templateId, testEmail } = params;
+
+  const template = await prisma.emailTemplate.findFirst({
+    where: { id: templateId, shopId },
+  });
+  if (!template) return { success: false, error: "Template not found" };
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
+    return { success: false, error: "Invalid email address" };
+  }
+
+  // Simulated send — replace with real email provider (Resend/SES) when ready
+  try {
+    logger.app("INFO", `Test email "${template.name}" queued to ${testEmail}`, { shopId });
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Test email send failed", { shopId, error: msg });
+    return { success: false, error: msg };
+  }
+}
+
 /** Seed default templates for a shop if none exist */
 export async function ensureDefaultTemplates(shopId: string): Promise<void> {
   // Clean up orphaned domain-based templates (pre-fix: shopDomain was incorrectly used as shopId)

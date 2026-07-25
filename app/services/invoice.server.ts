@@ -57,6 +57,8 @@ export async function listInvoices(params: {
   dateTo?: string;
   page?: number;
   pageSize?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }): Promise<PaginatedResult<InvoiceSummary>> {
   const { shopId, search, status, customerId, dateFrom, dateTo } = params;
   const page = Math.max(1, params.page ?? 1);
@@ -81,6 +83,12 @@ export async function listInvoices(params: {
     if (dateTo) (where.issueDate as Record<string, unknown>).lte = new Date(dateTo);
   }
 
+  // P2: Dynamic sort
+  const sortField = params.sortBy ?? "dueDate";
+  const sortDir = params.sortOrder ?? "asc";
+  const orderBy: Record<string, unknown> = {};
+  orderBy[sortField] = sortDir;
+
   const [items, total] = await Promise.all([
     prisma.invoice.findMany({
       where,
@@ -98,7 +106,7 @@ export async function listInvoices(params: {
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { dueDate: "asc" },
+      orderBy: orderBy as Record<string, "asc" | "desc">,
     }),
     prisma.invoice.count({ where }),
   ]);
@@ -546,4 +554,68 @@ export async function getARAgingByCustomer(params: {
 export async function getNextInvoiceSequence(shopId: string): Promise<number> {
   const count = await prisma.invoice.count({ where: { shopId } });
   return count + 1;
+}
+
+/**
+ * P2: Record partial payment against an invoice
+ */
+export async function recordPartialPayment(params: {
+  shopId: string;
+  invoiceId: string;
+  paymentAmount: number;
+  paymentMethod?: string;
+}): Promise<InvoiceRecord> {
+  const { shopId, invoiceId, paymentAmount, paymentMethod } = params;
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirstOrThrow({
+      where: { id: invoiceId, shopId },
+    });
+
+    if (invoice.status === "PAID" || invoice.status === "VOID") {
+      throw new Error(`Cannot record payment against a ${invoice.status.toLowerCase()} invoice`);
+    }
+
+    const currentAmount = Number(invoice.amount);
+    if (paymentAmount <= 0 || paymentAmount > currentAmount) {
+      throw new Error("Payment amount must be between 0 and the invoice total");
+    }
+
+    const newAmount = currentAmount - paymentAmount;
+    const isFullyPaid = newAmount <= 0.001; // floating point tolerance
+
+    const updated = await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        amount: newAmount,
+        status: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
+        paidDate: isFullyPaid ? new Date() : undefined,
+        daysOverdue: isFullyPaid ? 0 : undefined,
+        paymentMethod: paymentMethod ?? invoice.paymentMethod,
+      },
+    });
+
+    // Update customer credit utilization
+    await tx.customer.update({
+      where: { id: invoice.customerId },
+      data: {
+        creditUsed: { decrement: paymentAmount },
+        creditAvailable: { increment: paymentAmount },
+      },
+    });
+
+    if (isFullyPaid) {
+      // Auto-complete collection tasks on full payment
+      await tx.collectionTask.updateMany({
+        where: { invoiceId, status: { in: ["PENDING", "ACTIVE", "PAUSED"] } },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          completedReason: "Invoice paid via partial payment",
+        },
+      });
+    }
+
+    return { ...updated, amount: updated.amount.toString() };
+  });
 }

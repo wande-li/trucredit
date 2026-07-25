@@ -115,6 +115,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       plan: billing.plan,
       planName: billing.planName,
       subscriptionStatus: billing.subscriptionStatus,
+      generatedAt: new Date().toISOString(),
       stats: {
         totalCustomers: billing.customerCount,
         totalInvoices: billing.invoiceCount,
@@ -362,7 +363,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
 
 // ── Dashboard ──
 export default function Dashboard() {
-  const { stats, quota, planName, aging, collectionStats, recentCustomers } =
+  const { stats, quota, planName, aging, collectionStats, recentCustomers, generatedAt } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
@@ -372,6 +373,16 @@ export default function Dashboard() {
         <BlockStack gap="500">
           {/* ═══ Onboarding Guide ═══ */}
           {stats.totalCustomers === 0 && <OnboardingGuide />}
+
+          {/* P3: Last updated timestamp */}
+          <Text as="p" variant="bodySm" tone="subdued" alignment="end">
+            Last refreshed: {new Date(generatedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
 
           {/* ═══ KPI Row ═══ */}
           <InlineStack gap="400" wrap>

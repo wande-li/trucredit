@@ -24,6 +24,7 @@ import {
   freezeCustomer,
   unfreezeCustomer,
   recalculateCreditScore,
+  deleteCustomer,
 } from "~/services/customer.server";
 import { assessCredit } from "~/services/credit.server";
 import { getARAgingByCustomer } from "~/services/invoice.server";
@@ -165,6 +166,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after score recalc", msg);
         });
 
+        return json({ success: true });
+      }
+
+      // P3: Delete customer (soft-delete)
+      case "delete": {
+        const result = await deleteCustomer(params.id, shopId);
+        if (!result.success) return json({ error: result.error }, { status: 400 });
         return json({ success: true });
       }
 
@@ -340,6 +348,18 @@ export default function CustomerDetailPage() {
                     loading={isBusy && fetcher.formData?.get("intent") === "recalculate-score"}
                   >
                     Recalculate Score
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (confirm("Delete this customer? Only customers with no active invoices can be deleted.")) {
+                        fetcher.submit({ intent: "delete" }, { method: "post" });
+                      }
+                    }}
+                    tone="critical"
+                    disabled={isBusy}
+                    loading={isBusy && fetcher.formData?.get("intent") === "delete"}
+                  >
+                    Delete
                   </Button>
                 </InlineStack>
 

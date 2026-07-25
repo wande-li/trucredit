@@ -99,6 +99,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       case "delete": {
+        // P1: Plan gate for delete action
+        const { isPaid: delPaid } = await checkPlanAccess(shopId);
+        if (!delPaid) {
+          return json(
+            { error: "Automated collection sequences require a paid plan. Please upgrade.", needsUpgrade: true },
+            { status: 402 },
+          );
+        }
+
         const sequenceId = formData.get("sequenceId")?.toString();
         if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
 
@@ -108,6 +117,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       case "toggle": {
+        // P1: Plan gate for toggle action
+        const { isPaid: togglePaid } = await checkPlanAccess(shopId);
+        if (!togglePaid) {
+          return json(
+            { error: "Automated collection sequences require a paid plan. Please upgrade.", needsUpgrade: true },
+            { status: 402 },
+          );
+        }
+
         const sequenceId = formData.get("sequenceId")?.toString();
         const isActive = formData.get("isActive") === "true";
         if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });

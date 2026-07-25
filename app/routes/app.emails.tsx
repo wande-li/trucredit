@@ -35,7 +35,7 @@ import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId } = await resolveShop(request);
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
     const pageSize = Math.min(parseInt(url.searchParams.get("pageSize") ?? String(PAGINATION.DEFAULT_PAGE_SIZE), 10), PAGINATION.MAX_PAGE_SIZE);
@@ -123,11 +123,13 @@ const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
 
 export default function EmailsPage() {
   const location = useLocation();
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- Remix layout pattern: early Outlet return before list hooks
   if (location.pathname !== "/app/emails") {
     return <Outlet />;
   }
+  return <EmailsList />;
+}
 
+function EmailsList() {
   const loaderData = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();

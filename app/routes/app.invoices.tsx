@@ -38,9 +38,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const search = url.searchParams.get("search") ?? undefined;
     const status = url.searchParams.get("status") ?? undefined;
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+    const sortBy = url.searchParams.get("sortBy") ?? "dueDate";
+    const sortOrder = (url.searchParams.get("sortOrder") ?? "asc") as "asc" | "desc";
 
     const [invoiceResult, agingReport] = await Promise.all([
-      listInvoices({ shopId, search, status, page }),
+      listInvoices({ shopId, search, status, page, sortBy, sortOrder }),
       getARAgingReport(shopId),
     ]);
 
@@ -85,6 +87,8 @@ export default function Invoices() {
   const navigate = useNavigate();
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
+  const currentSortBy = searchParams.get("sortBy") ?? "dueDate";
+  const currentSortOrder = searchParams.get("sortOrder") ?? "asc";
   const handleTabChange = useCallback(
     (selected: number) => {
       const buckets = ["all", "current", "1-30", "31-60", "61-90", "90+"];
@@ -274,6 +278,19 @@ export default function Invoices() {
                 { title: "Overdue" },
                 { title: "Status" },
               ]}
+              sortable={[false, false, false, true, true, true, false]}
+              sortColumnIndex={
+                ["invoiceNumber", "customer.name", "amount", "issueDate", "dueDate", "daysOverdue", "status"].indexOf(currentSortBy)
+              }
+              sortDirection={currentSortOrder === "asc" ? "ascending" : "descending"}
+              onSort={(_headingIndex: number, direction: "ascending" | "descending") => {
+                const fields = ["invoiceNumber", "customer.name", "amount", "issueDate", "dueDate", "daysOverdue", "status"];
+                const field = fields[_headingIndex] ?? "dueDate";
+                searchParams.set("sortBy", field);
+                searchParams.set("sortOrder", direction === "ascending" ? "asc" : "desc");
+                searchParams.delete("page");
+                setSearchParams(searchParams);
+              }}
               selectable={false}
             >
               {invoiceResult.items.map((inv, idx) => (

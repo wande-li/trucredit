@@ -374,3 +374,32 @@ export async function upsertCustomerFromShopify(params: {
     totalRevenue: customer.totalRevenue.toString(),
   };
 }
+
+/**
+ * P3: Delete (soft-delete) a customer — only if no active invoices
+ */
+export async function deleteCustomer(
+  id: string,
+  shopId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const customer = await prisma.customer.findFirst({ where: { id, shopId } });
+  if (!customer) return { success: false, error: "Customer not found" };
+
+  const hasActiveInvoices = await prisma.invoice.findFirst({
+    where: { customerId: id, status: { notIn: ["PAID", "VOID"] } },
+    select: { id: true },
+  });
+  if (hasActiveInvoices) {
+    return {
+      success: false,
+      error: "Cannot delete customer with active (unpaid/open) invoices. Mark all invoices as PAID or VOID first.",
+    };
+  }
+
+  await prisma.customer.update({
+    where: { id },
+    data: { status: "FROZEN", isFrozen: true, frozenAt: new Date(), frozenReason: "Customer deleted" },
+  });
+
+  return { success: true };
+}

@@ -28,6 +28,7 @@ import {
   updateStep,
   deleteStep,
   addStep,
+  reorderSteps,
 } from "~/services/collection.server";
 import { COLLECTION, TONE_LABELS } from "~/lib/constants";
 import type { Channel } from "@prisma/client";
@@ -139,6 +140,28 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return json({ success: true });
       }
 
+      // P2: Reorder steps
+      case "reorderStep": {
+        const stepId = formData.get("stepId")?.toString();
+        const direction = formData.get("direction")?.toString();
+        if (!stepId || !direction) return json({ error: "Missing parameters" }, { status: 400 });
+
+        const seq = await getSequence(sequenceId, shopId);
+        if (!seq) return json({ error: "Sequence not found" }, { status: 404 });
+
+        const steps = [...seq.steps];
+        const idx = steps.findIndex((s) => s.id === stepId);
+        if (idx === -1) return json({ error: "Step not found" }, { status: 400 });
+
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= steps.length) return json({ error: "Cannot move" }, { status: 400 });
+
+        [steps[idx], steps[swapIdx]] = [steps[swapIdx]!, steps[idx]!];
+        const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
       default:
         return json({ error: "Unknown intent" }, { status: 400 });
     }
@@ -198,6 +221,17 @@ export default function CollectionDetailPage() {
       setDeleteStepId(null);
     },
     [fetcher],
+  );
+
+  // P2: Move step up/down
+  const handleMoveStep = useCallback(
+    (stepId: string, direction: "up" | "down") => {
+      fetcher.submit(
+        { intent: "reorderStep", stepId, direction, sequenceId: sequence.id },
+        { method: "POST" },
+      );
+    },
+    [sequence.id, fetcher],
   );
 
   const hasChanges =
@@ -298,8 +332,11 @@ export default function CollectionDetailPage() {
                       <StepRow
                         step={step}
                         index={idx}
+                        total={sequence.steps.length}
                         onEdit={() => setEditingStepId(step.id)}
                         onDelete={() => setDeleteStepId(step.id)}
+                        onMoveUp={() => handleMoveStep(step.id, "up")}
+                        onMoveDown={() => handleMoveStep(step.id, "down")}
                       />
                     )}
                     {idx < sequence.steps.length - 1 && <Box paddingBlockStart="300"><Divider /></Box>}
@@ -378,14 +415,20 @@ export default function CollectionDetailPage() {
 
 function StepRow({
   step,
-  index: _index,
+  index,
+  total,
   onEdit,
   onDelete,
+  onMoveUp,
+  onMoveDown,
 }: {
   step: { id: string; order: number; delayDays: number; channel: Channel; toneLevel: number; skipIfPaid: boolean; useAI: boolean; subject: string | null };
   index: number;
+  total: number;
   onEdit: () => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   const delayLabel =
     step.delayDays === 0 ? "Due date" : step.delayDays < 0 ? `${Math.abs(step.delayDays)}d before` : `+${step.delayDays}d`;
@@ -410,6 +453,16 @@ function StepRow({
         )}
       </InlineStack>
       <ButtonGroup>
+        {index > 0 && (
+          <Button size="slim" onClick={onMoveUp} accessibilityLabel="Move up">
+            ↑
+          </Button>
+        )}
+        {index < total - 1 && (
+          <Button size="slim" onClick={onMoveDown} accessibilityLabel="Move down">
+            ↓
+          </Button>
+        )}
         <Button size="slim" onClick={onEdit}>Edit</Button>
         <Button size="slim" tone="critical" onClick={onDelete}>Delete</Button>
       </ButtonGroup>

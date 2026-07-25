@@ -16,10 +16,13 @@ import {
   Box,
   DataTable,
   Link,
+  FormLayout,
+  Select,
+  TextField,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { getInvoice, markInvoicePaid } from "~/services/invoice.server";
+import { getInvoice, markInvoicePaid, recordPartialPayment } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
@@ -194,6 +197,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return json({ success: true });
       }
 
+      // P2: Record partial payment
+      case "partial-payment": {
+        const paymentAmount = parseFloat(formData.get("paymentAmount")?.toString() ?? "0");
+        const paymentMethod = formData.get("paymentMethod")?.toString() ?? undefined;
+        if (!paymentAmount || paymentAmount <= 0) {
+          return json({ error: "Enter a valid payment amount" }, { status: 400 });
+        }
+        await recordPartialPayment({
+          shopId,
+          invoiceId: params.id!,
+          paymentAmount,
+          paymentMethod,
+        });
+        return json({ success: true });
+      }
+
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
@@ -230,6 +249,9 @@ export default function InvoiceDetail() {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [busyIntent, setBusyIntent] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
+  const [partialMethod, setPartialMethod] = useState("Bank Transfer");
 
   const isPaid = invoice.status === "PAID";
   const isVoid = invoice.status === "VOID";
@@ -271,6 +293,27 @@ export default function InvoiceDetail() {
 
   const isBusy = (intent: string) => busyIntent === intent && fetcher.state !== "idle";
 
+  // P2: Handle partial payment
+  const handlePartialPayment = useCallback(() => {
+    const amount = parseFloat(partialAmount);
+    if (!amount || amount <= 0 || amount > Number(invoice.amount)) return;
+    setBusyIntent("partial-payment");
+    const fd = new FormData();
+    fd.set("intent", "partial-payment");
+    fd.set("paymentAmount", partialAmount);
+    if (partialMethod) fd.set("paymentMethod", partialMethod);
+    fetcher.submit(fd, { method: "post" });
+  }, [partialAmount, partialMethod, invoice.amount, fetcher]);
+
+  const handleDownloadPDF = useCallback(async () => {
+    setPdfLoading(true);
+    try {
+      await downloadPDF(`/api/invoices/${invoice.id}/pdf`);
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [invoice.id]);
+
   return (
     <Page
       title={`Invoice ${invoice.invoiceNumber}`}
@@ -306,9 +349,11 @@ export default function InvoiceDetail() {
                   </BlockStack>
                   <InlineStack gap="200" blockAlign="center">
                     <Button
-                      onClick={() => downloadPDF(`/api/invoices/${invoice.id}/pdf`)}
+                      onClick={handleDownloadPDF}
                       variant="primary"
                       tone="success"
+                      loading={pdfLoading}
+                      disabled={pdfLoading}
                     >
                       Download PDF
                     </Button>
@@ -566,6 +611,47 @@ export default function InvoiceDetail() {
                 </Card>
               )}
 
+              {/* P2: Partial Payment */}
+              {isEditable && (
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">Record Partial Payment</Text>
+                    <FormLayout>
+                      <TextField
+                        label="Payment Amount"
+                        type="number"
+                        value={partialAmount}
+                        onChange={setPartialAmount}
+                        prefix={invoice.currency}
+                        placeholder="0.00"
+                        min={0.01}
+                        max={Number(invoice.amount)}
+                        step={0.01}
+                        autoComplete="off"
+                      />
+                      <Select
+                        label="Payment Method"
+                        value={partialMethod}
+                        onChange={setPartialMethod}
+                        placeholder="Select method"
+                        options={["Bank Transfer", "Credit Card", "Check", "Wire", "Other"].map((v) => ({
+                          label: v,
+                          value: v,
+                        }))}
+                      />
+                      <Button
+                        onClick={handlePartialPayment}
+                        variant="primary"
+                        fullWidth
+                        loading={isBusy("partial-payment")}
+                      >
+                        Record Payment
+                      </Button>
+                    </FormLayout>
+                  </BlockStack>
+                </Card>
+              )}
+
               {/* Paid Info */}
               {isPaid && (
                 <Card>
@@ -587,10 +673,12 @@ export default function InvoiceDetail() {
                     </Banner>
                     <InlineStack gap="200" wrap>
                       <Button
-                        onClick={() => downloadPDF(`/api/invoices/${invoice.id}/pdf`)}
+                        onClick={handleDownloadPDF}
                         variant="primary"
                         tone="success"
                         fullWidth
+                        loading={pdfLoading}
+                        disabled={pdfLoading}
                       >
                         Download PDF
                       </Button>

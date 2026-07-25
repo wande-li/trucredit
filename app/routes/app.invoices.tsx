@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useLocation, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
@@ -19,6 +19,7 @@ import {
   Button,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import { listInvoices, getARAgingReport } from "~/services/invoice.server";
 import { useCallback, useMemo } from "react";
 import { downloadCSV } from "~/utils/export-csv";
@@ -29,6 +30,9 @@ import PageSkeleton from "~/components/PageSkeleton";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId, shopDomain } = await resolveShop(request);
+
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? undefined;

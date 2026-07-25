@@ -5,6 +5,7 @@ import { authenticate } from "~/shopify.server";
 import { exportToCsv, csvResponseHeaders } from "~/services/export.server";
 import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
+import { EXPORT_MAX_ROWS } from "~/lib/constants";
 
 const CSV_HEADERS = [
   "Invoice #",
@@ -59,7 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         customer: { select: { name: true, company: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 5000,
+      take: EXPORT_MAX_ROWS,
     })) as ExportRow[];
 
     // Build CSV rows

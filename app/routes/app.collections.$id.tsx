@@ -20,7 +20,7 @@ import {
   Divider,
   LegacyCard,
 } from "@shopify/polaris";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
 import {
   getSequence,
@@ -428,7 +428,7 @@ function StepEditForm({
   isSaving: boolean;
   onCancel: () => void;
 }) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{ success?: boolean; error?: string }>();
 
   const [delayDays, setDelayDays] = useState(String(step.delayDays));
   const [channel, setChannel] = useState(step.channel);
@@ -456,45 +456,48 @@ function StepEditForm({
     subject !== (step.subject ?? "");
 
   return (
-    <Box padding="400" background="bg-surface-secondary" borderRadius="200">
-      <FormLayout>
-        <FormLayout.Group condensed>
+    <>
+      <ActionToast fetcher={fetcher} successMessage="Step updated successfully" />
+      <Box padding="400" background="bg-surface-secondary" borderRadius="200">
+        <FormLayout>
+          <FormLayout.Group condensed>
+            <TextField
+              label="Delay Days"
+              value={delayDays}
+              onChange={setDelayDays}
+              type="number"
+              autoComplete="off"
+              helpText="Negative = before due, 0 = on due, positive = after due"
+            />
+            <Select
+              label="Channel"
+              value={channel}
+              onChange={(value, _id) => setChannel(value as Channel)}
+              options={CHANNEL_OPTIONS}
+            />
+            <Select
+              label="Tone"
+              value={toneLevel}
+              onChange={setToneLevel}
+              options={TONE_OPTIONS}
+            />
+          </FormLayout.Group>
           <TextField
-            label="Delay Days"
-            value={delayDays}
-            onChange={setDelayDays}
-            type="number"
+            label="Subject (optional)"
+            value={subject}
+            onChange={setSubject}
             autoComplete="off"
-            helpText="Negative = before due, 0 = on due, positive = after due"
+            placeholder="Override email subject"
           />
-          <Select
-            label="Channel"
-            value={channel}
-            onChange={(value, _id) => setChannel(value as Channel)}
-            options={CHANNEL_OPTIONS}
-          />
-          <Select
-            label="Tone"
-            value={toneLevel}
-            onChange={setToneLevel}
-            options={TONE_OPTIONS}
-          />
-        </FormLayout.Group>
-        <TextField
-          label="Subject (optional)"
-          value={subject}
-          onChange={setSubject}
-          autoComplete="off"
-          placeholder="Override email subject"
-        />
-        <InlineStack align="end" gap="200">
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!hasChanged} loading={isSaving}>
-            Save Step
-          </Button>
-        </InlineStack>
-      </FormLayout>
-    </Box>
+          <InlineStack align="end" gap="200">
+            <Button onClick={onCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!hasChanged} loading={isSaving}>
+              Save Step
+            </Button>
+          </InlineStack>
+        </FormLayout>
+      </Box>
+    </>
   );
 }
 
@@ -509,12 +512,20 @@ function AddStepModal({
   sequenceId: string;
   nextOrder: number;
 }) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{ success?: boolean; error?: string }>();
 
   const [delayDays, setDelayDays] = useState("0");
   const [channel, setChannel] = useState("EMAIL");
   const [toneLevel, setToneLevel] = useState("3");
   const [subject, setSubject] = useState("");
+
+  // Auto-close on success after the fetcher returns
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success) {
+      const t = setTimeout(onClose, 600);
+      return () => clearTimeout(t);
+    }
+  }, [fetcher.state, fetcher.data, onClose]);
 
   const handleAdd = () => {
     fetcher.submit(
@@ -528,7 +539,6 @@ function AddStepModal({
       },
       { method: "POST" },
     );
-    setTimeout(onClose, 100);
   };
 
   return (
@@ -543,6 +553,7 @@ function AddStepModal({
       }}
       secondaryActions={[{ content: "Cancel", onAction: onClose }]}
     >
+      <ActionToast fetcher={fetcher} successMessage="Step added successfully" />
       <Modal.Section>
         <FormLayout>
           <FormLayout.Group condensed>

@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useLocation, useSearchParams, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -19,6 +19,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import { listCustomers } from "~/services/customer.server";
 import { useCallback, useState } from "react";
 import { downloadCSV } from "~/utils/export-csv";
@@ -26,10 +27,14 @@ import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import { CustomerDetailModal } from "~/components/credit/CustomerDetailModal";
+import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
+
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? undefined;
@@ -137,6 +142,7 @@ export default function CustomersPage() {
     >
 
       {/* Sync result feedback */}
+      <ActionToast fetcher={syncFetcher} successMessage="Sync completed successfully" />
       {syncFetcher.data?.success && (syncFetcher.data.created ?? 0) === 0 && (syncFetcher.data.updated ?? 0) === 0 ? (
         <Box padding="400">
           <Banner tone="info">

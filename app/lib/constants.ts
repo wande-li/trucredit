@@ -234,6 +234,9 @@ export const PAGINATION = {
   MAX_PAGE_SIZE: 100,
 } as const;
 
+// Export safety cap — prevents OOM on large shops
+export const EXPORT_MAX_ROWS = 5000;
+
 // Collection Retry — transient error handling for sweep/worker operations
 export const COLLECTION_RETRY = {
   MAX_RETRIES: 3,

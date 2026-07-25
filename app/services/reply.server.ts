@@ -2,6 +2,7 @@
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { parseCustomerReply } from "~/services/ai.server";
+import { PAGINATION } from "~/lib/constants";
 import type { ReplyIntent } from "@prisma/client";
 
 // ═══════════════════ Types ═══════════════════
@@ -248,7 +249,7 @@ export async function listReplies(shopId: string, params?: {
   status?: string; // "OPEN" | "RESOLVED" | "DISPUTED"
 }) {
   const page = params?.page ?? 1;
-  const pageSize = Math.min(params?.pageSize ?? 20, 100);
+  const pageSize = Math.min(params?.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE, PAGINATION.MAX_PAGE_SIZE);
 
   const where: Record<string, unknown> = {
     task: { invoice: { shopId } },
@@ -302,7 +303,7 @@ export async function getTaskTimeline(taskId: string, shopId: string) {
       },
       events: {
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take: PAGINATION.MAX_PAGE_SIZE,
       },
     },
   });

@@ -492,7 +492,7 @@ export default function Dashboard() {
                     <Text as="span" variant="headingLg" fontWeight="bold">{collectionStats.activeTasks}</Text>
                   </BlockStack>
                 </InlineStack>
-                <Link to="/app/tasks" style={{ textDecoration: "none" }}>
+                <Link to="/app/collections" style={{ textDecoration: "none" }}>
                   <Text as="span" variant="bodySm" tone="success" fontWeight="medium">All tasks →</Text>
                 </Link>
               </InlineStack>

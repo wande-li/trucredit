@@ -36,3 +36,40 @@ export async function downloadCSV(url: string): Promise<string> {
 
   return filename;
 }
+
+// PDF download utility — same JWT auth approach as downloadCSV
+// <a href> navigation loses Shopify session in embedded app iframe context
+export async function downloadPDF(url: string): Promise<string> {
+  const res = await fetch(url);
+  const contentType = res.headers.get("Content-Type") || "";
+
+  if (!res.ok || !contentType.includes("application/pdf")) {
+    let detail = "";
+    if (contentType.includes("text/html")) {
+      detail = " Please reopen the app and try again.";
+    } else if (res.status === 401 || res.status === 402) {
+      const text = await res.text().catch(() => "");
+      detail = ` ${text}`;
+    } else {
+      detail = ` (HTTP ${res.status})`;
+    }
+    throw new Error(`PDF download failed.${detail}`);
+  }
+
+  const blob = await res.blob();
+  const filename =
+    res.headers
+      .get("Content-Disposition")
+      ?.match(/filename="?([^"]+)"?/)?.[1] ?? "invoice.pdf";
+
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+  return filename;
+}

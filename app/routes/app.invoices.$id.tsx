@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
+import { downloadPDF } from "~/utils/export-csv";
 import {
   Page,
   Card,
@@ -305,8 +306,7 @@ export default function InvoiceDetail() {
                   </BlockStack>
                   <InlineStack gap="200" blockAlign="center">
                     <Button
-                      url={`/api/invoices/${invoice.id}/pdf`}
-                      external
+                      onClick={() => downloadPDF(`/api/invoices/${invoice.id}/pdf`)}
                       variant="primary"
                       tone="success"
                     >
@@ -569,7 +569,7 @@ export default function InvoiceDetail() {
               {/* Paid Info */}
               {isPaid && (
                 <Card>
-                  <BlockStack gap="200">
+                  <BlockStack gap="300">
                     <Banner tone="success">
                       <Text as="p" variant="bodyMd" fontWeight="bold">
                         Paid
@@ -585,6 +585,27 @@ export default function InvoiceDetail() {
                         </Text>
                       )}
                     </Banner>
+                    <InlineStack gap="200" wrap>
+                      <Button
+                        onClick={() => downloadPDF(`/api/invoices/${invoice.id}/pdf`)}
+                        variant="primary"
+                        tone="success"
+                        fullWidth
+                      >
+                        Download PDF
+                      </Button>
+                      {allowedTransitions.includes("DISPUTED") && (
+                        <Button
+                          onClick={() => handleStatusChange("DISPUTED")}
+                          variant="primary"
+                          tone="critical"
+                          fullWidth
+                          loading={isBusy("update-status")}
+                        >
+                          Dispute Invoice
+                        </Button>
+                      )}
+                    </InlineStack>
                   </BlockStack>
                 </Card>
               )}

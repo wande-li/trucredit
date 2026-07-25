@@ -19,44 +19,39 @@ import {
 if (process.env.NODE_ENV === "development") {
   const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
   import("~/db.server").then(({ default: prisma }) => {
-    prisma.session
-      .findFirst({ where: { shop: devShop } })
-      .then((s) => {
-        if (!s) {
-          logger.app("INFO", "Cold start — auto-seeding dev data", undefined, {
-            component: "Startup",
-          });
-          return Promise.all([
-            prisma.session.create({
-              data: {
-                id: "dev-session",
-                shop: devShop,
-                state: "dev",
-                isOnline: false,
-                accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
-                scope:
-                  "read_orders,write_orders,read_customers,write_customers",
-                expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-                accountOwner: true,
-              },
-            }),
-            prisma.shop.upsert({
-              where: { shopDomain: devShop },
-              create: {
-                shopDomain: devShop,
-                accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
-                plan: "FREE",
-              },
-              update: { accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token" },
-            }),
-          ]);
-        }
-      })
+    logger.app("INFO", "Auto-seeding dev data (if needed)", undefined, {
+      component: "Startup",
+    });
+    Promise.all([
+      prisma.session.upsert({
+        where: { id: "dev-session" },
+        create: {
+          id: "dev-session",
+          shop: devShop,
+          state: "dev",
+          isOnline: false,
+          accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
+          scope: "read_orders,write_orders,read_customers,write_customers",
+          expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          accountOwner: true,
+        },
+        update: { accountOwner: true },
+      }),
+      prisma.shop.upsert({
+        where: { shopDomain: devShop },
+        create: {
+          shopDomain: devShop,
+          accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
+          plan: "FREE",
+        },
+        update: { accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token" },
+      }),
+    ])
       .then(() => {
-          logger.app("INFO", "Dev data ready", undefined, { component: "Startup" });
+        logger.app("INFO", "Dev data ready", undefined, { component: "Startup" });
       })
       .catch((e: unknown) => {
-  logger.app("ERROR", "Auto-seed failed", e, { component: "Startup" });
+        logger.app("ERROR", "Auto-seed failed", e, { component: "Startup" });
       });
   });
 }

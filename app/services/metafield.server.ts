@@ -5,6 +5,7 @@ import type { AdminApiContext } from "@shopify/shopify-app-remix/server";
 import prisma from "~/db.server";
 import { METAFIELDS_SET, GET_CUSTOMER_METAFIELD } from "~/lib/graphql-queries";
 import { adminGraphQL } from "~/lib/graphql-client.server";
+import { toGid } from "~/lib/shopify-id";
 import { logger } from "~/services/logger.server";
 
 interface CreditStatusPayload {
@@ -57,7 +58,7 @@ export async function syncCreditMetafield(
   const result = await adminGraphQL(admin, shopDomain, METAFIELDS_SET, {
     metafields: [
       {
-        ownerId: `gid://shopify/Customer/${customer.shopifyCustomerId}`,
+        ownerId: toGid(customer.shopifyCustomerId, "Customer"),
         namespace: "trucredit",
         key: "credit_status",
         type: "json",
@@ -179,7 +180,7 @@ export async function verifyCreditMetafield(
 
   try {
     const result = await adminGraphQL(admin, shopDomain, GET_CUSTOMER_METAFIELD, {
-      customerId: `gid://shopify/Customer/${customer.shopifyCustomerId}`,
+      customerId: toGid(customer.shopifyCustomerId, "Customer"),
     });
 
     const rawValue = (result?.data as Record<string, unknown> | null)?.customer as Record<string, unknown> | null;
@@ -237,7 +238,7 @@ export async function clearCreditMetafield(
   await adminGraphQL(admin, shopDomain, METAFIELDS_SET, {
     metafields: [
       {
-        ownerId: `gid://shopify/Customer/${shopifyCustomerId}`,
+        ownerId: toGid(shopifyCustomerId, "Customer"),
         namespace: "trucredit",
         key: "credit_status",
         type: "json",

@@ -5,6 +5,7 @@ import { upsertCustomerFromShopify } from "~/services/customer.server";
 import { upsertCompanyContact } from "~/services/company.server";
 import { syncCreditMetafield, clearCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
+import { toGid } from "~/lib/shopify-id";
 import prisma from "~/db.server";
 
 // Shopify webhook payloads are dynamic — safe to use index access
@@ -330,8 +331,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const resultingOrderId = p.order_id ? String(p.order_id) : "";
 
     if (draftOrderId && resultingOrderId && shopDomain) {
-      // Shopify REST webhook sends numeric IDs; our DB stores GID format
-      const draftOrderGid = `gid://shopify/DraftOrder/${draftOrderId}`;
+      const draftOrderGid = toGid(draftOrderId, "DraftOrder");
 
       const result = await prisma.invoice.updateMany({
         where: {
@@ -361,7 +361,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return safe("DRAFT_ORDERS_DELETE", async () => {
     const draftOrderId = String(p.id ?? "");
     if (draftOrderId && shopDomain) {
-      const draftOrderGid = `gid://shopify/DraftOrder/${draftOrderId}`;
+      const draftOrderGid = toGid(draftOrderId, "DraftOrder");
       const invoice = await prisma.invoice.findFirst({
         where: {
           shop: { shopDomain: shopDomain.trim() },

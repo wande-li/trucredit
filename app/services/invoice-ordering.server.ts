@@ -11,6 +11,7 @@ import {
   GET_PAYMENT_TERMS_TEMPLATES,
 } from "~/lib/graphql-queries";
 import { decryptToken } from "~/lib/crypto.server";
+import { toGid } from "~/lib/shopify-id";
 
 interface GraphQLResult<T = unknown> {
   data?: T;
@@ -170,9 +171,7 @@ export async function createCollectionDraftOrder(args: {
               requiresShipping: false,
             },
           ],
-          customerId: shopifyCustomerId.startsWith("gid://")
-            ? shopifyCustomerId
-            : `gid://shopify/Customer/${shopifyCustomerId}`,
+          customerId: toGid(shopifyCustomerId, "Customer"),
         },
       },
     );

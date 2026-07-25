@@ -23,15 +23,9 @@ if (process.env.NODE_ENV === "development") {
       .findFirst({ where: { shop: devShop } })
       .then((s) => {
         if (!s) {
-          // eslint-disable-next-line no-console
-          console.log(
-            JSON.stringify({
-              timestamp: new Date().toISOString(),
-              level: "INFO",
-              service: "Startup",
-              message: "Cold start — auto-seeding dev data",
-            }),
-          );
+          logger.app("INFO", "Cold start — auto-seeding dev data", undefined, {
+            component: "Startup",
+          });
           return Promise.all([
             prisma.session.create({
               data: {
@@ -58,27 +52,10 @@ if (process.env.NODE_ENV === "development") {
         }
       })
       .then(() => {
-        // eslint-disable-next-line no-console
-        console.log(
-          JSON.stringify({
-            timestamp: new Date().toISOString(),
-            level: "INFO",
-            service: "Startup",
-            message: "Dev data ready",
-          }),
-        );
+          logger.app("INFO", "Dev data ready", undefined, { component: "Startup" });
       })
       .catch((e: unknown) => {
-        // eslint-disable-next-line no-console
-        console.error(
-          JSON.stringify({
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            service: "Startup",
-            message: "Auto-seed failed",
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+  logger.app("ERROR", "Auto-seed failed", e, { component: "Startup" });
       });
   });
 }
@@ -108,16 +85,7 @@ setTimeout(() => {
         registerWorkerGroup("collection", collectionWorkers);
       })
       .catch((e: unknown) => {
-        // eslint-disable-next-line no-console
-        console.error(
-          JSON.stringify({
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            service: "Startup",
-            message: "Collection worker failed to start",
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+        logger.app("ERROR", "Collection worker failed to start", e, { component: "Startup" });
       });
     import("~/workers/email.worker")
       .then((m) => m.createEmailWorker())
@@ -125,28 +93,10 @@ setTimeout(() => {
         registerWorker("email", emailWorker);
       })
       .catch((e: unknown) => {
-        // eslint-disable-next-line no-console
-        console.error(
-          JSON.stringify({
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            service: "Startup",
-            message: "Email worker failed to start",
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+        logger.app("ERROR", "Email worker failed to start", e, { component: "Startup" });
       });
   }).catch((e: unknown) => {
-    // eslint-disable-next-line no-console
-    console.error(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "ERROR",
-        service: "Startup",
-        message: "Collection queue import failed",
-        error: e instanceof Error ? e.message : String(e),
-      }),
-    );
+    logger.app("ERROR", "Collection queue import failed", e, { component: "Startup" });
   });
 }, 1000);
 
@@ -166,16 +116,10 @@ function registerWorkerGroup(
 }
 
 async function gracefulShutdown(signal: string) {
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      timestamp: new Date().toISOString(),
-      level: "INFO",
-      service: "Shutdown",
-      message: `Received ${signal}, shutting down workers...`,
-      workerCount: workerRegistry.size,
-    }),
-  );
+  logger.app("INFO", `Received ${signal}, shutting down workers...`, undefined, {
+    component: "Shutdown",
+    workerCount: String(workerRegistry.size),
+  });
 
   const shutdowns: Promise<void>[] = [];
 
@@ -184,16 +128,9 @@ async function gracefulShutdown(signal: string) {
     if (typeof (entry as BullMQWorker).close === "function") {
       shutdowns.push(
         (entry as BullMQWorker).close().catch((e) => {
-          // eslint-disable-next-line no-console
-          console.error(
-            JSON.stringify({
-              timestamp: new Date().toISOString(),
-              level: "ERROR",
-              service: "Shutdown",
-              message: `Failed to close worker: ${name}`,
-              error: e instanceof Error ? e.message : String(e),
-            }),
-          );
+          logger.app("ERROR", `Failed to close worker: ${name}`, e, {
+            component: "Shutdown",
+          });
         }),
       );
     } else {
@@ -204,16 +141,9 @@ async function gracefulShutdown(signal: string) {
         if (subWorker && typeof subWorker.close === "function") {
           shutdowns.push(
             subWorker.close().catch((e) => {
-              // eslint-disable-next-line no-console
-              console.error(
-                JSON.stringify({
-                  timestamp: new Date().toISOString(),
-                  level: "ERROR",
-                  service: "Shutdown",
-                  message: `Failed to close worker: ${name}/${subName}`,
-                  error: e instanceof Error ? e.message : String(e),
-                }),
-              );
+              logger.app("ERROR", `Failed to close worker: ${name}/${subName}`, e, {
+                component: "Shutdown",
+              });
             }),
           );
         }
@@ -222,15 +152,7 @@ async function gracefulShutdown(signal: string) {
   }
 
   if (shutdowns.length === 0) {
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "INFO",
-        service: "Shutdown",
-        message: "No workers to shut down",
-      }),
-    );
+    logger.app("INFO", "No workers to shut down", undefined, { component: "Shutdown" });
     process.exit(0);
   }
 
@@ -239,26 +161,12 @@ async function gracefulShutdown(signal: string) {
       Promise.all(shutdowns),
       new Promise<void>((resolve) => setTimeout(resolve, 15_000)),
     ]);
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "INFO",
-        service: "Shutdown",
-        message: "All workers closed",
-      }),
-    );
+    logger.app("INFO", "All workers closed", undefined, { component: "Shutdown" });
   } catch {
     // Timeout — force exit
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "WARN",
-        service: "Shutdown",
-        message: "Worker shutdown timed out, forcing exit",
-      }),
-    );
+    logger.app("WARN", "Worker shutdown timed out, forcing exit", undefined, {
+      component: "Shutdown",
+    });
   }
 
   process.exit(0);

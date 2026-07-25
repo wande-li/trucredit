@@ -173,6 +173,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "delete": {
         const result = await deleteCustomer(params.id, shopId);
         if (!result.success) return json({ error: result.error }, { status: 400 });
+
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after customer delete", msg);
+        });
+
         return json({ success: true });
       }
 

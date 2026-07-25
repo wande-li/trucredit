@@ -594,7 +594,8 @@ export async function bulkMarkInvoicePaid(params: {
       select: { id: true, customerId: true, amount: true },
     });
 
-    for (const inv of invoices) {
+    // P0-5: Parallel bulk update — replaces N+1 sequential loop
+    await Promise.all(invoices.map(async (inv) => {
       await tx.invoice.update({
         where: { id: inv.id },
         data: {
@@ -619,7 +620,7 @@ export async function bulkMarkInvoicePaid(params: {
       });
 
       count++;
-    }
+    }));
   });
 
   return count;

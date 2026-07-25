@@ -481,4 +481,7 @@ model EmailTemplate {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([shopId, type])
 }

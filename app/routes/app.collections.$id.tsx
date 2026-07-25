@@ -480,11 +480,6 @@ function StepRow({
   onDelete,
   onMoveUp,
   onMoveDown,
-  isDragOver,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  onDrop,
 }: {
   step: { id: string; order: number; delayDays: number; channel: Channel; toneLevel: number; skipIfPaid: boolean; useAI: boolean; subject: string | null };
   index: number;

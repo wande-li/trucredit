@@ -70,8 +70,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json(
       {
         success: false,
-        error: msg,
-        detail: stack?.slice(0, 800) ?? "No stack trace available",
+        error: "Sync failed. Please try again or contact support.",
       },
       { status: 500 },
     );

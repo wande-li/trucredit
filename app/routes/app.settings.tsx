@@ -20,10 +20,9 @@ import {
   Modal,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { requirePermission } from "~/services/rbac.server";
+import { requirePermission, getAvailableActions } from "~/services/rbac.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
-import { getAvailableActions } from "~/services/rbac.server";
 import { ROLE_LABELS, type Role } from "~/lib/constants";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";

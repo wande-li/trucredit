@@ -39,7 +39,7 @@ if (process.env.NODE_ENV === "development") {
                 shop: devShop,
                 state: "dev",
                 isOnline: false,
-                accessToken: "dev-token",
+                accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
                 scope:
                   "read_orders,write_orders,read_customers,write_customers",
                 expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -49,10 +49,10 @@ if (process.env.NODE_ENV === "development") {
               where: { shopDomain: devShop },
               create: {
                 shopDomain: devShop,
-                accessToken: "dev-token",
+                accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
                 plan: "FREE",
               },
-              update: { accessToken: "dev-token" },
+              update: { accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token" },
             }),
           ]);
         }

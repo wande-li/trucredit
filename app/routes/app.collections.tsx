@@ -43,8 +43,14 @@ export const meta: MetaFunction = () => [{ title: "TruCredit — Collections" }]
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId, role } = await resolveShop(request);
-    requirePermission(role, "manage_collections");
+    const resolved = await resolveShop(request);
+    logger.app("INFO", "COLLECTIONS-DIAG: resolveShop result", undefined, {
+      role: resolved.role,
+      shopDomain: resolved.shopDomain,
+      shopId: resolved.shopId,
+    });
+    requirePermission(resolved.role, "manage_collections");
+    const { shopId, role } = resolved;
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");

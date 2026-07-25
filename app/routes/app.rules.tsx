@@ -50,8 +50,14 @@ const ACTION_TONE: Record<CreditAction, "success" | "critical" | "warning" | "ne
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopId, shopDomain, role } = await resolveShop(request);
-    requirePermission(role, "edit");
+    const resolved = await resolveShop(request);
+    logger.app("INFO", "RULES-DIAG: resolveShop result", undefined, {
+      role: resolved.role,
+      shopDomain: resolved.shopDomain,
+      shopId: resolved.shopId,
+    });
+    requirePermission(resolved.role, "edit");
+    const { shopId, shopDomain, role } = resolved;
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");

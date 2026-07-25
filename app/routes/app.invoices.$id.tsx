@@ -1,5 +1,6 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { downloadPDF } from "~/utils/export-csv";
 import {
@@ -33,6 +34,8 @@ import prisma from "~/db.server";
 import { useState, useCallback, useEffect } from "react";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Invoice Detail" }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {

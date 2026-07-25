@@ -75,3 +75,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     return new Response("Failed to generate statement PDF", { status: 500 });
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

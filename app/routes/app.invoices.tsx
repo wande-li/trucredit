@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { Outlet, useLoaderData, useLocation, useSearchParams, useNavigate, Link, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -28,6 +29,8 @@ import { downloadCSV } from "~/utils/export-csv";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Invoices" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

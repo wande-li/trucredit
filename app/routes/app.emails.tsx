@@ -1,7 +1,8 @@
 // Email Templates — List, create, and manage templates
 import { useState, useRef, useCallback } from "react";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useRevalidator, Link } from "@remix-run/react";
 import {
   Page,
@@ -31,6 +32,8 @@ import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Email Templates" }];
 
 // ═══════════════════ Loader ═══════════════════
 

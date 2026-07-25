@@ -106,7 +106,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let body = "";
   try {
     rawBody = await request.text();
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "email-inbound: failed to read request body", msg);
     return new Response("Bad Request", { status: 400 });
   }
 
@@ -115,7 +117,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     snsEnvelope = JSON.parse(rawBody) as Record<string, string>;
   } catch {
-    // Not JSON — treat as raw email (direct SES delivery)
+    // Not JSON — treat as raw email (direct SES delivery, expected control flow)
+    logger.app("INFO", "email-inbound: body is not JSON — treating as raw email");
     body = rawBody;
   }
 
@@ -186,7 +189,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const parsedMail = await simpleParser(raw);
         emailBody = parsedMail.text ?? (parsedMail.html && typeof parsedMail.html === "string" ? parsedMail.html.replace(/<[^>]*>/g, "") : "") ?? "";
         from = parsedMail.from?.value?.[0]?.address ?? from;
-      } catch {
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", "email-inbound: failed to parse email MIME content", msg);
         emailBody = "(could not parse email content)";
       }
     }
@@ -214,3 +219,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("OK", { status: 200 }); // Always 200 to prevent SNS retries
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

@@ -1,6 +1,7 @@
 // TruCredit — Reply Inbox (AI-parsed customer replies)
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page,
@@ -29,6 +30,8 @@ import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Reply History" }];
 
 const REPLY_INTENT_LABELS: Record<string, string> = {
   WILL_PAY: "Will Pay",

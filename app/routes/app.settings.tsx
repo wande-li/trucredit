@@ -1,6 +1,7 @@
 // Settings Page — shop currency, timezone, email preferences
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState } from "react";
 import {
@@ -27,6 +28,8 @@ import { ROLE_LABELS, type Role } from "~/lib/constants";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Settings" }];
 
 // ── Constants ──
 const TIMEZONES = [

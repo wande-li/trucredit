@@ -3,8 +3,9 @@
 // This avoids all iframe/App Bridge redirect issues. The charge is created server-side,
 // the URL is returned as JSON, and the client breaks out of the iframe via _top window target.
 
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useEffect, useRef } from "react";
 import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
 import {
@@ -24,6 +25,8 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Billing & Plan" }];
 
 // ─── Loader ─────────────────────────────────────────────────
 

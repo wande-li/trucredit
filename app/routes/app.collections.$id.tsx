@@ -1,6 +1,7 @@
 // TruCredit — Collection Sequence Detail (steps management)
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -36,6 +37,8 @@ import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Collection Detail" }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -480,6 +483,11 @@ function StepRow({
   onDelete,
   onMoveUp,
   onMoveDown,
+  isDragOver: _isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDrop,
 }: {
   step: { id: string; order: number; delayDays: number; channel: Channel; toneLevel: number; skipIfPaid: boolean; useAI: boolean; subject: string | null };
   index: number;

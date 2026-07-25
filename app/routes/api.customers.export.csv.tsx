@@ -77,3 +77,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("Failed to export customers", { status: 500 });
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

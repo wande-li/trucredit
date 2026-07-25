@@ -571,8 +571,9 @@ export async function runCollectionSweep(): Promise<SweepResult> {
     if (lockAcquired) {
       try {
         await redis.del(SWEEP_LOCK_KEY);
-      } catch {
-        // Lock release failure is non-critical (TTL will expire)
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", "Collection sweep lock release failed (TTL will expire)", msg);
       }
     }
   }

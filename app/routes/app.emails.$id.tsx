@@ -1,7 +1,8 @@
 // Email Template Detail — Edit, preview, and AI generation
 import { useState, useRef, useCallback } from "react";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { TONE_LABELS } from "~/lib/constants";
 import {
@@ -28,6 +29,8 @@ import type { CollectionStage, ToneLevel } from "~/types";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Email Template" }];
 
 // ═══════════════════ Loader ═══════════════════
 

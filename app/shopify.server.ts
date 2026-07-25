@@ -7,6 +7,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { logger } from "~/services/logger.server";
 import { SHOPIFY_API_VERSION } from "~/lib/constants";
 
 // Fail fast on missing critical env vars
@@ -165,15 +166,7 @@ const shopify = shopifyApp({
         const { initialSync } = await import("~/services/sync.server");
         initialSync(admin, shopDomain, upserted.id).catch((e: unknown) => {
           const msg = e instanceof Error ? e.message : String(e);
-          // eslint-disable-next-line no-console
-          console.warn(JSON.stringify({
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            service: "ShopifyAuth",
-            message: "Initial sync failed after auth",
-            shopDomain,
-            error: msg,
-          }));
+          logger.app("ERROR", "Initial sync failed after auth", msg, { shopDomain });
         });
       }
     },

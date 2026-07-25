@@ -1,7 +1,8 @@
 // Credit Rules — list page
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
@@ -28,6 +29,8 @@ import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Auto-Reply Rules" }];
 
 const ACTION_LABELS: Record<CreditAction, string> = {
   SET_LIMIT: "Set Limit",

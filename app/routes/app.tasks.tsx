@@ -1,6 +1,7 @@
 // TruCredit — Collection Tasks list
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
@@ -27,6 +28,8 @@ import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Collection Tasks" }];
 
 const STATUS_MAP: Record<string, { label: string; tone: "success" | "attention" | "critical" | "info" | "new" }> = {
   PENDING: { label: "Pending", tone: "new" },

@@ -1,7 +1,8 @@
 // TruCredit — Collection Sequences list
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
@@ -37,6 +38,8 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import { TONE_LABELS } from "~/lib/constants";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Collections" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

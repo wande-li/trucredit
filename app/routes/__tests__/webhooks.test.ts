@@ -164,7 +164,6 @@ describe("Topic routing — all handlers return 200", () => {
     created_at: "2026-07-20T10:00:00Z",
   };
 
-  const baseResolvers = { invoice: { findUnique: null } };
   beforeEach(() => {
     mockPrisma.invoice.findUnique.mockResolvedValue(null);
     mockPrisma.invoice.findFirst.mockResolvedValue(null);

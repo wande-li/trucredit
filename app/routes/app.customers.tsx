@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+
 import { Outlet, useLoaderData, useLocation, useSearchParams, useFetcher } from "@remix-run/react";
 import {
   Page,
@@ -28,6 +29,8 @@ import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import { CustomerDetailModal } from "~/components/credit/CustomerDetailModal";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Customers" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {

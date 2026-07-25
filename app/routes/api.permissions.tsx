@@ -32,3 +32,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

@@ -1,6 +1,7 @@
 // Credit Rules — create / edit page
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
   Page,
@@ -30,6 +31,8 @@ import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+
+export const meta: MetaFunction = () => [{ title: "TruCredit — Rule Detail" }];
 
 const ACTION_OPTIONS: Array<{ label: string; value: CreditAction }> = [
   { label: "Set Credit Limit", value: "SET_LIMIT" },

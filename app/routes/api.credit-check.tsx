@@ -43,7 +43,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let body: unknown;
   try {
     body = await request.json();
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "credit-check: JSON parse failed", msg);
     return json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
@@ -86,3 +88,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export const loader = async () => {
   return json({ service: "TruCredit Check API", status: "ok" });
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

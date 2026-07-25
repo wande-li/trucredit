@@ -126,7 +126,9 @@ export default function QuickTips(props: QuickTipsProps) {
   useEffect(() => {
     try {
       setDismissed(getCookie(DISMISS_COOKIE) === "1");
-    } catch {
+    } catch (e: unknown) {
+      // eslint-disable-next-line no-console -- client-side, no server logger available
+      console.warn("QuickTips: cookie read failed", e instanceof Error ? e.message : String(e));
       setDismissed(false);
     }
   }, []);
@@ -141,7 +143,12 @@ export default function QuickTips(props: QuickTipsProps) {
   }, [next]);
 
   const handleDismiss = () => {
-    try { setCookie(DISMISS_COOKIE, "1"); } catch { /* noop */ }
+    try {
+      setCookie(DISMISS_COOKIE, "1");
+    } catch (e: unknown) {
+      // eslint-disable-next-line no-console -- client-side, no server logger available
+      console.warn("QuickTips: cookie write failed", e instanceof Error ? e.message : String(e));
+    }
     setDismissed(true);
   };
 

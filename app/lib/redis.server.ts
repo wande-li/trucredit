@@ -1,5 +1,6 @@
 // TruCredit — Redis Client (single connection shared across app)
 import Redis from "ioredis";
+import { logger } from "~/services/logger.server";
 
 export const REDIS_PREFIX = "trucredit:" as const;
 export const BULLMQ_PREFIX = "b2b" as const;
@@ -19,16 +20,7 @@ function createRedis(): Redis {
   });
 
   redis.on("error", (err: Error) => {
-    // eslint-disable-next-line no-console
-    console.warn(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "WARN",
-        service: "Redis",
-        message: "Redis connection error",
-        error: err.message,
-      }),
-    );
+    logger.app("WARN", "Redis connection error", err.message);
   });
 
   return redis;

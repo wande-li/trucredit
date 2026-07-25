@@ -1,6 +1,7 @@
 // TruCredit Dashboard — v3 Clean redesign
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
+
 import { useLoaderData, useNavigate, Link } from "@remix-run/react";
 import { useState } from "react";
 import {
@@ -33,6 +34,8 @@ import QuickTips from "~/components/QuickTips";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 
+export const meta: MetaFunction = () => [{ title: "TruCredit — Dashboard" }];
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
@@ -46,8 +49,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
         });
       }
-    } catch {
-      // Redis unavailable → fall through to DB
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "Redis cache read failed — falling through to DB", msg);
     }
 
     // P1-4: Cache stampede protection — distributed lock when cache is cold
@@ -55,8 +59,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     let lockAcquired = false;
     try {
       lockAcquired = (await redis.set(lockKey, "1", "EX", 5, "NX")) === "OK";
-    } catch {
-      // Redis lock unavailable → proceed without lock
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "Redis lock acquire failed — proceeding without lock", msg);
     }
 
     if (!lockAcquired) {
@@ -69,8 +74,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
           });
         }
-      } catch {
-        // Fall through to DB
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", "Redis cache retry failed — falling through to DB", msg);
       }
     }
 
@@ -153,13 +159,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Cache for 30 seconds
     try {
       await redis.setex(cacheKey, 30, JSON.stringify(payload));
-    } catch {
-      // Redis write failed — non-blocking
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "Redis cache write failed — non-blocking", msg);
     }
 
     // Release lock if we hold it (non-blocking — TTL will expire otherwise)
     if (lockAcquired) {
-      try { await redis.del(lockKey); } catch { /* non-critical */ }
+      try {
+        await redis.del(lockKey);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", "Redis lock release failed — TTL will expire", msg);
+      }
     }
 
     return json(payload, {

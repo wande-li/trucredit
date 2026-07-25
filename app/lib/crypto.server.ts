@@ -3,6 +3,7 @@
 // Plaintext tokens (e.g., "dev-token") pass through unchanged for backward compat.
 
 import crypto from "crypto";
+import { logger } from "~/services/logger.server";
 
 const ALGORITHM = "aes-256-gcm";
 const SALT = "trucredit-2026";
@@ -42,8 +43,9 @@ export function decryptToken(encrypted: string): string {
     let decrypted = decipher.update(ciphertext, "hex", "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;
-  } catch {
-    // If decryption fails (e.g., key changed), return raw value
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "Token decryption failed — falling back to raw value", msg);
     return encrypted;
   }
 }

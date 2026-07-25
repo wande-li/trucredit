@@ -3,6 +3,7 @@
 // This mirrors the same fallback logic in app/routes/app.tsx layout loader.
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
+import { logger } from "~/services/logger.server";
 import type { Role } from "~/lib/constants";
 
 export interface ResolvedShop {
@@ -43,8 +44,9 @@ async function deriveRole(shopDomain: string, shopId: string, userEmail?: string
 
     // 3. Default: viewer (safe for unknown collaborators)
     return "viewer";
-  } catch {
-    // DB lookup failed — safest default is admin (can't lock out the owner)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "Role lookup via DB session failed — defaulting to admin", msg, { shopDomain });
     return "admin";
   }
 }

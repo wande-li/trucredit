@@ -70,7 +70,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let body: unknown;
   try {
     body = JSON.parse(rawBody);
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "storefront-collect: JSON parse failed", msg);
     return json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
@@ -138,3 +140,6 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   }
   return result === 0;
 }
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

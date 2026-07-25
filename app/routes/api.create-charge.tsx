@@ -159,3 +159,5 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: msg || 'GraphQL request failed' }, { status: 500 });
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";

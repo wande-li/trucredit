@@ -193,8 +193,9 @@ export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
       return { sent: false, error: `Rate limited. Please wait ${TEST_EMAIL_RATE.window}s before sending another test email.` };
     }
     await redis.set(rateKey, "1", "EX", TEST_EMAIL_RATE.window);
-  } catch {
-    // Redis unavailable — allow through (fail-open)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "Redis rate-limit unavailable — fail-open for test email", msg);
   }
 
   const ses = getSESClient();

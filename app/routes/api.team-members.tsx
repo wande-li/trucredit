@@ -114,3 +114,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: msg }, { status: 500 });
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

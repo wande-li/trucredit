@@ -76,3 +76,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 };
+
+export { ApiErrorBoundary as ErrorBoundary } from "~/components/ApiErrorBoundary";
+

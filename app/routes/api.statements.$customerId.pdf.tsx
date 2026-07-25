@@ -59,7 +59,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     // Safe filename: replace any non-alphanumeric chars with underscore
     const safeName = customer.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
 
-    return new Response(pdfBuffer, {
+    return new Response(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

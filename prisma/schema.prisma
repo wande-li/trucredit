@@ -13,20 +13,20 @@ datasource db {
 // ═══════════════════ Enums ═══════════════════
 
 enum Plan {
-  FREE       // 5 customers / 10 invoices
-  STARTER    // 50 customers / 100 invoices — $29/mo or $290/yr
-  PRO        // 200 customers / 500 invoices — $79/mo or $790/yr
+  FREE // 5 customers / 10 invoices
+  STARTER // 50 customers / 100 invoices — $29/mo or $290/yr
+  PRO // 200 customers / 500 invoices — $79/mo or $790/yr
   ENTERPRISE // Unlimited — $149/mo or $1490/yr
-  GROWTH     // @deprecated — auto-migrated to STARTER on next login
+  GROWTH // @deprecated — auto-migrated to STARTER on next login
 }
 
 enum CreditGrade {
-  A_PLUS  // 90-100
-  A       // 80-89
-  B       // 70-79
-  C       // 60-69
-  D       // 50-59
-  F       // <50
+  A_PLUS // 90-100
+  A // 80-89
+  B // 70-79
+  C // 60-69
+  D // 50-59
+  F // <50
 }
 
 enum RiskLevel {
@@ -76,8 +76,8 @@ enum TriggerType {
 
 enum Channel {
   EMAIL
-  SMS       // Phase 2
-  WHATSAPP  // Phase 3
+  SMS // Phase 2
+  WHATSAPP // Phase 3
 }
 
 enum TaskStatus {
@@ -156,10 +156,10 @@ model Session {
 // ═══════════════════ Shop ═══════════════════
 
 model Shop {
-  id            String  @id @default(cuid())
-  shopDomain    String  @unique
-  accessToken   String
-  plan          Plan    @default(FREE)
+  id          String @id @default(cuid())
+  shopDomain  String @unique
+  accessToken String
+  plan        Plan   @default(FREE)
 
   // Settings
   currency      String  @default("USD")
@@ -170,7 +170,7 @@ model Shop {
   // Subscription
   shopifyChargeId    String?
   subscriptionId     String?
-  subscriptionStatus String  @default("NONE")
+  subscriptionStatus String    @default("NONE")
   billingInterval    String?
   priceAmount        Decimal?
   currentPeriodEnd   DateTime?
@@ -178,11 +178,11 @@ model Shop {
   cancelledAt        DateTime?
 
   // Quota
-  customerQuota      Int     @default(5)
-  invoiceQuota       Int     @default(10)
+  customerQuota Int @default(5)
+  invoiceQuota  Int @default(10)
 
   // Install/Uninstall
-  installedAt   DateTime @default(now())
+  installedAt   DateTime  @default(now())
   uninstalledAt DateTime?
 
   createdAt DateTime @default(now())
@@ -193,17 +193,33 @@ model Shop {
   sequences      CollectionSequence[]
   creditRules    CreditRule[]
   emailTemplates EmailTemplate[]
+  teamMembers    TeamMember[]
 
   @@index([plan])
   @@index([uninstalledAt])
 }
 
+// ═══════════════════ Team Members (RBAC) ═══════════════════
+
+model TeamMember {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  email      String
+  role       String   @default("viewer") // admin | manager | viewer
+  assignedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shopId, email])
+  @@index([shopId])
+}
+
 // ═══════════════════ Customer & Credit ═══════════════════
 
 model Customer {
-  id                String         @id @default(cuid())
-  shopId            String
-  shop              Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   // Shopify data
   shopifyCustomerId String
@@ -213,33 +229,33 @@ model Customer {
   phone             String?
 
   // Credit data
-  creditLimit       Decimal        @default(0)
-  creditUsed        Decimal        @default(0)
-  creditAvailable   Decimal        @default(0)
-  creditScore       Int?
-  creditGrade       CreditGrade?
-  riskLevel         RiskLevel      @default(MEDIUM)
+  creditLimit     Decimal      @default(0)
+  creditUsed      Decimal      @default(0)
+  creditAvailable Decimal      @default(0)
+  creditScore     Int?
+  creditGrade     CreditGrade?
+  riskLevel       RiskLevel    @default(MEDIUM)
 
   // Payment behavior
-  totalOrders       Int            @default(0)
-  totalRevenue      Decimal        @default(0)
+  totalOrders       Int       @default(0)
+  totalRevenue      Decimal   @default(0)
   avgPaymentDays    Float?
   onTimePaymentRate Float?
   lastPaymentDate   DateTime?
 
   // Net Terms
-  netTermsDays      Int            @default(30)
+  netTermsDays Int @default(30)
 
   // Status
-  status            CustomerStatus @default(ACTIVE)
-  isFrozen          Boolean        @default(false)
-  frozenReason      String?
-  frozenAt          DateTime?
+  status       CustomerStatus @default(ACTIVE)
+  isFrozen     Boolean        @default(false)
+  frozenReason String?
+  frozenAt     DateTime?
 
   // Relations
-  invoices          Invoice[]
-  creditEvents      CreditEvent[]
-  collectionTasks   CollectionTask[]
+  invoices        Invoice[]
+  creditEvents    CreditEvent[]
+  collectionTasks CollectionTask[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,38 +268,38 @@ model Customer {
 }
 
 model CreditRule {
-  id          String       @id @default(cuid())
-  shopId      String
-  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   name        String
   description String?
-  priority    Int          @default(0)
-  isActive    Boolean      @default(true)
+  priority    Int     @default(0)
+  isActive    Boolean @default(true)
 
   conditions  Json
   action      CreditAction
   actionValue Json
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([shopId, isActive])
 }
 
 model CreditEvent {
-  id          String          @id @default(cuid())
-  customerId  String
-  customer    Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  type        CreditEventType
+  type          CreditEventType
   previousValue Json?
-  newValue    Json?
-  reason      String?
-  triggeredBy String
+  newValue      Json?
+  reason        String?
+  triggeredBy   String
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([customerId])
 }
@@ -291,11 +307,11 @@ model CreditEvent {
 // ═══════════════════ Invoice & AR ═══════════════════
 
 model Invoice {
-  id                  String         @id @default(cuid())
-  shopId              String
-  shop                Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customerId          String
-  customer            Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   // Shopify
   shopifyOrderId      String?
@@ -303,29 +319,29 @@ model Invoice {
   shopifyDraftOrderId String?
 
   // Info
-  invoiceNumber       String
-  amount              Decimal
-  currency            String         @default("USD")
+  invoiceNumber String
+  amount        Decimal
+  currency      String  @default("USD")
 
   // Dates
-  issueDate           DateTime
-  dueDate             DateTime
-  paidDate            DateTime?
+  issueDate DateTime
+  dueDate   DateTime
+  paidDate  DateTime?
 
   // Net Terms
-  netTermsDays        Int            @default(30)
+  netTermsDays Int @default(30)
 
   // Status
-  status              InvoiceStatus  @default(PENDING)
-  daysOverdue         Int            @default(0)
-  voidedAt            DateTime?
+  status      InvoiceStatus @default(PENDING)
+  daysOverdue Int           @default(0)
+  voidedAt    DateTime?
 
   // Payment
-  paymentUrl          String?
-  paymentMethod       String?
+  paymentUrl    String?
+  paymentMethod String?
 
   // Relations
-  collectionTasks     CollectionTask[]
+  collectionTasks CollectionTask[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -340,76 +356,76 @@ model Invoice {
 // ═══════════════════ Collection Engine ═══════════════════
 
 model CollectionSequence {
-  id          String        @id @default(cuid())
-  shopId      String
-  shop        Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   name        String
   description String?
-  isDefault   Boolean       @default(false)
-  isActive    Boolean       @default(true)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
 
-  triggerType TriggerType   @default(OVERDUE)
-  triggerDays Int           @default(0)
+  triggerType TriggerType @default(OVERDUE)
+  triggerDays Int         @default(0)
 
-  steps       CollectionStep[]
-  tasks       CollectionTask[]
+  steps CollectionStep[]
+  tasks CollectionTask[]
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([shopId, isActive])
 }
 
 model CollectionStep {
-  id          String             @id @default(cuid())
-  sequenceId  String
-  sequence    CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  id         String             @id @default(cuid())
+  sequenceId String
+  sequence   CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
 
-  order       Int
-  delayDays   Int
-  channel     Channel            @default(EMAIL)
+  order     Int
+  delayDays Int
+  channel   Channel @default(EMAIL)
 
   // AI tone (1-7)
-  toneLevel   Int                @default(3)
+  toneLevel Int @default(3)
 
   // Email template
-  subject     String?
-  templateId  String?
-  useAI       Boolean            @default(true)
+  subject      String?
+  templateId   String?
+  useAI        Boolean @default(true)
   aiPromptHint String?
 
   // Conditions
-  skipIfPaid  Boolean            @default(true)
+  skipIfPaid     Boolean @default(true)
   skipConditions Json?
 
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CollectionTask {
-  id              String             @id @default(cuid())
-  sequenceId      String
-  sequence        CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  customerId      String
-  customer        Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  invoiceId       String
-  invoice         Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id         String             @id @default(cuid())
+  sequenceId String
+  sequence   CollectionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId  String
+  invoice    Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
-  status          TaskStatus         @default(PENDING)
-  currentStep     Int                @default(0)
-  nextStepAt      DateTime?
+  status      TaskStatus @default(PENDING)
+  currentStep Int        @default(0)
+  nextStepAt  DateTime?
 
   // Reply tracking
   lastReplyAt     DateTime?
   lastReplyIntent ReplyIntent?
 
   // Records
-  events          CollectionEvent[]
+  events CollectionEvent[]
 
-  startedAt       DateTime           @default(now())
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  startedAt       DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   completedAt     DateTime?
   completedReason String?
 
@@ -419,22 +435,22 @@ model CollectionTask {
 }
 
 model CollectionEvent {
-  id              String          @id @default(cuid())
-  taskId          String
-  task            CollectionTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id     String         @id @default(cuid())
+  taskId String
+  task   CollectionTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  type            EventType
-  channel         Channel?
-  stepOrder       Int?
+  type      EventType
+  channel   Channel?
+  stepOrder Int?
 
   // Email content
-  emailSubject    String?
-  emailBody       String?
-  emailMessageId  String?
+  emailSubject   String?
+  emailBody      String?
+  emailMessageId String?
 
   // AI
-  toneLevel       Int?
-  aiGenerated     Boolean         @default(false)
+  toneLevel   Int?
+  aiGenerated Boolean @default(false)
 
   // Reply parse
   replyContent    String?
@@ -443,26 +459,26 @@ model CollectionEvent {
   aiAnalysis      Json?
 
   // Action
-  actionTaken     String?
+  actionTaken String?
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ═══════════════════ Email Templates ═══════════════════
 
 model EmailTemplate {
-  id          String       @id @default(cuid())
-  shopId      String
-  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  name        String
-  type        TemplateType
-  subject     String
-  body        String
-  toneLevel   Int?
-  isDefault   Boolean      @default(false)
+  name      String
+  type      TemplateType
+  subject   String
+  body      String
+  toneLevel Int?
+  isDefault Boolean      @default(false)
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

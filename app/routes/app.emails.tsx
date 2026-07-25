@@ -21,6 +21,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { requirePermission } from "~/services/rbac.server";
 import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
 import { PAGINATION, TONE_LABELS, TONE_COLORS } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
@@ -60,7 +61,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 

@@ -22,9 +22,11 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { getInvoice, markInvoicePaid, recordPartialPayment } from "~/services/invoice.server";
+import { getInvoice, markInvoicePaid, recordPartialPayment, updateInvoice } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
+import { requirePermission } from "~/services/rbac.server";
+import { sendCollectionEmail } from "~/services/email-delivery.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import prisma from "~/db.server";
@@ -93,7 +95,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { admin } = await authenticate.admin(request);
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId, shopDomain, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });
@@ -213,6 +216,76 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return json({ success: true });
       }
 
+      // P2: Update invoice fields (amount, netTermsDays)
+      case "update-invoice": {
+        const newAmount = formData.get("amount")?.toString();
+        const newNetTerms = formData.get("netTermsDays")?.toString();
+        const updateData: { amount?: number; netTermsDays?: number } = {};
+        if (newAmount) {
+          const parsed = parseFloat(newAmount);
+          if (isNaN(parsed) || parsed <= 0) {
+            return json({ error: "Amount must be a positive number" }, { status: 400 });
+          }
+          updateData.amount = parsed;
+        }
+        if (newNetTerms) {
+          const parsed = parseInt(newNetTerms, 10);
+          if (isNaN(parsed) || parsed < 0) {
+            return json({ error: "Net terms must be a non-negative number" }, { status: 400 });
+          }
+          updateData.netTermsDays = parsed;
+        }
+        if (Object.keys(updateData).length === 0) {
+          return json({ error: "No fields to update" }, { status: 400 });
+        }
+        await updateInvoice({
+          shopId,
+          invoiceId: params.id!,
+          ...updateData,
+        });
+        return json({ success: true });
+      }
+
+      // P2: Send invoice email manually
+      case "send-invoice-email": {
+        const currentInvoice = await getInvoice({ shopId, invoiceId: params.id! });
+        if (!currentInvoice) {
+          return json({ error: "Invoice not found" }, { status: 404 });
+        }
+        const invCustomer = await prisma.customer.findUnique({
+          where: { id: currentInvoice.customerId },
+          select: { email: true, name: true, company: true },
+        });
+        if (!invCustomer?.email) {
+          return json({ error: "Customer has no email address" }, { status: 400 });
+        }
+        const daysOverdue = Math.max(
+          0,
+          Math.floor((Date.now() - new Date(currentInvoice.dueDate).getTime()) / 86400000),
+        );
+        const result = await sendCollectionEmail({
+          shopId,
+          toEmail: invCustomer.email,
+          stage: daysOverdue > 0 ? "STAGE_PLUS_7" : "STAGE_BEFORE_DUE",
+          toneLevel: daysOverdue > 30 ? 4 : 2,
+          useAI: true,
+          vars: {
+            customerName: invCustomer.name,
+            companyName: invCustomer.company ?? "",
+            invoiceNumber: currentInvoice.invoiceNumber,
+            amount: Number(currentInvoice.amount).toFixed(2),
+            currency: currentInvoice.currency,
+            dueDate: new Date(currentInvoice.dueDate).toLocaleDateString("en-US"),
+            daysOverdue,
+            paymentLink: "",
+          },
+        });
+        if (!result.sent) {
+          return json({ error: result.error ?? "Failed to send email" }, { status: 500 });
+        }
+        return json({ success: true, messageId: result.messageId });
+      }
+
       default:
         return json({ error: "Unknown action" }, { status: 400 });
     }
@@ -252,6 +325,9 @@ export default function InvoiceDetail() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
   const [partialMethod, setPartialMethod] = useState("Bank Transfer");
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editAmount, setEditAmount] = useState(Number(invoice.amount).toFixed(2));
+  const [editNetTerms, setEditNetTerms] = useState(invoice.netTermsDays?.toString() ?? "30");
 
   const isPaid = invoice.status === "PAID";
   const isVoid = invoice.status === "VOID";
@@ -304,6 +380,23 @@ export default function InvoiceDetail() {
     if (partialMethod) fd.set("paymentMethod", partialMethod);
     fetcher.submit(fd, { method: "post" });
   }, [partialAmount, partialMethod, invoice.amount, fetcher]);
+
+  const handleEditSave = useCallback(() => {
+    setBusyIntent("update-invoice");
+    const fd = new FormData();
+    fd.set("intent", "update-invoice");
+    fd.set("amount", editAmount);
+    fd.set("netTermsDays", editNetTerms);
+    fetcher.submit(fd, { method: "post" });
+    setShowEditForm(false);
+  }, [editAmount, editNetTerms, fetcher]);
+
+  const handleSendEmail = useCallback(() => {
+    setBusyIntent("send-invoice-email");
+    const fd = new FormData();
+    fd.set("intent", "send-invoice-email");
+    fetcher.submit(fd, { method: "post" });
+  }, [fetcher]);
 
   const handleDownloadPDF = useCallback(async () => {
     setPdfLoading(true);
@@ -544,6 +637,55 @@ export default function InvoiceDetail() {
                 </Card>
               )}
 
+              {/* Edit Invoice */}
+              {isEditable && (
+                <Card>
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h2" variant="headingMd">
+                        Edit Invoice
+                      </Text>
+                      <Button
+                        onClick={() => setShowEditForm((p) => !p)}
+                        variant="plain"
+                        tone="critical"
+                        disabled={isBusy("update-invoice")}
+                      >
+                        {showEditForm ? "Cancel" : "Edit"}
+                      </Button>
+                    </InlineStack>
+                    {showEditForm && (
+                      <BlockStack gap="200">
+                        <TextField
+                          label="Amount"
+                          type="number"
+                          value={editAmount}
+                          onChange={setEditAmount}
+                          prefix={invoice.currency}
+                          autoComplete="off"
+                        />
+                        <TextField
+                          label="Net Terms (Days)"
+                          type="number"
+                          value={editNetTerms}
+                          onChange={setEditNetTerms}
+                          autoComplete="off"
+                        />
+                        <Button
+                          onClick={handleEditSave}
+                          variant="primary"
+                          fullWidth
+                          loading={isBusy("update-invoice")}
+                          disabled={isBusy("update-invoice")}
+                        >
+                          Save Changes
+                        </Button>
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </Card>
+              )}
+
               {/* Actions */}
               {isEditable && (
                 <Card>
@@ -607,6 +749,20 @@ export default function InvoiceDetail() {
                           Mark as {statusLabel[targetStatus] ?? targetStatus}
                         </Button>
                       ))}
+
+                    <Divider />
+
+                    {/* Send Email */}
+                    <Button
+                      onClick={handleSendEmail}
+                      variant="secondary"
+                      fullWidth
+                      loading={isBusy("send-invoice-email")}
+                      disabled={isBusy("send-invoice-email") || !customer?.email}
+                      tone={customer?.email ? undefined : "success"}
+                    >
+                      {customer?.email ? "Send Invoice Email" : "No Customer Email"}
+                    </Button>
                   </BlockStack>
                 </Card>
               )}

@@ -20,6 +20,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { requirePermission } from "~/services/rbac.server";
 import { getTemplateById, updateTemplate, deleteTemplate, sendTestEmail } from "~/services/email.server";
 import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import { generateCollectionEmail } from "~/services/ai.server";
@@ -48,7 +49,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 

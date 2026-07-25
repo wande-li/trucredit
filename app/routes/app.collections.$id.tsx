@@ -140,7 +140,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return json({ success: true });
       }
 
-      // P2: Reorder steps
+      // P2: Reorder steps (button-based)
       case "reorderStep": {
         const stepId = formData.get("stepId")?.toString();
         const direction = formData.get("direction")?.toString();
@@ -157,6 +157,30 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (swapIdx < 0 || swapIdx >= steps.length) return json({ error: "Cannot move" }, { status: 400 });
 
         [steps[idx], steps[swapIdx]] = [steps[swapIdx]!, steps[idx]!];
+        const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));
+        if (!result.success) return json({ error: result.error }, { status: 400 });
+        return json({ success: true });
+      }
+
+      // P2: Drag-and-drop reorder
+      case "dragReorder": {
+        const stepId = formData.get("stepId")?.toString();
+        const toOrderStr = formData.get("toOrder")?.toString();
+        if (!stepId || !toOrderStr) return json({ error: "Missing parameters" }, { status: 400 });
+        const targetOrder = parseInt(toOrderStr, 10);
+
+        const seq = await getSequence(sequenceId, shopId);
+        if (!seq) return json({ error: "Sequence not found" }, { status: 404 });
+
+        const steps = [...seq.steps];
+        const fromIdx = steps.findIndex((s) => s.id === stepId);
+        if (fromIdx === -1) return json({ error: "Step not found" }, { status: 400 });
+
+        const [moved] = steps.splice(fromIdx, 1);
+        const toIdx = steps.findIndex((s) => s.order >= targetOrder);
+        const insertIdx = toIdx === -1 ? steps.length : toIdx;
+        steps.splice(insertIdx, 0, moved!);
+
         const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));
         if (!result.success) return json({ error: result.error }, { status: 400 });
         return json({ success: true });
@@ -223,7 +247,10 @@ export default function CollectionDetailPage() {
     [fetcher],
   );
 
-  // P2: Move step up/down
+  // P2: Drag-and-drop state
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // P2: Move step up/down (button)
   const handleMoveStep = useCallback(
     (stepId: string, direction: "up" | "down") => {
       fetcher.submit(
@@ -232,6 +259,18 @@ export default function CollectionDetailPage() {
       );
     },
     [sequence.id, fetcher],
+  );
+
+  // P2: Drag-and-drop reorder
+  const handleDragReorder = useCallback(
+    (stepId: string, toOrder: number) => {
+      setDragOverIdx(null);
+      fetcher.submit(
+        { intent: "dragReorder", stepId, toOrder: String(toOrder) },
+        { method: "POST" },
+      );
+    },
+    [fetcher],
   );
 
   const hasChanges =
@@ -320,7 +359,13 @@ export default function CollectionDetailPage() {
             ) : (
               <Box padding="400">
                 {sequence.steps.map((step, idx) => (
-                  <Box key={step.id} paddingBlockEnd={idx < sequence.steps.length - 1 ? "300" : undefined}>
+                  <Box
+                    key={step.id}
+                    paddingBlockEnd={idx < sequence.steps.length - 1 ? "300" : undefined}
+                    background={dragOverIdx === idx ? "bg-surface-selected" : undefined}
+                    borderColor={dragOverIdx === idx ? "border-emphasis" : undefined}
+                    borderRadius="200"
+                  >
                     {editingStepId === step.id ? (
                       <StepEditForm
                         step={step}
@@ -337,6 +382,20 @@ export default function CollectionDetailPage() {
                         onDelete={() => setDeleteStepId(step.id)}
                         onMoveUp={() => handleMoveStep(step.id, "up")}
                         onMoveDown={() => handleMoveStep(step.id, "down")}
+                        isDragOver={dragOverIdx === idx}
+                        onDragStart={(e, _di) => {
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e, di) => {
+                          e.preventDefault();
+                          setDragOverIdx(di);
+                        }}
+                        onDragEnd={() => {
+                          setDragOverIdx(null);
+                        }}
+                        onDrop={(_e, order) => {
+                          handleDragReorder(step.id, order);
+                        }}
                       />
                     )}
                     {idx < sequence.steps.length - 1 && <Box paddingBlockStart="300"><Divider /></Box>}
@@ -421,6 +480,11 @@ function StepRow({
   onDelete,
   onMoveUp,
   onMoveDown,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDrop,
 }: {
   step: { id: string; order: number; delayDays: number; channel: Channel; toneLevel: number; skipIfPaid: boolean; useAI: boolean; subject: string | null };
   index: number;
@@ -429,6 +493,11 @@ function StepRow({
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  isDragOver: boolean;
+  onDragStart: (e: React.DragEvent, idx: number) => void;
+  onDragOver: (e: React.DragEvent, idx: number) => void;
+  onDragEnd: () => void;
+  onDrop: (e: React.DragEvent, order: number) => void;
 }) {
   const delayLabel =
     step.delayDays === 0 ? "Due date" : step.delayDays < 0 ? `${Math.abs(step.delayDays)}d before` : `+${step.delayDays}d`;
@@ -436,6 +505,25 @@ function StepRow({
   return (
     <InlineStack align="space-between" blockAlign="center" wrap={false}>
       <InlineStack gap="200" blockAlign="center" wrap={false}>
+        {/* Drag handle */}
+        <span
+          draggable
+          style={{ cursor: "grab", paddingRight: "4px" }}
+          onDragStart={(e: React.DragEvent) => onDragStart(e, index)}
+          onDragOver={(e: React.DragEvent) => {
+            e.preventDefault();
+            onDragOver(e, index);
+          }}
+          onDragEnd={onDragEnd}
+          onDrop={(e: React.DragEvent) => {
+            e.preventDefault();
+            onDrop(e, step.order);
+          }}
+        >
+          <Text as="span" variant="bodyMd" tone="subdued">
+            ⠿
+          </Text>
+        </span>
         <Box minWidth="28px">
           <Text as="span" fontWeight="bold" tone="subdued">{step.order}.</Text>
         </Box>

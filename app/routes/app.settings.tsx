@@ -17,8 +17,10 @@ import {
   Box,
   InlineStack,
   Badge,
+  Modal,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { requirePermission } from "~/services/rbac.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { getAvailableActions } from "~/services/rbac.server";
@@ -58,11 +60,18 @@ type ActionData = {
 // ── Loader ──
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shopDomain, role } = await resolveShop(request);
-    const shop = await prisma.shop.findUnique({
-      where: { shopDomain },
-      select: { currency: true, timezone: true, emailFromName: true, emailReplyTo: true },
-    });
+    const { shopDomain, shopId, role } = await resolveShop(request);
+    const [shop, teamMembers] = await Promise.all([
+      prisma.shop.findUnique({
+        where: { shopDomain },
+        select: { currency: true, timezone: true, emailFromName: true, emailReplyTo: true },
+      }),
+      prisma.teamMember.findMany({
+        where: { shopId },
+        select: { id: true, email: true, role: true, assignedAt: true },
+        orderBy: { assignedAt: "asc" },
+      }),
+    ]);
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
@@ -71,6 +80,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       role,
       roleLabel: ROLE_LABELS[role],
       permissions: getAvailableActions(role),
+      teamMembers,
     });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -83,7 +93,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── Action ──
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { shopDomain } = await resolveShop(request);
+    const { shopDomain, role } = await resolveShop(request);
+    requirePermission(role, "edit");
     const formData = await request.formData();
     const intent = formData.get("intent");
 
@@ -140,10 +151,18 @@ function roleBadgeTone(role: Role): "success" | "attention" | "info" {
 }
 
 export default function SettingsPage() {
-  const { settings, role, roleLabel, permissions } = useLoaderData<typeof loader>();
+  const { settings, role, roleLabel, permissions, teamMembers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
+  const teamFetcher = useFetcher<{ success?: boolean; error?: string; member?: { id: string; email: string; role: string } }>();
   const isSubmitting = fetcher.state === "submitting";
   const [dismissedError, setDismissedError] = useState(false);
+
+  // Team member modal state
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState("viewer");
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editingRole, setEditingRole] = useState("viewer");
 
   // Error message from fetcher data
   const errorMsg =
@@ -249,10 +268,122 @@ export default function SettingsPage() {
               </InlineStack>
             </BlockStack>
             <Text as="p" variant="bodySm" tone="subdued">
-              Role is derived from your Shopify account type. Account owners default to Admin. Collaborators default to Viewer. Contact your account owner if you need elevated permissions.
+              Role is now derived from Team Member assignments. Account owners default to Admin. Invite team members below with specific roles to control what they can do.
             </Text>
           </BlockStack>
         </Card>
+
+        {/* Team Members (Admin only) */}
+        {role === "admin" && (
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Team Members
+                </Text>
+                <Button
+                  onClick={() => {
+                    setNewMemberEmail("");
+                    setNewMemberRole("viewer");
+                    setShowAddMember(true);
+                  }}
+                  variant="primary"
+                >
+                  Add Member
+                </Button>
+              </InlineStack>
+
+              {teamMembers.length === 0 ? (
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  No team members yet. Add members to assign specific roles (manager, viewer) to your collaborators.
+                </Text>
+              ) : (
+                <BlockStack gap="200">
+                  {teamMembers.map((member) => (
+                    <InlineStack key={member.id} align="space-between" blockAlign="center">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="span" variant="bodyMd" fontWeight="semibold">
+                          {member.email}
+                        </Text>
+                        {editingMemberId === member.id ? (
+                          <Select
+                            label=""
+                            labelHidden
+                            options={[
+                              { label: "Admin", value: "admin" },
+                              { label: "Manager", value: "manager" },
+                              { label: "Viewer", value: "viewer" },
+                            ]}
+                            value={editingRole}
+                            onChange={setEditingRole}
+                          />
+                        ) : (
+                          <Badge tone={member.role === "admin" ? "success" : member.role === "manager" ? "attention" : "info"}>
+                            {member.role}
+                          </Badge>
+                        )}
+                      </InlineStack>
+                      <InlineStack gap="100">
+                        {editingMemberId === member.id ? (
+                          <>
+                            <Button
+                              size="slim"
+                              variant="primary"
+                              onClick={() => {
+                                teamFetcher.submit(
+                                  { intent: "update-team-member", memberId: member.id, role: editingRole },
+                                  { method: "POST", action: "/api/team-members" },
+                                );
+                                setEditingMemberId(null);
+                              }}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="slim"
+                              onClick={() => setEditingMemberId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="slim"
+                            onClick={() => {
+                              setEditingMemberId(member.id);
+                              setEditingRole(member.role);
+                            }}
+                          >
+                            Edit Role
+                          </Button>
+                        )}
+                        <Button
+                          size="slim"
+                          tone="critical"
+                          onClick={() => {
+                            teamFetcher.submit(
+                              { intent: "remove-team-member", memberId: member.id },
+                              { method: "POST", action: "/api/team-members" },
+                            );
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </InlineStack>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+              )}
+            </BlockStack>
+          </Card>
+        )}
+
+        {/* Team member result banner */}
+        {teamFetcher.data?.error && (
+          <Banner tone="critical" onDismiss={() => teamFetcher.load("/app/settings")}>
+            <Text as="p">{teamFetcher.data.error}</Text>
+          </Banner>
+        )}
 
         {/* Submission indicator */}
         {isSubmitting && (
@@ -266,6 +397,53 @@ export default function SettingsPage() {
           </Box>
         )}
       </BlockStack>
+
+      {/* Add Member Modal */}
+      {showAddMember && (
+        <Modal
+          open={showAddMember}
+          onClose={() => setShowAddMember(false)}
+          title="Add Team Member"
+          primaryAction={{
+            content: "Add Member",
+            onAction: () => {
+              teamFetcher.submit(
+                { intent: "add-team-member", email: newMemberEmail, role: newMemberRole },
+                { method: "POST", action: "/api/team-members" },
+              );
+              setShowAddMember(false);
+            },
+            disabled: !newMemberEmail.includes("@"),
+          }}
+          secondaryActions={[
+            { content: "Cancel", onAction: () => setShowAddMember(false) },
+          ]}
+        >
+          <Modal.Section>
+            <BlockStack gap="400">
+              <TextField
+                label="Email"
+                type="email"
+                value={newMemberEmail}
+                onChange={setNewMemberEmail}
+                autoComplete="email"
+                placeholder="collaborator@example.com"
+                helpText="The collaborator's email address. They must already have access to this Shopify store."
+              />
+              <Select
+                label="Role"
+                options={[
+                  { label: "Admin — Full access", value: "admin" },
+                  { label: "Manager — Edit & manage (no billing)", value: "manager" },
+                  { label: "Viewer — Read only", value: "viewer" },
+                ]}
+                value={newMemberRole}
+                onChange={setNewMemberRole}
+              />
+            </BlockStack>
+          </Modal.Section>
+        </Modal>
+      )}
     </Page>
   );
 }

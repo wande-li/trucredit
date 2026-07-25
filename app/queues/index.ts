@@ -7,6 +7,7 @@ export {
   freezeCheckQueue,
   enqueueReplyJob,
   enqueueSweep,
+  enqueueFreezeCheck,
 } from "./collection.queue";
 
 export { emailQueue, enqueueEmail } from "./email.queue";

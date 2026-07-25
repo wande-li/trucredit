@@ -16,6 +16,7 @@ import {
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { requirePermission } from "~/services/rbac.server";
 import prisma from "~/db.server";
 import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
@@ -72,7 +73,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { admin } = await authenticate.admin(request);
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId, shopDomain, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },

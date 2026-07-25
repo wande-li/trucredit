@@ -15,23 +15,34 @@ export interface ResolvedShop {
 }
 
 /**
- * Derive the user's RBAC role from the Prisma session record.
- * Falls back to "admin" if no session is found (safe default for account owners).
+ * Derive the user's RBAC role from the TeamMember table or Prisma session record.
  *
- * Future: when a TeamMember or staff table is added, this function should
- * look up the specific user's assigned role instead of defaulting.
+ * Lookup order:
+ * 1. TeamMember table (explicit role assignment) — takes priority
+ * 2. Session.accountOwner → "admin"
+ * 3. Default → "viewer" (collaborator without explicit team member record)
  */
-async function deriveRole(shopDomain: string): Promise<Role> {
+async function deriveRole(shopDomain: string, shopId: string, userEmail?: string | null): Promise<Role> {
   try {
+    // 1. Check TeamMember table first (explicit role assignment)
+    if (userEmail) {
+      const member = await prisma.teamMember.findUnique({
+        where: { shopId_email: { shopId, email: userEmail.toLowerCase() } },
+        select: { role: true },
+      });
+      if (member) return member.role as Role;
+    }
+
+    // 2. Check if account owner
     const dbSession = await prisma.session.findFirst({
       where: { shop: shopDomain },
       orderBy: { id: "desc" },
-      select: { accountOwner: true, collaborator: true },
+      select: { accountOwner: true },
     });
     if (dbSession?.accountOwner) return "admin";
-    // Fallback: if accountOwner is null/false, default to admin for safety.
-    // Refining to viewer requires a proper staff table to identify non-owner users.
-    return "admin";
+
+    // 3. Default: viewer (safe for unknown collaborators)
+    return "viewer";
   } catch {
     // DB lookup failed — safest default is admin (can't lock out the owner)
     return "admin";
@@ -49,13 +60,12 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
   try {
     const { session } = await authenticate.admin(request);
     const shopDomain = session.shop?.trim(); // null-safe — .data requests have shop:null
+    const userEmail = session.onlineAccessInfo?.associated_user.email ?? null; // For RBAC lookup
 
     // .data requests: authenticate succeeds but shop is null → fallback to DB
     if (!shopDomain) {
       throw new Response("Shop not in session", { status: 401 });
     }
-
-    const role = await deriveRole(shopDomain);
 
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -63,6 +73,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
     });
 
     if (shop) {
+      const role = await deriveRole(shopDomain, shop.id, userEmail);
       return {
         shopDomain,
         shopId: shop.id,
@@ -82,7 +93,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
       shopId: newShop.id,
       plan: newShop.plan || "FREE",
       subscriptionStatus: newShop.subscriptionStatus || "NONE",
-      role,
+      role: "admin", // First-time install: account owner always = admin
     };
   } catch (e: unknown) {
     // authenticate.admin() throws Response on auth failure

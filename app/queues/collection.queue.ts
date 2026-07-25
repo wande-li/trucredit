@@ -79,3 +79,37 @@ export async function enqueueSweep() {
     logger.app("WARN", "Failed to enqueue sweep", msg);
   }
 }
+
+/**
+ * Scan all active, non-frozen customers and enqueue freeze-check jobs.
+ * This is the producer side — the worker (createFreezeCheckWorker) handles evaluation.
+ */
+export async function enqueueFreezeCheck() {
+  try {
+    const prisma = (await import("~/db.server")).default;
+    const customers = await prisma.customer.findMany({
+      where: { isFrozen: false, status: { not: "BLACKLISTED" } },
+      select: { id: true, shopId: true },
+    });
+
+    let count = 0;
+    for (const c of customers) {
+      try {
+        await freezeCheckQueue.add(
+          "check-freeze",
+          { customerId: c.id, shopId: c.shopId },
+          { jobId: `freeze:${c.id}:${new Date().toISOString().slice(0, 10)}`, delay: 1000 * count },
+        );
+        count++;
+      } catch (innerErr: unknown) {
+        const imsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+        logger.app("WARN", "Failed to enqueue freeze check for customer", { customerId: c.id, error: imsg });
+      }
+    }
+
+    logger.app("INFO", "Freeze check sweep enqueued", { customerCount: count });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "Failed to enqueue freeze check sweep", msg);
+  }
+}

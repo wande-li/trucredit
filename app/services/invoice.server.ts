@@ -557,6 +557,75 @@ export async function getNextInvoiceSequence(shopId: string): Promise<number> {
 }
 
 /**
+ * P2: Update invoice fields (amount, netTermsDays)
+ */
+export async function updateInvoice(params: {
+  shopId: string;
+  invoiceId: string;
+  amount?: number;
+  netTermsDays?: number;
+}): Promise<InvoiceRecord> {
+  const data: Record<string, unknown> = {};
+  if (params.amount !== undefined) data.amount = params.amount;
+  if (params.netTermsDays !== undefined) data.netTermsDays = params.netTermsDays;
+
+  const updated = await prisma.invoice.update({
+    where: { id: params.invoiceId, shopId: params.shopId },
+    data,
+  });
+
+  return { ...updated, amount: updated.amount.toString() };
+}
+
+/**
+ * P2: Bulk mark invoices as paid
+ */
+export async function bulkMarkInvoicePaid(params: {
+  shopId: string;
+  invoiceIds: string[];
+  paymentMethod?: string;
+}): Promise<number> {
+  const { shopId, invoiceIds, paymentMethod } = params;
+  let count = 0;
+
+  await prisma.$transaction(async (tx) => {
+    const invoices = await tx.invoice.findMany({
+      where: { id: { in: invoiceIds }, shopId, status: { notIn: ["PAID", "VOID"] } },
+      select: { id: true, customerId: true, amount: true },
+    });
+
+    for (const inv of invoices) {
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: {
+          status: "PAID",
+          paidDate: new Date(),
+          daysOverdue: 0,
+          paymentMethod: paymentMethod ?? "Manual/Bulk",
+        },
+      });
+
+      await tx.customer.update({
+        where: { id: inv.customerId },
+        data: {
+          creditUsed: { decrement: Number(inv.amount) },
+          creditAvailable: { increment: Number(inv.amount) },
+        },
+      });
+
+      await tx.collectionTask.updateMany({
+        where: { invoiceId: inv.id, status: "ACTIVE" },
+        data: { status: "COMPLETED", completedAt: new Date(), completedReason: "bulk-paid" },
+      });
+
+      count++;
+    }
+  });
+
+  return count;
+}
+
+/**
  * P2: Record partial payment against an invoice
  */
 export async function recordPartialPayment(params: {

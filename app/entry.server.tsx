@@ -87,14 +87,19 @@ export const streamTimeout = 5000;
 
 // Fire-and-forget: start background services without blocking SSR
 setTimeout(() => {
-  import("~/queues/collection.queue").then(async ({ enqueueSweep }) => {
+  import("~/queues/collection.queue").then(async ({ enqueueSweep, enqueueFreezeCheck }) => {
     try {
       const cron = (await import("node-cron")).default;
+      // Daily collection sweep at 9 AM
       cron.schedule("0 9 * * *", async () => {
         await enqueueSweep();
       });
+      // Credit freeze check — every 30 minutes (evaluate rules against all active customers)
+      cron.schedule("*/30 * * * *", async () => {
+        await enqueueFreezeCheck();
+      });
     } catch {
-      // node-cron optional — background sweep will be handled by manual trigger
+      // node-cron optional — background jobs will be handled by manual trigger
     }
 
     import("~/workers/collection.worker")

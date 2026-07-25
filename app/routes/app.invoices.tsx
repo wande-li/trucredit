@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Outlet, useLoaderData, useLocation, useSearchParams, useNavigate, Link } from "@remix-run/react";
+import { Outlet, useLoaderData, useLocation, useSearchParams, useNavigate, Link, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -17,11 +17,13 @@ import {
   Box,
   EmptyState,
   Button,
+  Banner,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { checkPlanAccess } from "~/services/billing.server";
-import { listInvoices, getARAgingReport } from "~/services/invoice.server";
-import { useCallback, useMemo } from "react";
+import { requirePermission } from "~/services/rbac.server";
+import { listInvoices, getARAgingReport, bulkMarkInvoicePaid } from "~/services/invoice.server";
+import { useCallback, useMemo, useState } from "react";
 import { downloadCSV } from "~/utils/export-csv";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -55,6 +57,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  try {
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
+    if (intent === "bulk-mark-paid") {
+      const idsStr = formData.get("ids")?.toString();
+      if (!idsStr) return json({ error: "No invoices selected", ok: false });
+      const invoiceIds = idsStr.split(",").map((s) => s.trim()).filter(Boolean);
+      const count = await bulkMarkInvoicePaid({ shopId, invoiceIds });
+      return json({ ok: true, count });
+    }
+
+    return json({ error: "Unknown intent", ok: false });
+  } catch (e: unknown) {
+    if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "Invoices action failed", msg);
+    return json({ error: msg, ok: false });
+  }
+};
+
 const statusTone: Record<string, "success" | "critical" | "attention" | "warning" | "new" | "info"> = {
   PAID: "success",
   OVERDUE: "critical",
@@ -85,6 +111,8 @@ export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const fetcher = useFetcher<{ ok?: boolean; count?: number; error?: string }>();
+  const [selectedResources, setSelectedResources] = useState<string[] | "All">([]);
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
   const currentSortBy = searchParams.get("sortBy") ?? "dueDate";
@@ -118,6 +146,22 @@ export default function Invoices() {
       } days`}
     >
       <BlockStack gap="400">
+        {/* Bulk action result banner */}
+        {fetcher.data?.ok && fetcher.data.count !== undefined && (
+          <Banner
+            tone="success"
+            title={`Bulk operation complete`}
+            onDismiss={() => fetcher.load?.(window.location.pathname)}
+          >
+            <Text as="p">{fetcher.data.count} invoice{fetcher.data.count !== 1 ? "s" : ""} marked as paid.</Text>
+          </Banner>
+        )}
+        {fetcher.data?.error && (
+          <Banner tone="critical" onDismiss={() => fetcher.load?.(window.location.pathname)}>
+            <Text as="p">{fetcher.data.error}</Text>
+          </Banner>
+        )}
+
         {/* Action bar */}
         <Card>
           <InlineStack align="space-between" blockAlign="center">
@@ -291,7 +335,51 @@ export default function Invoices() {
                 searchParams.delete("page");
                 setSearchParams(searchParams);
               }}
-              selectable={false}
+              selectedItemsCount={
+                selectedResources === "All" ? "All" : selectedResources.length
+              }
+              onSelectionChange={(selectionType, toggleType, selection) => {
+                if (selectionType === "all") {
+                  setSelectedResources(toggleType ? "All" : []);
+                } else if (selectionType === "page") {
+                  const pageIds = invoiceResult.items.map((inv) => inv.id);
+                  if (toggleType) {
+                    setSelectedResources((prev) => {
+                      const current = prev === "All" ? invoiceResult.items.map((inv) => inv.id) : prev;
+                      const withoutPage = current.filter((id) => !pageIds.includes(id));
+                      return [...withoutPage, ...pageIds];
+                    });
+                  } else {
+                    setSelectedResources((prev) => {
+                      if (prev === "All") return invoiceResult.items.map((inv) => inv.id).filter((id) => !pageIds.includes(id));
+                      return prev.filter((id) => !pageIds.includes(id));
+                    });
+                  }
+                } else if (typeof selection === "string") {
+                  setSelectedResources((prev) => {
+                    const current = prev === "All" ? invoiceResult.items.map((inv) => inv.id) : prev;
+                    return current.includes(selection)
+                      ? current.filter((id) => id !== selection)
+                      : [...current, selection];
+                  });
+                }
+              }}
+              promotedBulkActions={[
+                {
+                  content: "Mark as Paid",
+                  onAction: () => {
+                    const ids =
+                      selectedResources === "All"
+                        ? invoiceResult.items.map((inv) => inv.id)
+                        : selectedResources;
+                    fetcher.submit(
+                      { intent: "bulk-mark-paid", ids: ids.join(",") },
+                      { method: "POST" },
+                    );
+                    setSelectedResources([]);
+                  },
+                },
+              ]}
             >
               {invoiceResult.items.map((inv, idx) => (
                 <IndexTable.Row key={inv.id} id={inv.id} position={idx}>

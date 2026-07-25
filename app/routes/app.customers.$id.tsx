@@ -18,6 +18,7 @@ import {
 import { useState, useCallback } from "react";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { requirePermission } from "~/services/rbac.server";
 import {
   getCustomer,
   setCreditLimit,
@@ -84,7 +85,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { admin } = await authenticate.admin(request);
-    const { shopId, shopDomain } = await resolveShop(request);
+    const { shopId, shopDomain, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     if (!params.id) {
       throw new Response("Customer ID required", { status: 400 });

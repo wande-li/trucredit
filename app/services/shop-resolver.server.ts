@@ -16,39 +16,37 @@ export interface ResolvedShop {
 }
 
 /**
- * Derive the user's RBAC role from the TeamMember table or Prisma session record.
+ * Derive the user's RBAC role.
  *
  * Lookup order:
- * 1. TeamMember table (explicit role assignment) — takes priority
- * 2. Session.accountOwner → "admin"
- * 3. Default → "viewer" (collaborator without explicit team member record)
+ * 1. isAccountOwner (from Shopify session.onlineAccessInfo) → "admin" (owner cannot be demoted)
+ * 2. TeamMember table (explicit role assignment for collaborators)
+ * 3. Default → "viewer" (unknown collaborator without explicit team member record)
  */
-async function deriveRole(shopDomain: string, shopId: string, userEmail?: string | null): Promise<Role> {
-  try {
-    // 1. Check TeamMember table first (explicit role assignment)
-    if (userEmail) {
+async function deriveRole(
+  shopId: string,
+  isAccountOwner: boolean,
+  userEmail?: string | null,
+): Promise<Role> {
+  // 1. Account owner ALWAYS gets admin — no DB lookup, direct from Shopify session
+  if (isAccountOwner) return "admin";
+
+  // 2. Non-owner: check TeamMember table for explicit role
+  if (userEmail) {
+    try {
       const member = await prisma.teamMember.findUnique({
         where: { shopId_email: { shopId, email: userEmail.toLowerCase() } },
         select: { role: true },
       });
       if (member) return member.role as Role;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "TeamMember role lookup failed — defaulting to viewer", msg, { shopId, email: userEmail });
     }
-
-    // 2. Check if account owner
-    const dbSession = await prisma.session.findFirst({
-      where: { shop: shopDomain },
-      orderBy: { id: "desc" },
-      select: { accountOwner: true },
-    });
-    if (dbSession?.accountOwner) return "admin";
-
-    // 3. Default: viewer (safe for unknown collaborators)
-    return "viewer";
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Role lookup via DB session failed — defaulting to admin", msg, { shopDomain });
-    return "admin";
   }
+
+  // 3. Default: viewer (safe for unknown collaborators)
+  return "viewer";
 }
 
 /**
@@ -62,7 +60,9 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
   try {
     const { session } = await authenticate.admin(request);
     const shopDomain = session.shop?.trim(); // null-safe — .data requests have shop:null
-    const userEmail = session.onlineAccessInfo?.associated_user.email ?? null; // For RBAC lookup
+    const associatedUser = session.onlineAccessInfo?.associated_user;
+    const userEmail = associatedUser?.email ?? null; // For RBAC lookup
+    const isAccountOwner = associatedUser?.account_owner ?? false;
 
     // .data requests: authenticate succeeds but shop is null → fallback to DB
     if (!shopDomain) {
@@ -75,7 +75,7 @@ export async function resolveShop(request: Request): Promise<ResolvedShop> {
     });
 
     if (shop) {
-      const role = await deriveRole(shopDomain, shop.id, userEmail);
+      const role = await deriveRole(shop.id, isAccountOwner, userEmail);
       return {
         shopDomain,
         shopId: shop.id,

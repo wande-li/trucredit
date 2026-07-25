@@ -221,6 +221,7 @@ export interface ShopBilling {
  * Get full billing context for dashboard / billing page
  */
 export async function getShopBilling(shopId: string): Promise<ShopBilling> {
+  logger.app("INFO", "billing.getShopBilling START", null, { shopId });
   const shop = await prisma.shop.findUniqueOrThrow({
     where: { id: shopId },
     select: {
@@ -239,7 +240,7 @@ export async function getShopBilling(shopId: string): Promise<ShopBilling> {
   const invoiceCount = shop._count.invoices;
   const resolvedPlan = resolvePlan(shop.plan);
 
-  return {
+  const result: ShopBilling = {
     plan: resolvedPlan,
     planName:
       PLANS.find((p) => p.key === resolvedPlan)?.name ?? resolvedPlan,
@@ -261,6 +262,14 @@ export async function getShopBilling(shopId: string): Promise<ShopBilling> {
       customerCount >= shop.customerQuota ||
       invoiceCount >= shop.invoiceQuota,
   };
+  logger.app("INFO", "billing.getShopBilling OK", null, {
+    shopId,
+    plan: resolvedPlan,
+    status: shop.subscriptionStatus,
+    customerCount,
+    invoiceCount,
+  });
+  return result;
 }
 
 /**
@@ -273,6 +282,7 @@ export async function checkPlanAccess(shopId: string): Promise<{
   quotaBlocked: boolean;
   reason: string | null;
 }> {
+  logger.app("INFO", "billing.checkPlanAccess START", null, { shopId });
   const shop = await prisma.shop.findUniqueOrThrow({
     where: { id: shopId },
     select: {
@@ -293,14 +303,14 @@ export async function checkPlanAccess(shopId: string): Promise<{
   // Do NOT auto-heal here — only the Shopify Billing webhook can authoritatively
   // confirm the subscription is truly active.
   if (resolvedPlan !== "FREE" && shop.subscriptionStatus !== "ACTIVE") {
-    logger.app("WARN", "checkPlanAccess — subscriptionStatus mismatch (not auto-healed)", {
+    logger.app("WARN", "billing.checkPlanAccess — subscriptionStatus mismatch (not auto-healed)", {
       shopId,
       plan: resolvedPlan,
       status: shop.subscriptionStatus,
     });
   }
 
-  return {
+  const result = {
     plan: resolvedPlan,
     isPaid: resolvedPlan !== "FREE",
     quotaBlocked: isQuotaExceeded && resolvedPlan === "FREE",
@@ -308,6 +318,13 @@ export async function checkPlanAccess(shopId: string): Promise<{
       ? `Quota exceeded: ${shop._count.customers}/${quota.customers} customers, ${shop._count.invoices}/${quota.invoices} invoices`
       : null,
   };
+  logger.app("INFO", "billing.checkPlanAccess OK", null, {
+    shopId,
+    plan: resolvedPlan,
+    status: shop.subscriptionStatus,
+    quotaBlocked: result.quotaBlocked,
+  });
+  return result;
 }
 
 /**
@@ -317,16 +334,25 @@ export async function checkInvoiceQuota(
   shopId: string,
   plan: Plan,
 ): Promise<QuotaCheck> {
+  logger.app("INFO", "billing.checkInvoiceQuota START", null, { shopId, plan });
   const quotaRef = PLAN_QUOTAS[plan as PlanKey] ?? PLAN_QUOTAS.FREE;
   const limit = quotaRef.invoices;
   const current = await prisma.invoice.count({ where: { shopId } });
 
-  return {
+  const result: QuotaCheck = {
     allowed: current < limit,
     current,
     limit,
     plan,
   };
+  logger.app("INFO", "billing.checkInvoiceQuota OK", null, {
+    shopId,
+    plan,
+    current,
+    limit,
+    allowed: result.allowed,
+  });
+  return result;
 }
 
 // ─── Feature Gating ────────────────────────────────────────
@@ -367,6 +393,12 @@ export async function handleSubscriptionUpdate(
   shopDomain: string,
   charge: ShopifyCharge,
 ): Promise<void> {
+  logger.app("INFO", "billing.handleSubscriptionUpdate START", null, {
+    shopDomain,
+    chargeName: charge.name,
+    chargeStatus: charge.status,
+    chargeId: charge.id,
+  });
   const plan = billingPlanToEnum(charge.name);
   const quotas = PLAN_QUOTAS[plan as PlanKey] ?? PLAN_QUOTAS.FREE;
 
@@ -409,7 +441,7 @@ export async function handleSubscriptionUpdate(
       where: { shopDomain },
       data,
     });
-    logger.app("INFO", "Subscription updated via webhook", undefined, {
+    logger.app("INFO", "billing.handleSubscriptionUpdate OK", null, {
       shopDomain,
       plan: String(data.plan),
       status: String(data.subscriptionStatus),
@@ -419,12 +451,16 @@ export async function handleSubscriptionUpdate(
     const msg = e instanceof Error ? e.message : String(e);
     // Prisma P2025 = shop not found — webhook may arrive before OAuth completes
     if (msg.includes("P2025")) {
-      logger.app("WARN", "Subscription webhook skipped: shop not found", {
+      logger.app("WARN", "billing.handleSubscriptionUpdate — shop not found", {
         shopDomain,
         chargeId: charge.id,
       });
       return;
     }
+    logger.app("ERROR", "billing.handleSubscriptionUpdate ERROR", msg, {
+      shopDomain,
+      chargeId: charge.id,
+    });
     throw e;
   }
 }

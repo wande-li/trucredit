@@ -32,7 +32,7 @@ async function deriveRole(
 ): Promise<Role> {
   // 1. Account owner from online session (authoritative for real Shopify users)
   if (isAccountOwner) {
-    logger.app("INFO", "deriveRole → admin (online session account_owner=true)", { shopDomain });
+    logger.app("INFO", "shopResolver.deriveRole → admin (online session)", null, { shopDomain });
     return "admin";
   }
 
@@ -45,17 +45,17 @@ async function deriveRole(
     });
     logger.app(
       "INFO",
-      `deriveRole DB session lookup: found=${!!dbSession}, accountOwner=${dbSession?.accountOwner ?? "N/A"}`,
-      undefined,
+      `shopResolver.deriveRole DB session lookup: found=${!!dbSession}, accountOwner=${dbSession?.accountOwner ?? "N/A"}`,
+      null,
       { shopDomain },
     );
     if (dbSession?.accountOwner) {
-      logger.app("INFO", "deriveRole → admin (DB session.accountOwner=true)", { shopDomain });
+      logger.app("INFO", "shopResolver.deriveRole → admin (DB session)", null, { shopDomain });
       return "admin";
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Session accountOwner lookup failed", msg, { shopDomain });
+    logger.app("WARN", "shopResolver.deriveRole — session lookup failed", msg, { shopDomain });
   }
 
   // 3. Non-owner: check TeamMember table for explicit role
@@ -66,18 +66,18 @@ async function deriveRole(
         select: { role: true },
       });
       if (member) {
-        logger.app("INFO", `deriveRole → ${member.role} (TeamMember explicit)`, { shopId, email: userEmail });
+        logger.app("INFO", `shopResolver.deriveRole → ${member.role} (TeamMember)`, null, { shopId, email: userEmail });
         return member.role as Role;
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "TeamMember role lookup failed", msg, { shopId, email: userEmail });
+      logger.app("WARN", "shopResolver.deriveRole — TeamMember lookup failed", msg, { shopId, email: userEmail });
     }
   }
 
   // 4. Default → admin: no explicit viewer downgrade means this is the account owner
   //    (or a staff member that hasn't been added to TeamMember yet — safe default)
-  logger.app("WARN", "deriveRole → admin (default — no TeamMember record found)", {
+  logger.app("WARN", "shopResolver.deriveRole → admin (default — no TeamMember record)", null, {
     shopDomain,
     shopId,
     email: userEmail ?? "(none)",

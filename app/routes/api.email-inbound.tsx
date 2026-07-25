@@ -92,6 +92,8 @@ async function verifySnsSignature(body: Record<string, string>): Promise<boolean
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:api.email-inbound START");
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
@@ -108,7 +110,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     rawBody = await request.text();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "email-inbound: failed to read request body", msg);
+    logger.app("WARN", "action:api.email-inbound body_read_failed", msg);
     return new Response("Bad Request", { status: 400 });
   }
 
@@ -118,7 +120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     snsEnvelope = JSON.parse(rawBody) as Record<string, string>;
   } catch {
     // Not JSON — treat as raw email (direct SES delivery, expected control flow)
-    logger.app("INFO", "email-inbound: body is not JSON — treating as raw email");
+    logger.app("INFO", "action:api.email-inbound raw_body — treating as raw email");
     body = rawBody;
   }
 
@@ -191,7 +193,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         from = parsedMail.from?.value?.[0]?.address ?? from;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", "email-inbound: failed to parse email MIME content", msg);
+        logger.app("WARN", "action:api.email-inbound mime_parse_failed", msg);
         emailBody = "(could not parse email content)";
       }
     }
@@ -206,7 +208,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       date,
     });
 
-    logger.app("INFO", "Inbound email processed", undefined, {
+    logger.app("INFO", "action:api.email-inbound OK", null, {
+      durationMs: Date.now() - ta,
       messageId,
       matched: result.matched,
       taskId: result.taskId,
@@ -215,7 +218,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("OK", { status: 200 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Failed to parse inbound email", undefined, { error: msg });
+    logger.app("WARN", "action:api.email-inbound parse_failed", msg);
     return new Response("OK", { status: 200 }); // Always 200 to prevent SNS retries
   }
 };

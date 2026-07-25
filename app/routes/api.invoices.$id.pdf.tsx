@@ -9,6 +9,8 @@ import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:api.invoices.$id.pdf START", null, { invoiceId: params.id });
   try {
     // Authenticate admin session
     await authenticate.admin(request);
@@ -51,6 +53,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       },
     });
 
+    logger.app("INFO", "loader:api.invoices.$id.pdf OK", null, {
+      durationMs: Date.now() - t0,
+      invoiceId: params.id,
+      pdfSize: pdfBuffer.byteLength,
+    });
     return new Response(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
@@ -63,7 +70,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoice PDF generation failed", msg, { invoiceId: params.id });
+    logger.app("ERROR", "loader:api.invoices.$id.pdf ERROR", msg, { durationMs: Date.now() - t0, invoiceId: params.id });
     return new Response("Failed to generate PDF", { status: 500 });
   }
 };

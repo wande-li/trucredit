@@ -37,6 +37,8 @@ type ExportRow = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:api.invoices.export.csv START");
   try {
     const { session } = await authenticate.admin(request);
     const shopDomain = session.shop.trim();
@@ -76,11 +78,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const csv = exportToCsv([...CSV_HEADERS], rows);
     const headers = csvResponseHeaders("invoices-export");
 
+    logger.app("INFO", "loader:api.invoices.export.csv OK", null, {
+      durationMs: Date.now() - t0,
+      rowCount: rows.length,
+    });
     return new Response(csv, { status: 200, headers });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoice CSV export failed", msg);
+    logger.app("ERROR", "loader:api.invoices.export.csv ERROR", msg, { durationMs: Date.now() - t0 });
     return new Response("Failed to export invoices", { status: 500 });
   }
 };

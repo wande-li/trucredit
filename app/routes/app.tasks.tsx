@@ -61,6 +61,8 @@ function daysToStage(daysOverdue: number): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.tasks START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -105,6 +107,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.collectionTask.count({ where: { ...where, status: "ESCALATED" } }),
     ]);
 
+    logger.app("INFO", "loader:app.tasks OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: tasks.length,
+      total,
+      active: activeCount,
+      paused: pausedCount,
+      escalated: escalatedCount,
+    });
     return json({
       tasks,
       page,
@@ -117,12 +127,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Tasks loader failed", msg);
+    logger.app("ERROR", "loader:app.tasks ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.tasks START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -134,10 +146,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (intent) {
       case "pause": {
         await pauseTask({ taskId, shopId, reason: "Manually paused" });
+        logger.app("INFO", "action:app.tasks pause OK", null, { durationMs: Date.now() - ta, taskId });
         return json({ success: true });
       }
       case "stop": {
         await stopTask({ taskId, shopId, reason: "Manually stopped" });
+        logger.app("INFO", "action:app.tasks stop OK", null, { durationMs: Date.now() - ta, taskId });
         return json({ success: true });
       }
       case "resume": {
@@ -152,6 +166,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: taskId, sequence: { shopId } },
           data: { status: "ACTIVE" },
         });
+        logger.app("INFO", "action:app.tasks resume OK", null, { durationMs: Date.now() - ta, taskId });
         return json({ success: true });
       }
       case "send": {
@@ -192,15 +207,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           stepOrder: task.currentStep,
         });
 
+        logger.app("INFO", "action:app.tasks send OK", null, { durationMs: Date.now() - ta, taskId });
         return json({ success: true });
       }
       default:
+        logger.app("WARN", "action:app.tasks unknown_intent", null, { intent });
         return json({ error: "Unknown intent" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Task action failed", msg);
+    logger.app("ERROR", "action:app.tasks ERROR", msg, { durationMs: Date.now() - ta });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

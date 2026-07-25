@@ -35,15 +35,21 @@ export const meta: MetaFunction = () => [{ title: "TruCredit — Email Template"
 // ═══════════════════ Loader ═══════════════════
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.emails.$id START", null, { templateId: params.id });
   try {
     const { shopId } = await resolveShop(request);
     const template = await getTemplateById(params.id!, shopId);
     if (!template) throw new Response("Template not found", { status: 404 });
+    logger.app("INFO", "loader:app.emails.$id OK", null, {
+      durationMs: Date.now() - t0,
+      templateId: params.id,
+    });
     return json({ template });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Email detail loader failed", msg);
+    logger.app("ERROR", "loader:app.emails.$id ERROR", msg, { durationMs: Date.now() - t0, templateId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
@@ -51,6 +57,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 // ═══════════════════ Actions ═══════════════════
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.emails.$id START", null, { templateId: params.id });
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -78,12 +86,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         toneLevel: toneLevel && !isNaN(toneLevel) ? toneLevel : undefined,
       });
 
+      logger.app("INFO", "action:app.emails.$id update OK", null, {
+        durationMs: Date.now() - ta,
+        templateId: params.id,
+      });
       return json(result);
     }
 
     // Delete template
     if (intent === "delete") {
       const result = await deleteTemplate(params.id!, shopId);
+      logger.app("INFO", "action:app.emails.$id delete OK", null, {
+        durationMs: Date.now() - ta,
+        templateId: params.id,
+      });
       return json(result);
     }
 
@@ -115,6 +131,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         paymentLink: "https://pay.example.com/invoice",
       });
 
+      logger.app("INFO", "action:app.emails.$id aiPreview OK", null, { durationMs: Date.now() - ta });
       return json({ success: true, generatedEmail: generated });
     }
 
@@ -129,14 +146,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         templateId: params.id!,
         testEmail: testEmail.trim(),
       });
+      logger.app("INFO", "action:app.emails.$id sendTest OK", null, { durationMs: Date.now() - ta });
       return json(result);
     }
 
+    logger.app("WARN", "action:app.emails.$id unknown_intent", null, { intent });
     return json({ success: false, error: "Unknown intent" });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Email action failed", msg);
+    logger.app("ERROR", "action:app.emails.$id ERROR", msg, { durationMs: Date.now() - ta, templateId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

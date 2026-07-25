@@ -45,10 +45,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     shopDomain = String(p.shop_domain || p.myshopify_domain || "");
     shopifyAdmin = auth.admin;
 
-    logger.app("INFO", `Webhook received: ${topic}`, undefined, { shopDomain, topic });
+    logger.app("INFO", "action:webhooks START", null, { shopDomain, topic });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Webhook authentication/parsing failed", msg);
+    logger.app("ERROR", "action:webhooks auth_failed", msg);
     return new Response(null, { status: 200 }); // 200 to prevent Shopify retry
   }
 
@@ -58,7 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return await fn();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("ERROR", `Webhook ${name} handler failed`, msg, { shopDomain, topic });
+      logger.app("ERROR", `action:webhooks ${name} ERROR`, msg, { shopDomain });
       return new Response(null, { status: 200 });
     }
   };
@@ -85,16 +85,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               );
               cleared += batch.length;
             }
-            logger.app("INFO", "APP_UNINSTALLED: metafield cleanup complete", undefined, {
+            logger.app("INFO", "action:webhooks APP_UNINSTALLED metafield_cleanup OK", null, {
               shopDomain,
               customersCleared: cleared,
             });
           } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
-            logger.app("WARN", "APP_UNINSTALLED: metafield cleanup failed (non-blocking)", undefined, {
-              shopDomain,
-              error: msg,
-            });
+            logger.app("WARN", "action:webhooks APP_UNINSTALLED metafield_cleanup failed (non-blocking)", msg, { shopDomain });
           }
         }
         // P1-2 GDPR note: APP_UNINSTALLED keeps data for Shopify 48h reinstall window.
@@ -193,7 +190,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       }
 
-      logger.app("INFO", `Company ${topic} processed`, undefined, {
+      logger.app("INFO", `action:webhooks ${topic} OK`, null, {
         shopId: dbShop.id,
         companyName,
         contactCount: contacts.length,
@@ -260,7 +257,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: draftInvoice.id },
           data: { shopifyOrderId: orderId, shopifyOrderName: orderName },
         });
-        logger.app("INFO", "Linked draft invoice to order (ORDER_CREATE)", undefined, {
+        logger.app("INFO", "action:webhooks ORDERS_CREATE linked_draft OK", null, {
           invoiceId: draftInvoice.id,
           orderId,
           orderName,
@@ -304,11 +301,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, customer.id).catch((e: unknown) => {
           const msg = e instanceof Error ? e.message : String(e);
-          logger.app("WARN", "Metafield sync failed after order created", msg);
+          logger.app("WARN", "action:webhooks ORDERS_CREATE metafield_sync failed", msg);
         });
       }
 
-      logger.app("INFO", "Invoice created from order", undefined, {
+      logger.app("INFO", "action:webhooks ORDERS_CREATE invoice_created OK", null, {
         shopId: dbShop.id,
         customerId: customer.id,
         orderName,
@@ -343,7 +340,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
 
       if (result.count > 0) {
-        logger.app("INFO", "Draft order completed — bridged to order ID", undefined, {
+        logger.app("INFO", "action:webhooks DRAFT_ORDERS_COMPLETE bridged OK", null, {
           shopDomain: shopDomain.trim(),
           draftOrderId,
           resultingOrderId,
@@ -397,11 +394,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (shopifyAdmin) {
           await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : String(e);
-            logger.app("WARN", "Metafield sync failed after draft order deleted", msg);
+            logger.app("WARN", "action:webhooks DRAFT_ORDERS_DELETE metafield_sync failed", msg);
           });
         }
 
-        logger.app("INFO", "Draft order deleted — invoice voided", undefined, {
+        logger.app("INFO", "action:webhooks DRAFT_ORDERS_DELETE invoice_voided OK", null, {
           shopDomain: shopDomain.trim(),
           draftOrderId,
           invoiceId: invoice.id,
@@ -441,7 +438,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: invoice.id },
           data: { shopifyOrderId: orderId },
         });
-        logger.app("INFO", "ORDERS_PAID fallback: bridged draft→order", undefined, {
+        logger.app("INFO", "action:webhooks ORDERS_PAID fallback_bridged OK", null, {
           invoiceId: invoice.id,
           orderId,
         });
@@ -475,7 +472,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
           const msg = e instanceof Error ? e.message : String(e);
-          logger.app("WARN", "Metafield sync failed after order paid", msg);
+          logger.app("WARN", "action:webhooks ORDERS_PAID metafield_sync ERROR", msg);
         });
       }
     }
@@ -542,7 +539,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (shopifyAdmin) {
           await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : String(e);
-            logger.app("WARN", "Metafield sync failed after order updated", msg);
+            logger.app("WARN", "action:webhooks ORDERS_UPDATED metafield_sync ERROR", msg);
           });
         }
       }
@@ -561,7 +558,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             where: { id: syncInvoice.id },
             data: { amount: currentTotal },
           });
-          logger.app("INFO", "ORDERS_UPDATED: synced invoice amount", undefined, {
+          logger.app("INFO", "action:webhooks ORDERS_UPDATED amount_synced OK", null, {
             orderId,
             invoiceId: syncInvoice.id,
             oldAmount: syncInvoice.amount,
@@ -634,7 +631,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
           const msg = e instanceof Error ? e.message : String(e);
-          logger.app("WARN", "Metafield sync failed after order cancelled", msg);
+          logger.app("WARN", "action:webhooks ORDERS_CANCELLED metafield_sync ERROR", msg);
         });
       }
     }
@@ -660,7 +657,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         select: { id: true },
       });
       if (dupEvent) {
-        logger.app("INFO", "REFUNDS_CREATE duplicate — skipping (idempotency guard)", undefined, {
+        logger.app("INFO", "action:webhooks REFUNDS_CREATE duplicate_skipped OK", null, {
           refundId,
           orderId,
           previousEventId: dupEvent.id,
@@ -772,11 +769,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (shopifyAdmin) {
           await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : String(e);
-            logger.app("WARN", "Metafield sync failed after refund", msg);
+            logger.app("WARN", "action:webhooks REFUNDS_CREATE metafield_sync ERROR", msg);
           });
         }
 
-        logger.app("INFO", "Refund processed", undefined, {
+        logger.app("INFO", "action:webhooks REFUNDS_CREATE OK", null, {
           orderId,
           refundTotal,
           releasedAmount,
@@ -831,7 +828,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    logger.app("INFO", "GDPR CUSTOMERS_DATA_REQUEST processed", undefined, {
+    logger.app("INFO", "action:webhooks CUSTOMERS_DATA_REQUEST OK", null, {
       shopId: shop.id,
       customerId,
       recordCount: customers.length,
@@ -870,7 +867,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    logger.app("INFO", "GDPR CUSTOMERS_REDACT processed", undefined, {
+    logger.app("INFO", "action:webhooks CUSTOMERS_REDACT OK", null, {
       shopId: shop.id,
       customerId,
       updatedCount: result.count,
@@ -908,13 +905,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Session records (standalone — no cascade from Shop)
       await prisma.session.deleteMany({ where: { shop: shopDomain.trim() } });
 
-      logger.app("INFO", "GDPR SHOP_REDACT complete", { shopDomain: shopDomain.trim() });
+      logger.app("INFO", "action:webhooks SHOP_REDACT OK", null, { shopDomain: shopDomain.trim() });
     }
 
     return new Response(null, { status: 200 });
     });
   }
 
-  logger.app("WARN", "Unhandled webhook topic — returning 200 to prevent retry cascade", undefined, { topic });
+  logger.app("WARN", "action:webhooks unhandled_topic ERROR", null, { topic });
   return new Response(null, { status: 200 });
 };

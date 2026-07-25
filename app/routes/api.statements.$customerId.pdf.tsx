@@ -10,6 +10,8 @@ import { logger } from "~/services/logger.server";
 import prisma from "~/db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:api.statements.$customerId.pdf START", null, { customerId: params.customerId });
   try {
     // Authenticate admin session
     await authenticate.admin(request);
@@ -59,6 +61,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     // Safe filename: replace any non-alphanumeric chars with underscore
     const safeName = customer.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
 
+    logger.app("INFO", "loader:api.statements.$customerId.pdf OK", null, {
+      durationMs: Date.now() - t0,
+      customerId: params.customerId,
+      pdfSize: pdfBuffer.byteLength,
+    });
     return new Response(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
@@ -71,7 +78,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Statement PDF generation failed", msg, { customerId: params.customerId });
+    logger.app("ERROR", "loader:api.statements.$customerId.pdf ERROR", msg, { durationMs: Date.now() - t0, customerId: params.customerId });
     return new Response("Failed to generate statement PDF", { status: 500 });
   }
 };

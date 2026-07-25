@@ -54,12 +54,15 @@ const GRADE_OPTIONS = [
 // ─── Loader ──────────────────────────────────────────────
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.rules.$id START", null, { ruleId: params.id });
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
 
     const isNew = params.id === "new";
     if (isNew) {
+      logger.app("INFO", "loader:app.rules.$id OK (new)", null, { durationMs: Date.now() - t0 });
       return json({ isNew: true, rule: null, shopId });
     }
 
@@ -68,11 +71,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const rule = await getRule({ shopId, ruleId: params.id });
     if (!rule) throw new Response("Rule not found", { status: 404 });
 
+    logger.app("INFO", "loader:app.rules.$id OK", null, {
+      durationMs: Date.now() - t0,
+      ruleId: params.id,
+    });
     return json({ isNew: false, rule, shopId });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Rule detail loader failed", msg);
+    logger.app("ERROR", "loader:app.rules.$id ERROR", msg, { durationMs: Date.now() - t0, ruleId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
@@ -80,6 +87,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 // ─── Action ──────────────────────────────────────────────
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.rules.$id START", null, { ruleId: params.id });
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -88,6 +97,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const intent = formData.get("intent")?.toString();
 
     if (intent !== "save") {
+      logger.app("WARN", "action:app.rules.$id invalid_intent", null, { intent });
       return json({ error: "Invalid action" }, { status: 400 });
     }
 
@@ -210,11 +220,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
 
+    logger.app("INFO", "action:app.rules.$id save OK", null, {
+      durationMs: Date.now() - ta,
+      ruleId: params.id,
+      isNew,
+      action,
+    });
     return json({ success: true });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Rule save failed", msg);
+    logger.app("ERROR", "action:app.rules.$id ERROR", msg, { durationMs: Date.now() - ta, ruleId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

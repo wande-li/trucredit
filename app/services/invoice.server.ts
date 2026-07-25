@@ -37,11 +37,16 @@ export async function getInvoice(params: {
   shopId: string;
   invoiceId: string;
 }): Promise<InvoiceRecord | null> {
+  logger.app("INFO", "invoice.getInvoice START", null, { shopId: params.shopId, invoiceId: params.invoiceId });
   const invoice = await prisma.invoice.findFirst({
     where: { id: params.invoiceId, shopId: params.shopId },
   });
 
-  if (!invoice) return null;
+  if (!invoice) {
+    logger.app("INFO", "invoice.getInvoice — not found", null, { shopId: params.shopId, invoiceId: params.invoiceId });
+    return null;
+  }
+  logger.app("INFO", "invoice.getInvoice OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
   return { ...invoice, amount: invoice.amount.toString() };
 }
 
@@ -61,6 +66,7 @@ export async function listInvoices(params: {
   sortOrder?: "asc" | "desc";
 }): Promise<PaginatedResult<InvoiceSummary>> {
   const { shopId, search, status, customerId, dateFrom, dateTo } = params;
+  logger.app("INFO", "invoice.listInvoices START", null, { shopId, page: params.page, search, status, customerId });
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(
     PAGINATION.MAX_PAGE_SIZE,
@@ -111,6 +117,7 @@ export async function listInvoices(params: {
     prisma.invoice.count({ where }),
   ]);
 
+  logger.app("INFO", "invoice.listInvoices OK", null, { shopId, total, page });
   return {
     items: (items as InvListRow[]).map((inv) => ({
       id: inv.id,
@@ -136,6 +143,7 @@ export async function listInvoices(params: {
  * Generate AR Aging Report
  */
 export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
+  logger.app("INFO", "invoice.getARAgingReport START", null, { shopId });
   const now = new Date();
   const invoices = await prisma.invoice.findMany({
     where: {
@@ -233,6 +241,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
       ? Math.round((totalOutstanding / recentSales) * 90)
       : null;
 
+  logger.app("INFO", "invoice.getARAgingReport OK", null, { shopId, totalInvoices: invoices.length, dso });
   return {
     shopId,
     totalOutstanding: totalOutstanding.toFixed(2),
@@ -248,6 +257,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
  * Update overdue days for all matching invoices — called by cron/sweeper
  */
 export async function refreshOverdueDays(shopId: string): Promise<number> {
+  logger.app("INFO", "invoice.refreshOverdueDays START", null, { shopId });
   const now = new Date();
 
   const overdueInvoices = await prisma.invoice.findMany({
@@ -289,6 +299,7 @@ export async function refreshOverdueDays(shopId: string): Promise<number> {
     updated = changes.length;
   }
 
+  logger.app("INFO", "invoice.refreshOverdueDays OK", null, { shopId, updated });
   return updated;
 }
 
@@ -307,6 +318,12 @@ export async function createInvoice(params: {
   shopifyDraftOrderId?: string;
   paymentUrl?: string;
 }): Promise<InvoiceRecord> {
+  logger.app("INFO", "invoice.createInvoice START", null, {
+    shopId: params.shopId,
+    customerId: params.customerId,
+    invoiceNumber: params.invoiceNumber,
+    amount: params.amount,
+  });
   const netTerms = params.netTermsDays ?? COLLECTION.DEFAULT_NET_TERMS;
   const issueDate = new Date();
   const dueDate = new Date(issueDate);
@@ -365,10 +382,11 @@ export async function createInvoice(params: {
       shopifyCustomerId: customerShopifyId,
     }).catch((e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "Draft order creation failed for new invoice", msg, { invoiceId: invoice.inv.id });
+      logger.app("WARN", "invoice.createInvoice — draft order creation failed", msg, { invoiceId: invoice.inv.id });
     });
   }
 
+  logger.app("INFO", "invoice.createInvoice OK", null, { shopId: params.shopId, invoiceId: invoice.inv.id });
   return { ...invoice.inv, amount: invoice.inv.amount.toString() };
 }
 
@@ -380,6 +398,7 @@ export async function markInvoicePaid(params: {
   invoiceId: string;
   paymentMethod?: string;
 }): Promise<InvoiceRecord> {
+  logger.app("INFO", "invoice.markInvoicePaid START", null, { shopId: params.shopId, invoiceId: params.invoiceId });
   const paidDate = new Date();
 
   return prisma.$transaction(async (tx) => {
@@ -456,6 +475,7 @@ export async function markInvoicePaid(params: {
       },
     });
 
+    logger.app("INFO", "invoice.markInvoicePaid OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
     return { ...updated, amount: updated.amount.toString() };
   });
 }
@@ -474,6 +494,7 @@ export async function getARAgingByCustomer(params: {
   invoices: InvoiceSummary[];
 }> {
   const { shopId, customerId } = params;
+  logger.app("INFO", "invoice.getARAgingByCustomer START", null, { shopId, customerId });
   const now = new Date();
 
   const invoices = await prisma.invoice.findMany({
@@ -539,6 +560,7 @@ export async function getARAgingByCustomer(params: {
     netTermsDays: inv.netTermsDays,
   }));
 
+  logger.app("INFO", "invoice.getARAgingByCustomer OK", null, { shopId, customerId, invoiceCount: invoices.length });
   return {
     totalOutstanding,
     totalOverdue,
@@ -552,8 +574,11 @@ export async function getARAgingByCustomer(params: {
  * Get next invoice sequence number for a shop
  */
 export async function getNextInvoiceSequence(shopId: string): Promise<number> {
+  logger.app("INFO", "invoice.getNextInvoiceSequence START", null, { shopId });
   const count = await prisma.invoice.count({ where: { shopId } });
-  return count + 1;
+  const nextSeq = count + 1;
+  logger.app("INFO", "invoice.getNextInvoiceSequence OK", null, { shopId, nextSeq });
+  return nextSeq;
 }
 
 /**
@@ -565,6 +590,7 @@ export async function updateInvoice(params: {
   amount?: number;
   netTermsDays?: number;
 }): Promise<InvoiceRecord> {
+  logger.app("INFO", "invoice.updateInvoice START", null, { shopId: params.shopId, invoiceId: params.invoiceId });
   const data: Record<string, unknown> = {};
   if (params.amount !== undefined) data.amount = params.amount;
   if (params.netTermsDays !== undefined) data.netTermsDays = params.netTermsDays;
@@ -574,6 +600,7 @@ export async function updateInvoice(params: {
     data,
   });
 
+  logger.app("INFO", "invoice.updateInvoice OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
   return { ...updated, amount: updated.amount.toString() };
 }
 
@@ -586,6 +613,7 @@ export async function bulkMarkInvoicePaid(params: {
   paymentMethod?: string;
 }): Promise<number> {
   const { shopId, invoiceIds, paymentMethod } = params;
+  logger.app("INFO", "invoice.bulkMarkInvoicePaid START", null, { shopId, count: invoiceIds.length });
   let count = 0;
 
   await prisma.$transaction(async (tx) => {
@@ -623,6 +651,7 @@ export async function bulkMarkInvoicePaid(params: {
     }));
   });
 
+  logger.app("INFO", "invoice.bulkMarkInvoicePaid OK", null, { shopId, paid: count });
   return count;
 }
 
@@ -636,8 +665,8 @@ export async function recordPartialPayment(params: {
   paymentMethod?: string;
 }): Promise<InvoiceRecord> {
   const { shopId, invoiceId, paymentAmount, paymentMethod } = params;
-
-  return prisma.$transaction(async (tx) => {
+  logger.app("INFO", "invoice.recordPartialPayment START", null, { shopId, invoiceId, paymentAmount });
+  const result = await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.findFirstOrThrow({
       where: { id: invoiceId, shopId },
     });
@@ -688,4 +717,6 @@ export async function recordPartialPayment(params: {
 
     return { ...updated, amount: updated.amount.toString() };
   });
+  logger.app("INFO", "invoice.recordPartialPayment OK", null, { shopId, invoiceId, paymentAmount });
+  return result;
 }

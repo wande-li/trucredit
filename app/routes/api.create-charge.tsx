@@ -52,6 +52,7 @@ const APP_SUBSCRIPTION_CREATE_MUTATION = `#graphql
 `;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  logger.app("INFO", "action:api.create-charge START");
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const planKey = formData.get('planKey')?.toString();

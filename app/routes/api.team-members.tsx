@@ -13,6 +13,8 @@ import { logger } from "~/services/logger.server";
  *   - remove-team-member: { memberId }
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:api.team-members START");
   try {
     const { shopId, role: callerRole } = await resolveShop(request);
     
@@ -52,7 +54,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           select: { id: true, email: true, role: true, assignedAt: true },
         });
 
-        logger.app("INFO", "Team member added", { shopId, email, role });
+        logger.app("INFO", "action:api.team-members add OK", null, { durationMs: Date.now() - ta, email, role });
         return json({ success: true, member });
       }
 
@@ -80,7 +82,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           select: { id: true, email: true, role: true, updatedAt: true },
         });
 
-        logger.app("INFO", "Team member role updated", { shopId, email: updated.email, role });
+        logger.app("INFO", "action:api.team-members update OK", null, { durationMs: Date.now() - ta, email: updated.email, role });
         return json({ success: true, member: updated });
       }
 
@@ -100,17 +102,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         await prisma.teamMember.delete({ where: { id: memberId } });
 
-        logger.app("INFO", "Team member removed", { shopId, email: member.email });
+        logger.app("INFO", "action:api.team-members remove OK", null, { durationMs: Date.now() - ta, email: member.email });
         return json({ success: true });
       }
 
       default:
+        logger.app("WARN", "action:api.team-members unknown_intent", null, { intent });
         return json({ error: "Unknown intent" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Team members API failed", msg);
+    logger.app("ERROR", "action:api.team-members ERROR", msg, { durationMs: Date.now() - ta });
     return json({ error: msg }, { status: 500 });
   }
 };

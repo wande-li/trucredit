@@ -42,15 +42,12 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Collections" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.collections START");
   try {
     const resolved = await resolveShop(request);
-    logger.app("INFO", "COLLECTIONS-DIAG: resolveShop result", undefined, {
-      role: resolved.role,
-      shopDomain: resolved.shopDomain,
-      shopId: resolved.shopId,
-    });
     requirePermission(resolved.role, "manage_collections");
-    const { shopId, role } = resolved;
+    const { shopId } = resolved;
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
@@ -60,16 +57,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const result = await listSequences(shopId, { page });
 
+    logger.app("INFO", "loader:app.collections OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: result.items.length,
+      page,
+      totalPages: result.totalPages,
+    });
     return json({ shopId, ...result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Collections loader failed", msg);
+    logger.app("ERROR", "loader:app.collections ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.collections START");
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "manage_collections");
@@ -82,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // Auto sequences require STARTER+ plan
         const { isPaid } = await checkPlanAccess(shopId);
         if (!isPaid) {
+          logger.app("WARN", "action:app.collections create plan_gate", null, { durationMs: Date.now() - ta });
           return json(
             {
               error: "Automated collection sequences require a Starter, Pro, or Enterprise plan. Please upgrade.",
@@ -104,6 +110,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           triggerType: "OVERDUE",
           triggerDays,
         });
+        logger.app("INFO", "action:app.collections create OK", null, {
+          durationMs: Date.now() - ta,
+          sequenceId: seq!.id,
+        });
         return redirect(`/app/collections/${seq!.id}`);
       }
 
@@ -111,6 +121,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // P1: Plan gate for delete action
         const { isPaid: delPaid } = await checkPlanAccess(shopId);
         if (!delPaid) {
+          logger.app("WARN", "action:app.collections delete plan_gate", null, { durationMs: Date.now() - ta });
           return json(
             { error: "Automated collection sequences require a paid plan. Please upgrade.", needsUpgrade: true },
             { status: 402 },
@@ -121,7 +132,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
 
         const result = await deleteSequence(sequenceId, shopId);
-        if (!result.success) return json({ error: result.error }, { status: 400 });
+        if (!result.success) {
+          logger.app("WARN", "action:app.collections delete failed", result.error);
+          return json({ error: result.error }, { status: 400 });
+        }
+        logger.app("INFO", "action:app.collections delete OK", null, {
+          durationMs: Date.now() - ta,
+          sequenceId,
+        });
         return json({ success: true });
       }
 
@@ -129,6 +147,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // P1: Plan gate for toggle action
         const { isPaid: togglePaid } = await checkPlanAccess(shopId);
         if (!togglePaid) {
+          logger.app("WARN", "action:app.collections toggle plan_gate", null, { durationMs: Date.now() - ta });
           return json(
             { error: "Automated collection sequences require a paid plan. Please upgrade.", needsUpgrade: true },
             { status: 402 },
@@ -144,17 +163,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           shopId,
           isActive: !isActive,
         });
-        if (!result.success) return json({ error: result.error }, { status: 400 });
+        if (!result.success) {
+          logger.app("WARN", "action:app.collections toggle failed", result.error);
+          return json({ error: result.error }, { status: 400 });
+        }
+        logger.app("INFO", "action:app.collections toggle OK", null, {
+          durationMs: Date.now() - ta,
+          sequenceId,
+          newStatus: !isActive ? "active" : "inactive",
+        });
         return json({ success: true });
       }
 
       default:
+        logger.app("WARN", "action:app.collections unknown_intent", null, { intent });
         return json({ error: "Unknown intent" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Collections action failed", msg);
+    logger.app("ERROR", "action:app.collections ERROR", msg, { durationMs: Date.now() - ta });
     return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };

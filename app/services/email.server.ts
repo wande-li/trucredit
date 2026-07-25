@@ -61,12 +61,17 @@ export function stageToTemplateKey(stage: string): TplKey {
 export async function getTemplate(params: {
   shopId: string; type: TemplateType;
 }): Promise<TplDef> {
+  logger.app("INFO", "email.getTemplate START", null, { shopId: params.shopId, type: params.type });
   const custom = await prisma.emailTemplate.findFirst({
     where: { shopId: params.shopId, type: params.type },
   });
-  if (custom) return { subject: custom.subject, body: custom.body };
+  if (custom) {
+    logger.app("INFO", "email.getTemplate OK (custom)", null, { shopId: params.shopId, type: params.type });
+    return { subject: custom.subject, body: custom.body };
+  }
 
   const key = templateTypeToKey(params.type);
+  logger.app("INFO", "email.getTemplate OK (default)", null, { shopId: params.shopId, type: params.type, key });
   return DEFAULT_TEMPLATES[key];
 }
 
@@ -88,6 +93,7 @@ function templateTypeToKey(t: TemplateType): TplKey {
 export async function listTemplates(shopId: string, params?: { page?: number; pageSize?: number }) {
   const page = params?.page ?? 1;
   const pageSize = Math.min(params?.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE, PAGINATION.MAX_PAGE_SIZE);
+  logger.app("INFO", "email.listTemplates START", null, { shopId, page, pageSize });
 
   const [items, total] = await Promise.all([
     prisma.emailTemplate.findMany({
@@ -99,14 +105,18 @@ export async function listTemplates(shopId: string, params?: { page?: number; pa
     prisma.emailTemplate.count({ where: { shopId } }),
   ]);
 
+  logger.app("INFO", "email.listTemplates OK", null, { shopId, total, page });
   return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
 /** Get a single template by ID */
 export async function getTemplateById(templateId: string, shopId: string) {
-  return prisma.emailTemplate.findFirst({
+  logger.app("INFO", "email.getTemplateById START", null, { templateId, shopId });
+  const result = await prisma.emailTemplate.findFirst({
     where: { id: templateId, shopId },
   });
+  logger.app("INFO", "email.getTemplateById OK", null, { templateId, shopId, found: !!result });
+  return result;
 }
 
 /** Create a new email template */
@@ -119,7 +129,8 @@ export async function createTemplate(params: {
   toneLevel?: number;
   isDefault?: boolean;
 }) {
-  return prisma.emailTemplate.create({
+  logger.app("INFO", "email.createTemplate START", null, { shopId: params.shopId, name: params.name, type: params.type });
+  const result = await prisma.emailTemplate.create({
     data: {
       shopId: params.shopId,
       name: params.name,
@@ -130,6 +141,8 @@ export async function createTemplate(params: {
       isDefault: params.isDefault ?? false,
     },
   });
+  logger.app("INFO", "email.createTemplate OK", null, { shopId: params.shopId, templateId: result.id });
+  return result;
 }
 
 /** Update an existing email template */
@@ -142,10 +155,14 @@ export async function updateTemplate(params: {
   toneLevel?: number;
   isActive?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "email.updateTemplate START", null, { templateId: params.templateId, shopId: params.shopId });
   const existing = await prisma.emailTemplate.findFirst({
     where: { id: params.templateId, shopId: params.shopId },
   });
-  if (!existing) return { success: false, error: "Template not found" };
+  if (!existing) {
+    logger.app("WARN", "email.updateTemplate — not found", null, { templateId: params.templateId, shopId: params.shopId });
+    return { success: false, error: "Template not found" };
+  }
 
   await prisma.emailTemplate.update({
     where: { id: params.templateId, shopId: params.shopId },
@@ -157,6 +174,7 @@ export async function updateTemplate(params: {
     },
   });
 
+  logger.app("INFO", "email.updateTemplate OK", null, { templateId: params.templateId, shopId: params.shopId });
   return { success: true };
 }
 
@@ -165,12 +183,17 @@ export async function deleteTemplate(
   templateId: string,
   shopId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "email.deleteTemplate START", null, { templateId, shopId });
   const existing = await prisma.emailTemplate.findFirst({
     where: { id: templateId, shopId },
   });
-  if (!existing) return { success: false, error: "Template not found" };
+  if (!existing) {
+    logger.app("WARN", "email.deleteTemplate — not found", null, { templateId, shopId });
+    return { success: false, error: "Template not found" };
+  }
 
   await prisma.emailTemplate.delete({ where: { id: templateId, shopId } });
+  logger.app("INFO", "email.deleteTemplate OK", null, { templateId, shopId });
   return { success: true };
 }
 
@@ -195,11 +218,11 @@ export async function sendTestEmail(params: {
 
   // Simulated send — replace with real email provider (Resend/SES) when ready
   try {
-    logger.app("INFO", `Test email "${template.name}" queued to ${testEmail}`, { shopId });
+    logger.app("INFO", "email.sendTestEmail OK", null, { shopId, templateId, testEmail });
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Test email send failed", { shopId, error: msg });
+    logger.app("ERROR", "email.sendTestEmail ERROR", msg, { shopId, templateId });
     return { success: false, error: msg };
   }
 }
@@ -211,11 +234,14 @@ export async function ensureDefaultTemplates(shopId: string): Promise<void> {
     where: { shopId: { contains: "." } },
   });
   if (orphaned.count > 0) {
-    logger.app("INFO", `Cleaned up ${orphaned.count} orphaned email templates`, { shopId });
+    logger.app("INFO", "email.ensureDefaultTemplates — cleaned orphaned templates", null, { shopId, count: orphaned.count });
   }
 
   const count = await prisma.emailTemplate.count({ where: { shopId } });
-  if (count > 0) return;
+  if (count > 0) {
+    logger.app("INFO", "email.ensureDefaultTemplates — already exist", null, { shopId, count });
+    return;
+  }
 
   const defaults: Array<{ name: string; type: TemplateType; subject: string; body: string; toneLevel: number }> = [
     { name: "Before Due Reminder", type: "REMINDER_BEFORE_DUE", subject: DEFAULT_TEMPLATES.BEFORE_DUE.subject, body: DEFAULT_TEMPLATES.BEFORE_DUE.body, toneLevel: 2 },
@@ -231,9 +257,9 @@ export async function ensureDefaultTemplates(shopId: string): Promise<void> {
     await prisma.emailTemplate.createMany({
       data: defaults.map((d) => ({ ...d, shopId, isDefault: true })),
     });
-    logger.app("INFO", `Seeded ${defaults.length} default email templates`, { shopId });
+    logger.app("INFO", "email.ensureDefaultTemplates OK", null, { shopId, count: defaults.length });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Failed to seed default templates", { shopId, error: msg });
+    logger.app("WARN", "email.ensureDefaultTemplates — seed failed", { shopId, error: msg });
   }
 }

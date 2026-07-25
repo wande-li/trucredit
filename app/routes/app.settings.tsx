@@ -61,6 +61,8 @@ type ActionData = {
 
 // ── Loader ──
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.settings START");
   try {
     const { shopDomain, shopId, role } = await resolveShop(request);
     const [shop, teamMembers] = await Promise.all([
@@ -77,6 +79,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
+    logger.app("INFO", "loader:app.settings OK", null, {
+      durationMs: Date.now() - t0,
+      role,
+      teamMemberCount: teamMembers.length,
+    });
     return json({
       settings: shop,
       role,
@@ -87,13 +94,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Settings loader failed", msg);
+    logger.app("ERROR", "loader:app.settings ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 // ── Action ──
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "action:app.settings START");
   try {
     const { shopDomain, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -101,6 +110,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const intent = formData.get("intent");
 
     if (intent !== "save") {
+      logger.app("WARN", "action:app.settings invalid_intent", null, { intent });
       return json({ error: "Invalid intent" } satisfies ActionData);
     }
 
@@ -137,10 +147,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         emailReplyTo,
       },
     });
+    logger.app("INFO", "action:app.settings save OK", null, { durationMs: Date.now() - t0 });
     return json({ success: "Settings saved successfully" } satisfies ActionData);
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "action:app.settings ERROR", msg, { durationMs: Date.now() - t0 });
     return json({ error: `Failed to save settings: ${msg}` } satisfies ActionData);
   }
 };

@@ -44,7 +44,7 @@ export async function adminGraphQL<T>(
     async () => {
       const raw = await admin.graphql(query, { variables });
       const normalized = await normalizeResponse<T>(raw);
-      logger.app("INFO", "GraphQL response normalized", undefined, {
+      logger.shopify("INFO", "graphqlClient — response normalized", null, {
         shopDomain,
         isResponse: typeof (raw as Response).json === "function",
         hasData: !!normalized.data,
@@ -103,9 +103,10 @@ async function executeWithRetry<T>(
     (e) => e.extensions?.code === "THROTTLED",
   );
   if (isThrottled && attempt < MAX_RETRIES) {
-    logger.app(
+    logger.shopify(
       "WARN",
-      `Shopify API throttled (attempt ${attempt + 1}/${MAX_RETRIES}), retrying...`,
+      `graphqlClient — throttled (attempt ${attempt + 1}/${MAX_RETRIES})`,
+      null,
       { shopDomain },
     );
     await new Promise((r) => setTimeout(r, THROTTLE_RETRY_DELAY_MS * (attempt + 1)));
@@ -128,7 +129,7 @@ async function checkRateLimit(shopDomain: string): Promise<void> {
   const minAvailable = Math.max(1, Math.round(1000 * RATE_LIMIT_BUFFER_RATIO));
   if (available > minAvailable) return;
 
-  logger.app("INFO", "Shopify rate limit approaching, pausing...", {
+  logger.shopify("INFO", "graphqlClient — rate limit approaching, pausing", null, {
     shopDomain,
     available,
     minAvailable,

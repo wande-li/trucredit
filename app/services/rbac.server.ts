@@ -30,7 +30,11 @@ export function checkPermission(userRole: Role, action: PermissionAction): boole
   if (!allowed) return false;
   // admin has wildcard "*"
   if (allowed.includes("*")) return true;
-  return allowed.includes(action);
+  const result = allowed.includes(action);
+  if (!result) {
+    logger.app("WARN", "rbac.checkPermission DENIED", null, { role: userRole, action });
+  }
+  return result;
 }
 
 /**

@@ -44,6 +44,7 @@ export async function processReply(params: {
   };
 }): Promise<ReplyProcessResult> {
   const { taskId, fromEmail, subject, body, emailMessageId, invoiceContext } = params;
+  logger.app("INFO", "reply.processReply START", null, { taskId, fromEmail, subject: subject.slice(0, 80) });
 
   // Step 1: Verify task exists and is active
   const task = await prisma.collectionTask.findUnique({
@@ -91,7 +92,7 @@ export async function processReply(params: {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "AI reply parsing failed", { taskId, error: msg });
+    logger.app("WARN", "reply.processReply AI reply parsing failed", { taskId, error: msg });
     // Still record as UNRELATED so nothing is lost
     parsed = {
       intent: "UNRELATED" as ReplyIntent,
@@ -142,7 +143,7 @@ export async function processReply(params: {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Failed to record reply event", { taskId, error: msg });
+    logger.app("WARN", "reply.processReply Failed to record reply event", { taskId, error: msg });
     return {
       success: false,
       taskId,
@@ -187,10 +188,10 @@ export async function processReply(params: {
           },
         }),
       ]);
-      logger.app("INFO", "Task auto-paused due to dispute", { taskId });
+      logger.app("INFO", "reply.processReply Task auto-paused due to dispute", { taskId });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "Failed to pause task on dispute", { taskId, error: msg });
+      logger.app("WARN", "reply.processReply Failed to pause task on dispute", { taskId, error: msg });
     }
 
     // Update invoice status to DISPUTED if applicable
@@ -202,7 +203,7 @@ export async function processReply(params: {
         });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", "Failed to mark invoice as disputed", { invoiceId: task.invoiceId, error: msg });
+        logger.app("WARN", "reply.processReply Failed to mark invoice as disputed", { invoiceId: task.invoiceId, error: msg });
       }
     }
   }
@@ -218,13 +219,14 @@ export async function processReply(params: {
           aiGenerated: true,
         },
       });
-      logger.app("INFO", "Task auto-resolved by AI", { taskId, intent: parsed.intent });
+      logger.app("INFO", "reply.processReply Task auto-resolved by AI", { taskId, intent: parsed.intent });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "Failed to record auto-resolve", { taskId, error: msg });
+      logger.app("WARN", "reply.processReply Failed to record auto-resolve", { taskId, error: msg });
     }
   }
 
+  logger.app("INFO", "reply.processReply OK", null, { taskId, intent: parsed.intent, isDispute: parsed.isDispute });
   return {
     success: true,
     taskId,
@@ -248,6 +250,7 @@ export async function listReplies(shopId: string, params?: {
   intent?: ReplyIntent;
   status?: string; // "OPEN" | "RESOLVED" | "DISPUTED"
 }) {
+  logger.app("INFO", "reply.listReplies START", null, { shopId, ...params });
   const page = params?.page ?? 1;
   const pageSize = Math.min(params?.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE, PAGINATION.MAX_PAGE_SIZE);
 
@@ -281,11 +284,13 @@ export async function listReplies(shopId: string, params?: {
     prisma.collectionEvent.count({ where: where as any }),
   ]);
 
+  logger.app("INFO", "reply.listReplies OK", null, { total });
   return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
 /** Get full timeline events for a task */
 export async function getTaskTimeline(taskId: string, shopId: string) {
+  logger.app("INFO", "reply.getTaskTimeline START", null, { taskId, shopId });
   const task = await prisma.collectionTask.findFirst({
     where: { id: taskId, invoice: { shopId } },
     include: {
@@ -308,6 +313,7 @@ export async function getTaskTimeline(taskId: string, shopId: string) {
     },
   });
 
+  logger.app("INFO", "reply.getTaskTimeline OK", null, { taskId, hasEvents: (task?.events?.length ?? 0) > 0 });
   return task;
 }
 
@@ -320,6 +326,7 @@ export async function resolveReply(params: {
   shopId: string;
   notes?: string;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "reply.resolveReply START", null, { taskId: params.taskId, eventId: params.eventId });
   const event = await prisma.collectionEvent.findFirst({
     where: { id: params.eventId, task: { id: params.taskId, invoice: { shopId: params.shopId } } },
   });
@@ -334,5 +341,6 @@ export async function resolveReply(params: {
     },
   });
 
+  logger.app("INFO", "reply.resolveReply OK", null, { taskId: params.taskId, eventId: params.eventId });
   return { success: true };
 }

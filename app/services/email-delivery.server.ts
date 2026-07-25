@@ -81,12 +81,19 @@ export async function sendCollectionEmail(
   const fromEmail = process.env.FROM_EMAIL || process.env.SES_FROM_EMAIL || "noreply@example.com";
   const useAI = params.useAI ?? false;
 
+  logger.app("INFO", "emailDelivery.sendCollectionEmail START", null, {
+    to: params.toEmail,
+    invoice: params.vars.invoiceNumber,
+    stage: params.stage,
+    useAI,
+  });
+
   let subject: string;
   let body: string;
 
   // Warn if paymentLink is missing — critical CTA for collection emails
   if (!params.vars.paymentLink) {
-    logger.app("WARN", "Collection email missing paymentLink — customer won't see pay CTA", undefined, {
+    logger.app("WARN", "emailDelivery.sendCollectionEmail — missing paymentLink", null, {
       invoice: params.vars.invoiceNumber,
       customer: params.vars.customerName,
     });
@@ -153,7 +160,7 @@ export async function sendCollectionEmail(
       const response = await ses.send(command);
       const messageId = response.MessageId;
 
-      logger.app("INFO", "Collection email sent via SES", undefined, {
+      logger.app("INFO", "emailDelivery.sendCollectionEmail OK", null, {
         to: params.toEmail,
         invoice: params.vars.invoiceNumber,
         messageId,
@@ -164,7 +171,7 @@ export async function sendCollectionEmail(
       return { sent: true, messageId, subject };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("ERROR", "SES send failed", msg, {
+      logger.app("ERROR", "emailDelivery.sendCollectionEmail ERROR", msg, {
         to: params.toEmail,
         invoice: params.vars.invoiceNumber,
       });
@@ -173,7 +180,7 @@ export async function sendCollectionEmail(
   }
 
   // No SES — log only (dev mode)
-  logger.app("INFO", "Email (dry-run — no SES config)", undefined, {
+  logger.app("INFO", "emailDelivery.sendCollectionEmail — dry-run (no SES config)", null, {
     to: params.toEmail,
     subject,
     invoice: params.vars.invoiceNumber,
@@ -185,6 +192,7 @@ export async function sendCollectionEmail(
  * Send a test email to verify SES configuration
  */
 export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
+  logger.app("INFO", "emailDelivery.sendTestEmail START", null, { toEmail });
   // P2-7: Rate limit — 1 test email per 60s per recipient
   const rateKey = `${TEST_EMAIL_RATE.prefix}${toEmail}`;
   try {
@@ -195,7 +203,7 @@ export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
     await redis.set(rateKey, "1", "EX", TEST_EMAIL_RATE.window);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Redis rate-limit unavailable — fail-open for test email", msg);
+    logger.app("WARN", "emailDelivery.sendTestEmail — Redis rate-limit unavailable", msg);
   }
 
   const ses = getSESClient();

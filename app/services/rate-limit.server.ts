@@ -62,7 +62,7 @@ async function redisSlidingWindow(key: string): Promise<boolean> {
     const count = await redis.zcard(rk);
 
     if (count >= RATE_LIMIT_RPM) {
-      logger.app("WARN", "Rate limit exceeded (redis)", undefined, {
+      logger.app("WARN", "rateLimit — exceeded (redis)", null, {
         key,
         count,
         limit: RATE_LIMIT_RPM,
@@ -80,7 +80,7 @@ async function redisSlidingWindow(key: string): Promise<boolean> {
     return true;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Redis rate limit failed, fallback to memory", msg);
+    logger.app("ERROR", "rateLimit — Redis failed, fallback to memory", msg);
     return memorySlidingWindow(key);
   }
 }

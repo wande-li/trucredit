@@ -49,15 +49,12 @@ const ACTION_TONE: Record<CreditAction, "success" | "critical" | "warning" | "ne
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.rules START");
   try {
     const resolved = await resolveShop(request);
-    logger.app("INFO", "RULES-DIAG: resolveShop result", undefined, {
-      role: resolved.role,
-      shopDomain: resolved.shopDomain,
-      shopId: resolved.shopId,
-    });
     requirePermission(resolved.role, "edit");
-    const { shopId, shopDomain, role } = resolved;
+    const { shopId, shopDomain } = resolved;
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
@@ -72,16 +69,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
     });
 
+    logger.app("INFO", "loader:app.rules OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: result.items.length,
+      page,
+      totalPages: result.totalPages,
+    });
     return json({ result, shopDomain, showInactive });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Rules loader failed", msg);
+    logger.app("ERROR", "loader:app.rules ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.rules START");
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -102,19 +107,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       case "toggle": {
         const isActive = formData.get("isActive") === "true";
         await toggleRule({ shopId, ruleId, isActive });
+        logger.app("INFO", "action:app.rules toggle OK", null, {
+          durationMs: Date.now() - ta,
+          ruleId,
+          isActive,
+        });
         return json({ success: true });
       }
       case "delete": {
         await deleteRule(shopId, ruleId);
+        logger.app("INFO", "action:app.rules delete OK", null, {
+          durationMs: Date.now() - ta,
+          ruleId,
+        });
         return json({ success: true });
       }
       default:
+        logger.app("WARN", "action:app.rules unknown_intent", null, { intent });
         return json({ error: "Unknown action" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Rule action failed", msg);
+    logger.app("ERROR", "action:app.rules ERROR", msg, { durationMs: Date.now() - ta });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

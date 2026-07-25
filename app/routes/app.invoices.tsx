@@ -33,6 +33,8 @@ import PageSkeleton from "~/components/PageSkeleton";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Invoices" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.invoices START");
   try {
     const { shopId, shopDomain } = await resolveShop(request);
 
@@ -51,16 +53,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getARAgingReport(shopId),
     ]);
 
+    logger.app("INFO", "loader:app.invoices OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: invoiceResult.items.length,
+      totalPages: invoiceResult.totalPages,
+      page,
+    });
     return json({ invoiceResult, agingReport, shopDomain });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoices loader failed", msg);
+    logger.app("ERROR", "loader:app.invoices ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.invoices START");
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -72,14 +82,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!idsStr) return json({ error: "No invoices selected", ok: false });
       const invoiceIds = idsStr.split(",").map((s) => s.trim()).filter(Boolean);
       const count = await bulkMarkInvoicePaid({ shopId, invoiceIds });
+      logger.app("INFO", "action:app.invoices bulk-mark-paid OK", null, {
+        durationMs: Date.now() - ta,
+        count,
+      });
       return json({ ok: true, count });
     }
 
+    logger.app("WARN", "action:app.invoices unknown_intent", null, { intent });
     return json({ error: "Unknown intent", ok: false });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoices action failed", msg);
+    logger.app("ERROR", "action:app.invoices ERROR", msg, { durationMs: Date.now() - ta });
     return json({ error: msg, ok: false });
   }
 };

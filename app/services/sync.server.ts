@@ -78,7 +78,7 @@ export async function initialSync(
   invoices: { created: number; skipped: number };
   metafields: { synced: number; failed: number };
 }> {
-  logger.app("INFO", "Starting initial sync", undefined, { shopDomain, shopId });
+  logger.app("INFO", "sync.initialSync START", null, { shopDomain, shopId });
 
   let companies = { created: 0, updated: 0 };
   let invoices = { created: 0, skipped: 0 };
@@ -89,7 +89,7 @@ export async function initialSync(
     companies = await syncAllCompanies(admin, shopDomain, shopId);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Initial sync Step 1 (companies) failed", msg, { shopDomain, shopId });
+    logger.app("ERROR", "sync.initialSync — companies failed", msg, { shopDomain, shopId });
   }
 
   // Step 2: Sync historical orders (last 90 days)
@@ -97,7 +97,7 @@ export async function initialSync(
     invoices = await syncHistoricalOrders(admin, shopDomain, shopId);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Initial sync Step 2 (orders) failed", msg, { shopDomain, shopId });
+    logger.app("ERROR", "sync.initialSync — orders failed", msg, { shopDomain, shopId });
   }
 
   // Step 3: Write credit metafields for all customers
@@ -105,10 +105,10 @@ export async function initialSync(
     metafields = await syncAllCreditMetafields(admin, shopDomain, shopId);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Initial sync Step 3 (metafields) failed", msg, { shopDomain, shopId });
+    logger.app("ERROR", "sync.initialSync — metafields failed", msg, { shopDomain, shopId });
   }
 
-  logger.app("INFO", "Initial sync complete", undefined, {
+  logger.app("INFO", "sync.initialSync OK", null, {
     shopId,
     companiesCreated: companies.created,
     companiesUpdated: companies.updated,
@@ -149,7 +149,7 @@ async function syncHistoricalOrders(
       );
 
       if (!result.data?.orders) {
-        logger.app("WARN", "Sync orders: no data", undefined, { shopDomain, cursor });
+        logger.app("WARN", "sync — no orders data", null, { shopDomain, cursor });
         break;
       }
 
@@ -264,17 +264,17 @@ async function syncHistoricalOrders(
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       errors++;
-      logger.app("WARN", `Sync: page failed (error ${errors}/10)`, msg, { shopDomain, cursor });
+      logger.app("WARN", `sync — page failed (error ${errors}/10)`, msg, { shopDomain, cursor });
 
       // P1-4: Melt-fuse — abort after 10 consecutive page failures
       if (errors >= 10) {
-        logger.app("ERROR", "Sync: too many page errors, aborting", undefined, { shopDomain, errors });
+        logger.app("ERROR", "sync — too many page errors, aborting", null, { shopDomain, errors });
         hasNextPage = false;
       }
     }
   }
 
-  logger.app("INFO", "Historical order sync complete", undefined, { shopId, created, skipped });
+  logger.app("INFO", "sync.historicalOrders OK", null, { shopId, created, skipped });
   return { created, skipped };
 }
 

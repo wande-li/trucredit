@@ -21,6 +21,8 @@ export async function listSequences(shopId: string, params?: { page?: number; pa
   const page = params?.page ?? 1;
   const pageSize = Math.min(params?.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE, PAGINATION.MAX_PAGE_SIZE);
 
+  logger.app("INFO", "collection.listSequences START", null, { shopId, page, pageSize });
+
   const [items, total] = await Promise.all([
     prisma.collectionSequence.findMany({
       where: { shopId },
@@ -32,15 +34,19 @@ export async function listSequences(shopId: string, params?: { page?: number; pa
     prisma.collectionSequence.count({ where: { shopId } }),
   ]);
 
+  logger.app("INFO", "collection.listSequences OK", null, { shopId, total, page });
   return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
 /** Get a single sequence with all steps */
 export async function getSequence(sequenceId: string, shopId: string) {
-  return prisma.collectionSequence.findFirst({
+  logger.app("INFO", "collection.getSequence START", null, { shopId, sequenceId });
+  const result = await prisma.collectionSequence.findFirst({
     where: { id: sequenceId, shopId },
     include: { steps: { orderBy: { order: "asc" } } },
   });
+  logger.app("INFO", "collection.getSequence OK", null, { shopId, sequenceId, found: !!result });
+  return result;
 }
 
 /** Create a new collection sequence */
@@ -61,6 +67,7 @@ export async function createSequence(params: {
     subject?: string;
   }>;
 }) {
+  logger.app("INFO", "collection.createSequence START", null, { shopId: params.shopId, name: params.name, stepCount: params.steps?.length ?? 0 });
   if (params.steps && params.steps.length > COLLECTION.MAX_STEPS_PER_SEQUENCE) {
     throw new Error(`Maximum ${COLLECTION.MAX_STEPS_PER_SEQUENCE} steps per sequence`);
   }
@@ -91,6 +98,7 @@ export async function createSequence(params: {
     });
   }
 
+  logger.app("INFO", "collection.createSequence OK", null, { shopId: params.shopId, sequenceId: sequence.id });
   return getSequence(sequence.id, params.shopId);
 }
 
@@ -104,6 +112,7 @@ export async function updateSequence(params: {
   triggerDays?: number;
   isActive?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.updateSequence START", null, { sequenceId: params.sequenceId, shopId: params.shopId });
   const existing = await prisma.collectionSequence.findFirst({
     where: { id: params.sequenceId, shopId: params.shopId },
   });
@@ -118,8 +127,9 @@ export async function updateSequence(params: {
       ...(params.triggerDays !== undefined && { triggerDays: params.triggerDays }),
       ...(params.isActive !== undefined && { isActive: params.isActive }),
     },
-  });
+  }  );
 
+  logger.app("INFO", "collection.updateSequence OK", null, { sequenceId: params.sequenceId, shopId: params.shopId });
   return { success: true };
 }
 
@@ -128,6 +138,7 @@ export async function deleteSequence(
   sequenceId: string,
   shopId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.deleteSequence START", null, { sequenceId, shopId });
   const seq = await prisma.collectionSequence.findFirst({
     where: { id: sequenceId, shopId },
   });
@@ -136,6 +147,7 @@ export async function deleteSequence(
 
   // Cascade: steps + associated tasks will be deleted via Prisma cascade
   await prisma.collectionSequence.delete({ where: { id: sequenceId, shopId } });
+  logger.app("INFO", "collection.deleteSequence OK", null, { sequenceId, shopId });
   return { success: true };
 }
 
@@ -151,6 +163,7 @@ export async function addStep(params: {
   useAI?: boolean;
   subject?: string;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.addStep START", null, { sequenceId: params.sequenceId, shopId: params.shopId, channel: params.channel });
   const seq = await prisma.collectionSequence.findFirst({
     where: { id: params.sequenceId, shopId: params.shopId },
     include: { steps: { select: { id: true } } },
@@ -173,6 +186,7 @@ export async function addStep(params: {
     },
   });
 
+  logger.app("INFO", "collection.addStep OK", null, { sequenceId: params.sequenceId, shopId: params.shopId, channel: params.channel });
   return { success: true };
 }
 
@@ -188,6 +202,7 @@ export async function updateStep(params: {
   useAI?: boolean;
   subject?: string;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.updateStep START", null, { stepId: params.stepId, sequenceId: params.sequenceId, shopId: params.shopId });
   const step = await prisma.collectionStep.findFirst({
     where: { id: params.stepId, sequenceId: params.sequenceId },
     include: { sequence: { select: { shopId: true } } },
@@ -207,6 +222,7 @@ export async function updateStep(params: {
     },
   });
 
+  logger.app("INFO", "collection.updateStep OK", null, { stepId: params.stepId, sequenceId: params.sequenceId, shopId: params.shopId });
   return { success: true };
 }
 
@@ -216,6 +232,7 @@ export async function deleteStep(
   sequenceId: string,
   shopId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.deleteStep START", null, { stepId, sequenceId, shopId });
   const step = await prisma.collectionStep.findFirst({
     where: { id: stepId, sequenceId },
     include: { sequence: { select: { shopId: true } } },
@@ -224,6 +241,7 @@ export async function deleteStep(
   if (step.sequence.shopId !== shopId) return { success: false, error: "Unauthorized" };
 
   await prisma.collectionStep.delete({ where: { id: stepId } });
+  logger.app("INFO", "collection.deleteStep OK", null, { stepId, sequenceId, shopId });
   return { success: true };
 }
 
@@ -233,6 +251,7 @@ export async function reorderSteps(
   shopId: string,
   stepIds: string[],
 ): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.reorderSteps START", null, { sequenceId, shopId, stepCount: stepIds.length });
   const seq = await prisma.collectionSequence.findFirst({
     where: { id: sequenceId, shopId },
   });
@@ -247,6 +266,7 @@ export async function reorderSteps(
     ),
   );
 
+  logger.app("INFO", "collection.reorderSteps OK", null, { sequenceId, shopId, stepCount: stepIds.length });
   return { success: true };
 }
 
@@ -290,10 +310,14 @@ export const DEFAULT_SEQUENCE_STEPS = [
  * Create default collection sequence for a new shop
  */
 export async function createDefaultSequence(shopId: string): Promise<void> {
+  logger.app("INFO", "collection.createDefaultSequence START", null, { shopId });
   const exists = await prisma.collectionSequence.findFirst({
     where: { shopId, isDefault: true },
   });
-  if (exists) return;
+  if (exists) {
+    logger.app("INFO", "collection.createDefaultSequence — already exists", null, { shopId });
+    return;
+  }
 
   await prisma.collectionSequence.create({
     data: {
@@ -316,6 +340,7 @@ export async function createDefaultSequence(shopId: string): Promise<void> {
       },
     },
   });
+  logger.app("INFO", "collection.createDefaultSequence OK", null, { shopId });
 }
 
 // ═══════════════════ Task State Machine ═══════════════════
@@ -329,6 +354,7 @@ export async function advanceTask(params: {
   toStatus?: TaskStatus;
   reason?: string;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "collection.advanceTask START", null, { taskId: params.taskId, toStatus: params.toStatus });
   const task = await prisma.collectionTask.findUnique({
     where: { id: params.taskId },
     include: { sequence: { include: { steps: { orderBy: { order: "asc" } } } } },
@@ -381,6 +407,7 @@ export async function advanceTask(params: {
     },
   });
 
+  logger.app("INFO", "collection.advanceTask OK", null, { taskId: params.taskId, fromStatus: task.status, toStatus: targetStatus, nextStep });
   return { success: true };
 }
 
@@ -392,6 +419,7 @@ export async function pauseTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
+  logger.app("INFO", "collection.pauseTask START", null, { taskId: params.taskId, shopId: params.shopId, reason: params.reason });
   // P1-4: DB-level status guard — only pause active/pending tasks
   // Split into updateMany + event.create because updateMany doesn't support nested create
   await prisma.$transaction([
@@ -411,6 +439,7 @@ export async function pauseTask(params: {
       },
     }),
   ]);
+  logger.app("INFO", "collection.pauseTask OK", null, { taskId: params.taskId, shopId: params.shopId });
 }
 
 /**
@@ -421,6 +450,7 @@ export async function stopTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
+  logger.app("INFO", "collection.stopTask START", null, { taskId: params.taskId, shopId: params.shopId, reason: params.reason });
   // P1-4: DB-level status guard — only stop non-completed tasks
   await prisma.collectionTask.updateMany({
     where: {
@@ -434,6 +464,7 @@ export async function stopTask(params: {
       completedReason: params.reason,
     },
   });
+  logger.app("INFO", "collection.stopTask OK", null, { taskId: params.taskId, shopId: params.shopId });
 }
 
 /**
@@ -444,6 +475,7 @@ export async function escalateTask(params: {
   shopId: string;
   reason: string;
 }): Promise<void> {
+  logger.app("INFO", "collection.escalateTask START", null, { taskId: params.taskId, shopId: params.shopId });
   // P1-4: DB-level status guard — only escalate active tasks
   // Split into updateMany + event.create because updateMany doesn't support nested create
   await prisma.$transaction([
@@ -463,6 +495,7 @@ export async function escalateTask(params: {
       },
     }),
   ]);
+  logger.app("INFO", "collection.escalateTask OK", null, { taskId: params.taskId, shopId: params.shopId });
 }
 
 // ═══════════════════ Sweep Engine ═══════════════════
@@ -478,16 +511,17 @@ const SWEEP_LOCK_KEY = keys.sweepLock("global");
  * P1-1: Protected by Redis distributed lock to prevent concurrent sweeps.
  */
 export async function runCollectionSweep(): Promise<SweepResult> {
+  logger.app("INFO", "collection.runCollectionSweep START", null, {});
   // P1-1: Acquire distributed lock
   let lockAcquired = false;
   try {
     lockAcquired = (await redis.set(SWEEP_LOCK_KEY, Date.now().toString(), "EX", SWEEP_LOCK_TTL, "NX")) === "OK";
   } catch (e: unknown) {
-    logger.app("WARN", "Sweep lock check failed, proceeding without lock", e instanceof Error ? e.message : String(e));
+    logger.app("WARN", "collection.runCollectionSweep — lock check failed, proceeding without lock", e instanceof Error ? e.message : String(e));
   }
 
   if (!lockAcquired) {
-    logger.app("INFO", "Sweep already running (lock held), skipping");
+    logger.app("INFO", "collection.runCollectionSweep — already running (lock held)", null, {});
     return {
       shopsProcessed: 0,
       invoicesMatched: 0,
@@ -552,7 +586,7 @@ export async function runCollectionSweep(): Promise<SweepResult> {
           );
           logger.app(
             "WARN",
-            `Shop ${shopId} sweep failed (attempt ${attempt + 1}/${COLLECTION_RETRY.MAX_RETRIES + 1}), retrying in ${delay}ms`,
+            `collection.runCollectionSweep — shop ${shopId} sweep failed (attempt ${attempt + 1}/${COLLECTION_RETRY.MAX_RETRIES + 1})`,
             msg,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -561,7 +595,7 @@ export async function runCollectionSweep(): Promise<SweepResult> {
 
       if (!swept) {
         const msg = lastError instanceof Error ? (lastError as Error).message : String(lastError ?? "Unknown error");
-        logger.app("WARN", `Shop ${shopId} sweep failed after retries`, msg);
+        logger.app("WARN", `collection.runCollectionSweep — shop ${shopId} sweep failed after retries`, msg);
         result.errors++;
         result.errorsList.push(`Shop ${shopId}: ${msg}`);
       }
@@ -573,11 +607,19 @@ export async function runCollectionSweep(): Promise<SweepResult> {
         await redis.del(SWEEP_LOCK_KEY);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", "Collection sweep lock release failed (TTL will expire)", msg);
+        logger.app("WARN", "collection.runCollectionSweep — lock release failed (TTL will expire)", msg);
       }
     }
   }
 
+  logger.app("INFO", "collection.runCollectionSweep OK", null, {
+    shopsProcessed: result.shopsProcessed,
+    invoicesMatched: result.invoicesMatched,
+    emailsSent: result.emailsSent,
+    tasksCreated: result.tasksCreated,
+    tasksAdvanced: result.tasksAdvanced,
+    errors: result.errors,
+  });
   return result;
 }
 
@@ -815,10 +857,14 @@ export async function recordReply(params: {
   replyConfidence: number;
   isDispute: boolean;
 }): Promise<void> {
+  logger.app("INFO", "collection.recordReply START", null, { taskId: params.taskId, shopId: params.shopId, replyIntent: params.replyIntent, isDispute: params.isDispute });
   const task = await prisma.collectionTask.findUnique({
     where: { id: params.taskId, sequence: { shopId: params.shopId } },
   });
-  if (!task) return;
+  if (!task) {
+    logger.app("WARN", "collection.recordReply — task not found", null, { taskId: params.taskId });
+    return;
+  }
 
   await prisma.collectionEvent.create({
     data: {
@@ -844,6 +890,7 @@ export async function recordReply(params: {
   if (params.isDispute) {
     await pauseTask({ taskId: params.taskId, shopId: params.shopId, reason: "Customer dispute" });
   }
+  logger.app("INFO", "collection.recordReply OK", null, { taskId: params.taskId, shopId: params.shopId });
 }
 
 // ═══════════════════ Redis Dedup (reused from CollectFlow) ═══════════════════
@@ -857,14 +904,20 @@ export async function checkAndSetDedup(
   stage: CollectionStage,
   todayStr: string,
 ): Promise<boolean> {
+  logger.app("INFO", "collection.checkAndSetDedup START", null, { invoiceId, stage, todayStr });
   const dedupKey = `b2b:sweep:${invoiceId}:${stage}:${todayStr}`;
   try {
     const exists = await redis.get(dedupKey);
-    if (exists) return true; // Already processed
+    if (exists) {
+      logger.app("INFO", "collection.checkAndSetDedup OK (dedup hit)", null, { invoiceId, stage, todayStr });
+      return true; // Already processed
+    }
     await redis.set(dedupKey, "1", "EX", 86400); // 24h TTL
+    logger.app("INFO", "collection.checkAndSetDedup OK (new)", null, { invoiceId, stage, todayStr });
     return false;
   } catch (e: unknown) {
-    logger.app("ERROR", "Redis dedup unavailable — skipping sweep to prevent duplicates", e instanceof Error ? e.message : String(e));
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "collection.checkAndSetDedup ERROR", msg, { invoiceId, stage, todayStr });
     return true; // Fail closed — skip rather than risk duplicate emails/actions
   }
 }

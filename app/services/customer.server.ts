@@ -8,6 +8,7 @@ import {
   calcAvailableCredit,
 } from "~/services/credit.server";
 import { PLAN_QUOTAS, PAGINATION, CREDIT_SCORE, resolvePlan } from "~/lib/constants";
+import { logger } from "~/services/logger.server";
 import type { Plan, CreditGrade, RiskLevel, CustomerStatus } from "@prisma/client";
 import type {
   CustomerRecord,
@@ -23,12 +24,17 @@ export async function getCustomer(params: {
   shopId: string;
   customerId: string;
 }): Promise<CustomerRecord | null> {
+  logger.app("INFO", "customer.getCustomer START", null, { shopId: params.shopId, customerId: params.customerId });
   const customer = await prisma.customer.findFirst({
     where: { id: params.customerId, shopId: params.shopId },
   });
 
-  if (!customer) return null;
+  if (!customer) {
+    logger.app("INFO", "customer.getCustomer — not found", null, { shopId: params.shopId, customerId: params.customerId });
+    return null;
+  }
 
+  logger.app("INFO", "customer.getCustomer OK", null, { shopId: params.shopId, customerId: params.customerId });
   return {
     ...customer,
     creditLimit: customer.creditLimit.toString(),
@@ -51,6 +57,7 @@ export async function listCustomers(params: {
   pageSize?: number;
 }): Promise<PaginatedResult<CustomerSummary>> {
   const { shopId, search, status, creditGrade, riskLevel } = params;
+  logger.app("INFO", "customer.listCustomers START", null, { shopId, page: params.page, search, status, creditGrade, riskLevel });
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(PAGINATION.MAX_PAGE_SIZE, params.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE);
 
@@ -97,7 +104,7 @@ export async function listCustomers(params: {
     prisma.customer.count({ where }),
   ]);
 
-  return {
+  const result = {
     items: (items as Array<{
       id: string; name: string; company: string | null; email: string;
       creditLimit: { toString(): string }; creditUsed: { toString(): string };
@@ -128,8 +135,9 @@ export async function listCustomers(params: {
     total,
     totalPages: Math.ceil(total / pageSize),
   };
+  logger.app("INFO", "customer.listCustomers OK", null, { shopId, total, page });
+  return result;
 }
-
 /**
  * Recalculate credit score for a customer and update the record
  */
@@ -138,11 +146,15 @@ export async function recalculateCreditScore(params: {
   shopId: string;
   triggeredBy: string;
 }): Promise<CustomerRecord | null> {
+  logger.app("INFO", "customer.recalculateCreditScore START", null, { customerId: params.customerId, shopId: params.shopId, triggeredBy: params.triggeredBy });
   const customer = await prisma.customer.findFirst({
     where: { id: params.customerId, shopId: params.shopId },
   });
 
-  if (!customer) return null;
+  if (!customer) {
+    logger.app("WARN", "customer.recalculateCreditScore — customer not found", null, { customerId: params.customerId });
+    return null;
+  }
 
   const assessment = assessCredit({
     onTimePaymentRate: customer.onTimePaymentRate,
@@ -190,6 +202,7 @@ export async function recalculateCreditScore(params: {
     },
   });
 
+  logger.app("INFO", "customer.recalculateCreditScore OK", null, { customerId: params.customerId, score: assessment.score, grade: assessment.grade });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),
@@ -209,6 +222,7 @@ export async function setCreditLimit(params: {
   reason: string;
   triggeredBy: string;
 }): Promise<CustomerRecord> {
+  logger.app("INFO", "customer.setCreditLimit START", null, { customerId: params.customerId, shopId: params.shopId, newLimit: params.newLimit });
   const customer = await prisma.customer.findFirstOrThrow({
     where: { id: params.customerId, shopId: params.shopId },
   });
@@ -230,6 +244,7 @@ export async function setCreditLimit(params: {
     },
   });
 
+  logger.app("INFO", "customer.setCreditLimit OK", null, { customerId: params.customerId, shopId: params.shopId, newLimit: params.newLimit });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),
@@ -248,6 +263,7 @@ export async function freezeCustomer(params: {
   reason: string;
   triggeredBy: string;
 }): Promise<CustomerRecord> {
+  logger.app("INFO", "customer.freezeCustomer START", null, { customerId: params.customerId, shopId: params.shopId, reason: params.reason });
   const updated = await prisma.customer.update({
     where: { id: params.customerId, shopId: params.shopId },
     data: {
@@ -267,6 +283,7 @@ export async function freezeCustomer(params: {
     },
   });
 
+  logger.app("INFO", "customer.freezeCustomer OK", null, { customerId: params.customerId, shopId: params.shopId });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),
@@ -284,6 +301,7 @@ export async function unfreezeCustomer(params: {
   customerId: string;
   triggeredBy: string;
 }): Promise<CustomerRecord> {
+  logger.app("INFO", "customer.unfreezeCustomer START", null, { customerId: params.customerId, shopId: params.shopId });
   const updated = await prisma.customer.update({
     where: { id: params.customerId, shopId: params.shopId },
     data: {
@@ -303,6 +321,7 @@ export async function unfreezeCustomer(params: {
     },
   });
 
+  logger.app("INFO", "customer.unfreezeCustomer OK", null, { customerId: params.customerId, shopId: params.shopId });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),
@@ -319,16 +338,19 @@ export async function checkCustomerQuota(
   shopId: string,
   plan: Plan,
 ): Promise<QuotaCheck> {
+  logger.app("INFO", "customer.checkCustomerQuota START", null, { shopId, plan });
   const resolved = resolvePlan(plan);
   const limit = PLAN_QUOTAS[resolved as keyof typeof PLAN_QUOTAS].customers;
   const current = await prisma.customer.count({ where: { shopId } });
 
-  return {
+  const result: QuotaCheck = {
     allowed: current < limit,
     current,
     limit,
     plan,
   };
+  logger.app("INFO", "customer.checkCustomerQuota OK", null, { shopId, plan, current, limit, allowed: result.allowed });
+  return result;
 }
 
 /**
@@ -342,6 +364,7 @@ export async function upsertCustomerFromShopify(params: {
   company?: string;
   phone?: string;
 }): Promise<CustomerRecord> {
+  logger.app("INFO", "customer.upsertCustomerFromShopify START", null, { shopId: params.shopId, shopifyCustomerId: params.shopifyCustomerId });
   const customer = await prisma.customer.upsert({
     where: {
       shopId_shopifyCustomerId: {
@@ -366,6 +389,7 @@ export async function upsertCustomerFromShopify(params: {
     },
   });
 
+  logger.app("INFO", "customer.upsertCustomerFromShopify OK", null, { shopId: params.shopId, customerId: customer.id, shopifyCustomerId: params.shopifyCustomerId });
   return {
     ...customer,
     creditLimit: customer.creditLimit.toString(),
@@ -382,6 +406,7 @@ export async function deleteCustomer(
   id: string,
   shopId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "customer.deleteCustomer START", null, { id, shopId });
   const customer = await prisma.customer.findFirst({ where: { id, shopId } });
   if (!customer) return { success: false, error: "Customer not found" };
 
@@ -401,5 +426,6 @@ export async function deleteCustomer(
     data: { status: "FROZEN", isFrozen: true, frozenAt: new Date(), frozenReason: "Customer deleted" },
   });
 
+  logger.app("INFO", "customer.deleteCustomer OK", null, { id, shopId });
   return { success: true };
 }

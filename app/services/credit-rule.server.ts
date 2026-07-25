@@ -4,6 +4,7 @@
 import prisma from "~/db.server";
 import type { Prisma, CreditAction, CreditRule } from "@prisma/client";
 import { PAGINATION } from "~/lib/constants";
+import { logger } from "~/services/logger.server";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export interface RuleInput {
 /** List rules with pagination */
 export async function listRules(params: RuleListParams) {
   const { shopId, isActive } = params;
+  logger.app("INFO", "creditRule.listRules START", null, { shopId, isActive });
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(
     PAGINATION.MAX_PAGE_SIZE,
@@ -64,19 +66,24 @@ export async function listRules(params: RuleListParams) {
     prisma.creditRule.count({ where }),
   ]);
 
+  logger.app("INFO", "creditRule.listRules OK", null, { shopId, total, page });
   return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
 /** Get single rule */
 export async function getRule(params: { shopId: string; ruleId: string }) {
-  return prisma.creditRule.findFirst({
+  logger.app("INFO", "creditRule.getRule START", null, { shopId: params.shopId, ruleId: params.ruleId });
+  const result = await prisma.creditRule.findFirst({
     where: { id: params.ruleId, shopId: params.shopId },
   });
+  logger.app("INFO", "creditRule.getRule OK", null, { shopId: params.shopId, ruleId: params.ruleId, found: !!result });
+  return result;
 }
 
 /** Create a new rule */
 export async function createRule(input: RuleInput): Promise<CreditRule> {
-  return prisma.creditRule.create({
+  logger.app("INFO", "creditRule.createRule START", null, { shopId: input.shopId, name: input.name, action: input.action });
+  const result = await prisma.creditRule.create({
     data: {
       shopId: input.shopId,
       name: input.name,
@@ -88,6 +95,8 @@ export async function createRule(input: RuleInput): Promise<CreditRule> {
       actionValue: input.actionValue as Prisma.JsonObject,
     },
   });
+  logger.app("INFO", "creditRule.createRule OK", null, { shopId: input.shopId, ruleId: result.id });
+  return result;
 }
 
 /** Update an existing rule */
@@ -96,6 +105,7 @@ export async function updateRule(
   ruleId: string,
   input: Partial<RuleInput>,
 ): Promise<CreditRule> {
+  logger.app("INFO", "creditRule.updateRule START", null, { shopId, ruleId });
   const data: Prisma.CreditRuleUpdateInput = {};
   if (input.name !== undefined) data.name = input.name;
   if (input.description !== undefined) data.description = input.description;
@@ -105,7 +115,9 @@ export async function updateRule(
   if (input.conditions !== undefined) data.conditions = input.conditions as Prisma.JsonObject;
   if (input.actionValue !== undefined) data.actionValue = input.actionValue as Prisma.JsonObject;
 
-  return prisma.creditRule.update({ where: { id: ruleId, shopId }, data });
+  const result = await prisma.creditRule.update({ where: { id: ruleId, shopId }, data });
+  logger.app("INFO", "creditRule.updateRule OK", null, { shopId, ruleId });
+  return result;
 }
 
 /** Toggle rule active state */
@@ -114,15 +126,20 @@ export async function toggleRule(params: {
   ruleId: string;
   isActive: boolean;
 }): Promise<CreditRule> {
-  return prisma.creditRule.update({
+  logger.app("INFO", "creditRule.toggleRule START", null, { shopId: params.shopId, ruleId: params.ruleId, isActive: params.isActive });
+  const result = await prisma.creditRule.update({
     where: { id: params.ruleId, shopId: params.shopId },
     data: { isActive: params.isActive },
   });
+  logger.app("INFO", "creditRule.toggleRule OK", null, { shopId: params.shopId, ruleId: params.ruleId });
+  return result;
 }
 
 /** Soft-delete a rule */
 export async function deleteRule(shopId: string, ruleId: string): Promise<void> {
+  logger.app("INFO", "creditRule.deleteRule START", null, { shopId, ruleId });
   await prisma.creditRule.delete({ where: { id: ruleId, shopId } });
+  logger.app("INFO", "creditRule.deleteRule OK", null, { shopId, ruleId });
 }
 
 // ─── Evaluation Engine ───────────────────────────────────
@@ -234,12 +251,13 @@ export async function evaluateAllRules(
   shopId: string,
   context: EvaluateContext,
 ): Promise<MatchResult[]> {
+  logger.app("INFO", "creditRule.evaluateAllRules START", null, { shopId, grade: context.creditGrade });
   const rules = await prisma.creditRule.findMany({
     where: { shopId, isActive: true },
     orderBy: { priority: "asc" },
   });
 
-  return rules
+  const result = rules
     .map((rule) =>
       evaluateRule(
         {
@@ -254,4 +272,6 @@ export async function evaluateAllRules(
       ),
     )
     .filter((r): r is MatchResult => r !== null);
+  logger.app("INFO", "creditRule.evaluateAllRules OK", null, { shopId, totalRules: rules.length, matchedRules: result.length });
+  return result;
 }

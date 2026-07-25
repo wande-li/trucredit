@@ -25,12 +25,15 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
+import { logger } from "~/services/logger.server";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Billing & Plan" }];
 
 // ─── Loader ─────────────────────────────────────────────────
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.billing START");
   try {
     const { shopId, plan: currentPlan, subscriptionStatus } = await resolveShop(request);
 
@@ -43,6 +46,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const planDef = PLANS_V2.find((p) => p.key === currentPlan);
     const planName = planDef?.name ?? "Free";
 
+    logger.app("INFO", "loader:app.billing OK", null, {
+      durationMs: Date.now() - t0,
+      currentPlan,
+      subscriptionStatus,
+    });
     return json(
       {
         currentPlan,
@@ -59,6 +67,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "loader:app.billing ERROR", msg, { durationMs: Date.now() - t0 });
     return json(
       {
         currentPlan: "FREE",

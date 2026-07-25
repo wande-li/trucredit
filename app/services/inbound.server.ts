@@ -120,10 +120,11 @@ function extractInvoiceRef(subject: string, body: string): string | null {
  * 3. Enqueue to reply queue for AI processing
  */
 export async function processInboundEmail(email: InboundEmail): Promise<InboundResult> {
+  logger.app("INFO", "inbound.processInboundEmail START", null, { messageId: email.messageId });
   const cleanFrom = extractEmailAddress(email.from);
 
   if (!cleanFrom) {
-    logger.app("WARN", "Inbound email has no valid FROM address", undefined, {
+    logger.app("WARN", "inbound.processInboundEmail — no valid FROM address", null, {
       rawFrom: email.from,
       messageId: email.messageId,
     });
@@ -170,7 +171,7 @@ export async function processInboundEmail(email: InboundEmail): Promise<InboundR
   }
 
   if (!taskId) {
-    logger.app("INFO", "Inbound email no active task matched", undefined, {
+    logger.app("INFO", "inbound.processInboundEmail — no task matched", null, {
       cleanFrom,
       messageId: email.messageId,
     });

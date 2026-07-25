@@ -71,6 +71,8 @@ function shortBody(body: string | null | undefined, maxLen = 120): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.replies START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -83,16 +85,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const result = await listReplies(shopId, { page, intent });
 
+    logger.app("INFO", "loader:app.replies OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: result.items?.length ?? 0,
+      page,
+    });
     return json({ shopId, ...result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Replies loader failed", msg);
+    logger.app("ERROR", "loader:app.replies ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.replies START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -107,15 +116,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!eventId || !taskId) return json({ error: "Missing parameters" }, { status: 400 });
 
       const result = await resolveReply({ eventId, taskId, shopId, notes });
-      if (!result.success) return json({ error: result.error }, { status: 400 });
+      if (!result.success) {
+        logger.app("WARN", "action:app.replies resolve failed", result.error);
+        return json({ error: result.error }, { status: 400 });
+      }
+      logger.app("INFO", "action:app.replies resolve OK", null, { durationMs: Date.now() - ta, taskId });
       return json({ success: true });
     }
 
+    logger.app("WARN", "action:app.replies unknown_intent", null, { intent });
     return json({ error: "Unknown intent" }, { status: 400 });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Replies action failed", msg);
+    logger.app("ERROR", "action:app.replies ERROR", msg, { durationMs: Date.now() - ta });
     return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };

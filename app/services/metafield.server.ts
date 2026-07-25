@@ -26,6 +26,7 @@ export async function syncCreditMetafield(
   shopDomain: string,
   customerId: string,
 ): Promise<void> {
+  logger.app("INFO", "metafield.syncCreditMetafield START", null, { customerId });
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
     select: {
@@ -40,9 +41,7 @@ export async function syncCreditMetafield(
   });
 
   if (!customer || !customer.shopifyCustomerId) {
-    logger.app("WARN", "Sync metafield skipped: customer not found or no Shopify ID", {
-      customerId,
-    });
+    logger.app("WARN", "metafield.syncCreditMetafield skipped: no Shopify ID", { customerId });
     return;
   }
 
@@ -68,14 +67,14 @@ export async function syncCreditMetafield(
   });
 
   if (result?.data) {
-    logger.app("INFO", "Credit metafield synced", {
+    logger.app("INFO", "metafield.syncCreditMetafield OK", null, {
       customerId,
       shopifyCustomerId: customer.shopifyCustomerId,
       grade: payload.grade,
       available: payload.creditAvailable,
     });
   } else {
-    logger.app("ERROR", "Metafield sync failed", {
+    logger.app("ERROR", "metafield.syncCreditMetafield ERROR", null, {
       customerId,
       errors: result?.errors?.map((e) => e.message),
     });
@@ -92,6 +91,7 @@ export async function syncAllCreditMetafields(
   shopDomain: string,
   shopId: string,
 ): Promise<{ synced: number; failed: number }> {
+  logger.app("INFO", "metafield.syncAllCreditMetafields START", null, { shopId });
   const customers = await prisma.customer.findMany({
     where: { shopId },
     select: {
@@ -128,15 +128,13 @@ export async function syncAllCreditMetafields(
           result.reason instanceof Error
             ? result.reason.message
             : String(result.reason);
-        logger.app("ERROR", "Bulk metafield sync failed for customer", {
-          error: msg,
-        });
+        logger.app("ERROR", "metafield.syncAllCreditMetafields failed for customer", { error: msg });
         failed++;
       }
     }
   }
 
-  logger.app("INFO", "Bulk metafield sync complete", { shopId, synced, failed });
+  logger.app("INFO", "metafield.syncAllCreditMetafields OK", null, { shopId, synced, failed });
   return { synced, failed };
 }
 
@@ -150,6 +148,7 @@ export async function verifyCreditMetafield(
   shopDomain: string,
   customerId: string,
 ): Promise<{ matches: boolean; shopifyValue: CreditStatusPayload | null; dbValue: CreditStatusPayload | null }> {
+  logger.app("INFO", "metafield.verifyCreditMetafield START", null, { customerId });
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
     select: {
@@ -191,7 +190,7 @@ export async function verifyCreditMetafield(
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Metafield verification read failed", { customerId, error: msg });
+    logger.app("WARN", "metafield.verifyCreditMetafield read failed", { customerId, error: msg });
     return { matches: false, shopifyValue: null, dbValue };
   }
 
@@ -206,13 +205,14 @@ export async function verifyCreditMetafield(
     shopifyValue.grade === dbValue.grade;
 
   if (!matches) {
-    logger.app("WARN", "Metafield mismatch detected", {
+    logger.app("WARN", "metafield.verifyCreditMetafield mismatch detected", {
       customerId,
       db: JSON.stringify(dbValue),
       shopify: JSON.stringify(shopifyValue),
     });
   }
 
+  logger.app("INFO", "metafield.verifyCreditMetafield OK", null, { customerId, matches });
   return { matches, shopifyValue, dbValue };
 }
 
@@ -226,6 +226,7 @@ export async function clearCreditMetafield(
   shopDomain: string,
   shopifyCustomerId: string,
 ): Promise<void> {
+  logger.app("INFO", "metafield.clearCreditMetafield START", null, { shopifyCustomerId });
   const zeroPayload = JSON.stringify({
     creditLimit: 0,
     creditUsed: 0,
@@ -246,4 +247,6 @@ export async function clearCreditMetafield(
       },
     ],
   });
+
+  logger.app("INFO", "metafield.clearCreditMetafield OK", null, { shopifyCustomerId });
 }

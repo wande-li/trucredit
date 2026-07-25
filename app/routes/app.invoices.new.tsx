@@ -31,6 +31,8 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — New Invoice" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.invoices.new START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -52,6 +54,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const nextNumber = generateInvoiceNumber(nextSeq);
 
+    logger.app("INFO", "loader:app.invoices.new OK", null, {
+      durationMs: Date.now() - t0,
+      customerCount: customers.length,
+    });
     return json({
       customers,
       nextNumber,
@@ -68,12 +74,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "New invoice loader failed", msg);
+    logger.app("ERROR", "loader:app.invoices.new ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.invoices.new START");
   try {
     const { admin } = await authenticate.admin(request);
     const { shopId, shopDomain, role } = await resolveShop(request);
@@ -89,6 +97,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Check invoice quota
     const quota = await checkInvoiceQuota(shopId, shop.plan);
     if (!quota.allowed) {
+      logger.app("WARN", "action:app.invoices.new quota_exceeded", null, {
+        durationMs: Date.now() - ta,
+        current: quota.current,
+        limit: quota.limit,
+      });
       return json(
         {
           error: `Invoice quota reached (${quota.current}/${quota.limit}). Please upgrade your plan.`,
@@ -100,7 +113,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
-    if (intent !== "create") return json({ error: "Invalid action" }, { status: 400 });
+    if (intent !== "create") {
+      logger.app("WARN", "action:app.invoices.new invalid_intent", null, { intent });
+      return json({ error: "Invalid action" }, { status: 400 });
+    }
 
     const customerId = formData.get("customerId")?.toString();
     const amountStr = formData.get("amount")?.toString();
@@ -153,11 +169,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       logger.app("WARN", "Metafield sync failed after invoice creation", msg);
     });
 
+    logger.app("INFO", "action:app.invoices.new create OK", null, {
+      durationMs: Date.now() - ta,
+      invoiceId: invoice.id,
+      amount,
+    });
     return json({ success: true, redirectTo: `/app/invoices/${invoice.id}` });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "New invoice action failed", msg);
+    logger.app("ERROR", "action:app.invoices.new ERROR", msg, { durationMs: Date.now() - ta });
     return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };

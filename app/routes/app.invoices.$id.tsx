@@ -38,6 +38,8 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Invoice Detail" }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.invoices.$id START", null, { invoiceId: params.id });
   try {
     const { shopId } = await resolveShop(request);
 
@@ -54,26 +56,32 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       throw new Response("Invoice not found", { status: 404 });
     }
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: invoice.customerId },
-      select: { name: true, company: true, email: true, creditGrade: true },
-    });
+    const [customer, collectionTasks] = await Promise.all([
+      prisma.customer.findUnique({
+        where: { id: invoice.customerId },
+        select: { name: true, company: true, email: true, creditGrade: true },
+      }),
+      prisma.collectionTask.findMany({
+        where: { invoiceId: invoice.id },
+        orderBy: { startedAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          status: true,
+          currentStep: true,
+          startedAt: true,
+          completedAt: true,
+          completedReason: true,
+          lastReplyIntent: true,
+        },
+      }),
+    ]);
 
-    const collectionTasks = await prisma.collectionTask.findMany({
-      where: { invoiceId: invoice.id },
-      orderBy: { startedAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        status: true,
-        currentStep: true,
-        startedAt: true,
-        completedAt: true,
-        completedReason: true,
-        lastReplyIntent: true,
-      },
+    logger.app("INFO", "loader:app.invoices.$id OK", null, {
+      durationMs: Date.now() - t0,
+      invoiceId: params.id,
+      status: invoice.status,
     });
-
     return json({
       invoice: {
         ...invoice,
@@ -90,12 +98,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoice detail loader failed", msg);
+    logger.app("ERROR", "loader:app.invoices.$id ERROR", msg, { durationMs: Date.now() - t0, invoiceId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.invoices.$id START", null, { invoiceId: params.id });
   try {
     const { admin } = await authenticate.admin(request);
     const { shopId, shopDomain, role } = await resolveShop(request);
@@ -123,6 +133,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after invoice status change", msg);
         });
 
+        logger.app("INFO", "action:app.invoices.$id mark-paid OK", null, {
+          durationMs: Date.now() - ta,
+          invoiceId: params.id,
+        });
         return json({ success: true });
       }
 
@@ -200,6 +214,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           });
         }
 
+        logger.app("INFO", "action:app.invoices.$id update-status OK", null, {
+          durationMs: Date.now() - ta,
+          invoiceId: params.id,
+          newStatus,
+        });
         return json({ success: true });
       }
 
@@ -215,6 +234,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           invoiceId: params.id!,
           paymentAmount,
           paymentMethod,
+        });
+        logger.app("INFO", "action:app.invoices.$id partial-payment OK", null, {
+          durationMs: Date.now() - ta,
+          invoiceId: params.id,
+          paymentAmount,
         });
         return json({ success: true });
       }
@@ -245,6 +269,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           shopId,
           invoiceId: params.id!,
           ...updateData,
+        });
+        logger.app("INFO", "action:app.invoices.$id update-invoice OK", null, {
+          durationMs: Date.now() - ta,
+          invoiceId: params.id,
         });
         return json({ success: true });
       }
@@ -284,18 +312,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           },
         });
         if (!result.sent) {
+          logger.app("WARN", "action:app.invoices.$id send-invoice-email failed", result.error);
           return json({ error: result.error ?? "Failed to send email" }, { status: 500 });
         }
+        logger.app("INFO", "action:app.invoices.$id send-invoice-email OK", null, {
+          durationMs: Date.now() - ta,
+          invoiceId: params.id,
+          messageId: result.messageId,
+        });
         return json({ success: true, messageId: result.messageId });
       }
 
       default:
+        logger.app("WARN", "action:app.invoices.$id unknown_intent", null, { intent });
         return json({ error: "Unknown action" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Invoice action failed", msg);
+    logger.app("ERROR", "action:app.invoices.$id ERROR", msg, { durationMs: Date.now() - ta, invoiceId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

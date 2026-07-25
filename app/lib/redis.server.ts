@@ -20,7 +20,7 @@ function createRedis(): Redis {
   });
 
   redis.on("error", (err: Error) => {
-    logger.app("WARN", "Redis connection error", err.message);
+    logger.app("WARN", "redis — connection error", err.message);
   });
 
   return redis;

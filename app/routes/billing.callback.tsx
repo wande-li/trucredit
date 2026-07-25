@@ -11,19 +11,20 @@ import type { PlanKey } from '~/lib/constants';
 import { decryptToken } from '~/lib/crypto.server';
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
   const url = new URL(request.url);
   const shop = url.searchParams.get('shop');
   const chargeId = url.searchParams.get('charge_id');
   const planParam = url.searchParams.get('plan');
 
-  logger.app('INFO', 'Billing callback hit', {
+  logger.app('INFO', 'loader:billing.callback START', null, {
     shop,
     chargeId,
     plan: planParam,
   });
 
   if (!shop || !chargeId || !planParam || planParam === 'FREE') {
-    logger.app('WARN', 'Billing callback missing required params', {
+    logger.app('WARN', 'loader:billing.callback ERROR: missing params', {
       hasShop: !!shop,
       hasChargeId: !!chargeId,
       hasPlan: !!planParam,
@@ -41,7 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   if (!shopRecord) {
-    logger.app('WARN', 'Billing callback: shop not in DB', { shop });
+    logger.app('WARN', 'loader:billing.callback ERROR: shop not in DB', { shop });
     return redirect('/app');
   }
 
@@ -69,20 +70,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const charge = body?.recurring_application_charge;
       if (charge?.status === 'active') {
         chargeValid = true;
-        logger.app('INFO', 'Billing callback: charge verified', {
+        logger.app('INFO', 'loader:billing.callback charge_verified OK', {
           shop,
           chargeId,
           chargeName: charge.name,
         });
       } else {
-        logger.app('WARN', 'Billing callback: charge not active', {
+        logger.app('WARN', 'loader:billing.callback charge_not_active WARN', {
           shop,
           chargeId,
           chargeStatus: charge?.status,
         });
       }
     } else {
-      logger.app('WARN', 'Billing callback: charge verification HTTP error', {
+      logger.app('WARN', 'loader:billing.callback charge_verification_http_error WARN', {
         shop,
         chargeId,
         httpStatus: res.status,
@@ -90,7 +91,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app('ERROR', 'Billing callback: charge verification request failed', {
+    logger.app('ERROR', 'loader:billing.callback charge_verification_request_failed ERROR', {
       shop,
       chargeId,
       error: msg,
@@ -98,7 +99,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   if (!chargeValid) {
-    logger.app('WARN', 'Billing callback: charge verification failed, refusing update', {
+    logger.app('WARN', 'loader:billing.callback charge_verification_failed WARN', {
       shop,
       chargeId,
       plan: planParam,
@@ -120,17 +121,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         shopifyChargeId: chargeId,
       },
     });
-    logger.app('INFO', 'Plan updated from callback', { shop, plan: planParam, chargeId });
+    logger.app('INFO', 'loader:billing.callback plan_updated OK', { shop, plan: planParam, chargeId });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes('P2025')) {
-      logger.app('WARN', 'Callback: shop not yet in DB, webhook will handle', { shop });
+      logger.app('WARN', 'loader:billing.callback shop_not_in_db WARN', { shop });
     } else {
-      logger.app('ERROR', 'Callback: failed to update plan', { shop, error: msg });
+      logger.app('ERROR', 'loader:billing.callback plan_update_failed ERROR', { shop, error: msg });
     }
   }
 
   const adminUrl = `https://admin.shopify.com/store/${shop}/apps/trucredit`;
-  logger.app('INFO', `Redirecting to Shopify Admin: ${adminUrl}`);
+  const durationMs = Date.now() - t0;
+  logger.app('INFO', 'loader:billing.callback redirect OK', null, { shop, plan: planParam, chargeId, durationMs });
   return redirect(adminUrl);
 };

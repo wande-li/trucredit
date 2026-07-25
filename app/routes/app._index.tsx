@@ -1,7 +1,8 @@
 // TruCredit Dashboard — v3 Clean redesign
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-
+
+
 import { useLoaderData, useNavigate, Link } from "@remix-run/react";
 import { useState } from "react";
 import {
@@ -37,6 +38,8 @@ import PageSkeleton from "~/components/PageSkeleton";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Dashboard" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app._index START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -174,13 +177,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
+    logger.app("INFO", "loader:app._index OK", null, {
+      durationMs: Date.now() - t0,
+      totalCustomers: payload.stats.totalCustomers,
+      totalInvoices: payload.stats.totalInvoices,
+      overdueInvoices: payload.stats.overdueInvoices,
+    });
     return json(payload, {
       headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
     });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Dashboard loader failed", msg);
+    logger.app("ERROR", "loader:app._index ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

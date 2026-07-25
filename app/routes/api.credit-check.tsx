@@ -25,6 +25,8 @@ const CreditCheckSchema = z.object({
  * Rate limit: 100 req/min per IP (RATE_LIMIT_RPM env, default 100)
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:api.credit-check START");
   if (request.method !== "POST") {
     return json({ error: "Method Not Allowed" }, { status: 405 });
   }
@@ -67,6 +69,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       currency,
     });
 
+    logger.app("INFO", "action:api.credit-check OK", null, {
+      durationMs: Date.now() - ta,
+      eligible: result.eligible,
+    });
     return json(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -100,6 +100,11 @@ export async function generateCollectionEmail(params: {
   daysOverdue: number;
   paymentLink: string;
 }): Promise<GeneratedEmail> {
+  logger.app("INFO", "ai.generateCollectionEmail START", null, {
+    stage: params.stage,
+    invoiceNumber: params.invoiceNumber,
+    daysOverdue: params.daysOverdue,
+  });
   const tone = STAGE_TONES[params.stage] || "Professional and polite.";
 
   const safe = {
@@ -142,10 +147,18 @@ Keep it to 3-4 paragraphs. Use the payment link placeholder naturally in the ema
       throw new Error("AI returned incomplete email (missing subject or body)");
     }
 
+    logger.app("INFO", "ai.generateCollectionEmail OK", null, {
+      invoiceNumber: params.invoiceNumber,
+      subjectLen: parsed.subject.length,
+      bodyLen: parsed.body.length,
+    });
     return { subject: parsed.subject, body: parsed.body };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "AI generation failed", { stage: params.stage, invoice: params.invoiceNumber, error: msg });
+    logger.app("ERROR", "ai.generateCollectionEmail ERROR", msg, {
+      stage: params.stage,
+      invoiceNumber: params.invoiceNumber,
+    });
     throw new Error(`Failed to generate collection email: ${msg}`);
   }
 }
@@ -167,6 +180,7 @@ export async function parseCustomerReply(params: {
     customerName: string;
   };
 }): Promise<ParsedReply> {
+  logger.app("INFO", "ai.parseCustomerReply START", null, { fromEmail: params.fromEmail, hasContext: !!params.invoiceContext });
   let context = `Email from: ${checkInput(params.fromEmail, "fromEmail", MAX_FIELD_LENGTH.fromEmail)}\nSubject: ${checkInput(params.subject, "subject", MAX_FIELD_LENGTH.subject)}\nBody: ${checkInput(params.body, "body", MAX_FIELD_LENGTH.body)}`;
 
   if (params.invoiceContext) {
@@ -196,6 +210,7 @@ export async function parseCustomerReply(params: {
     // Map AI intent string to Prisma enum
     const intent = mapToReplyIntent(parsed.intent);
 
+    logger.app("INFO", "ai.parseCustomerReply OK", null, { intent, confidence: parsed.confidence });
     return {
       intent,
       confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
@@ -207,7 +222,7 @@ export async function parseCustomerReply(params: {
     };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Reply parsing failed, returning UNRELATED", { from: params.fromEmail, error: msg });
+    logger.app("ERROR", "ai.parseCustomerReply ERROR", msg, { fromEmail: params.fromEmail });
     return {
       intent: "UNRELATED",
       confidence: 0,

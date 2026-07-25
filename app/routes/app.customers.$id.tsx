@@ -41,6 +41,8 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Customer Detail" }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.customers.$id START", null, { customerId: params.id });
   try {
     const { shopId } = await resolveShop(request);
 
@@ -65,27 +67,35 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       totalRevenue: Number(customer.totalRevenue),
     });
 
-    const creditEvents = await prisma.creditEvent.findMany({
-      where: { customerId: customer.id },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
+    const [creditEvents, aging] = await Promise.all([
+      prisma.creditEvent.findMany({
+        where: { customerId: customer.id },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      getARAgingByCustomer({
+        shopId,
+        customerId: customer.id,
+      }),
+    ]);
 
-    const aging = await getARAgingByCustomer({
-      shopId,
-      customerId: customer.id,
+    logger.app("INFO", "loader:app.customers.$id OK", null, {
+      durationMs: Date.now() - t0,
+      customerId: params.id,
+      grade: (assessment as unknown as Record<string, unknown>).creditGrade ?? (assessment as unknown as Record<string, unknown>).grade,
     });
-
     return json({ customer, assessment, creditEvents, aging });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Customer detail loader failed", msg);
+    logger.app("ERROR", "loader:app.customers.$id ERROR", msg, { durationMs: Date.now() - t0, customerId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.customers.$id START", null, { customerId: params.id });
   try {
     const { admin } = await authenticate.admin(request);
     const { shopId, shopDomain, role } = await resolveShop(request);
@@ -124,6 +134,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after credit limit change", msg);
         });
 
+        logger.app("INFO", "action:app.customers.$id set-credit-limit OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+          newLimit,
+        });
         return json({ success: true });
       }
 
@@ -141,6 +156,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after freeze", msg);
         });
 
+        logger.app("INFO", "action:app.customers.$id freeze OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
         return json({ success: true });
       }
 
@@ -156,6 +175,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after unfreeze", msg);
         });
 
+        logger.app("INFO", "action:app.customers.$id unfreeze OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
         return json({ success: true });
       }
 
@@ -171,29 +194,41 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           logger.app("WARN", "Metafield sync failed after score recalc", msg);
         });
 
+        logger.app("INFO", "action:app.customers.$id recalculate-score OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
         return json({ success: true });
       }
 
       // P3: Delete customer (soft-delete)
       case "delete": {
         const result = await deleteCustomer(params.id, shopId);
-        if (!result.success) return json({ error: result.error }, { status: 400 });
+        if (!result.success) {
+          logger.app("WARN", "action:app.customers.$id delete failed", result.error);
+          return json({ error: result.error }, { status: 400 });
+        }
 
         syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
           const msg = e instanceof Error ? e.message : String(e);
           logger.app("WARN", "Metafield sync failed after customer delete", msg);
         });
 
+        logger.app("INFO", "action:app.customers.$id delete OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
         return json({ success: true });
       }
 
       default:
+        logger.app("WARN", "action:app.customers.$id unknown_intent", null, { intent });
         return json({ error: "Unknown action" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Customer action failed", msg);
+    logger.app("ERROR", "action:app.customers.$id ERROR", msg, { durationMs: Date.now() - ta, customerId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

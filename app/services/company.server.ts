@@ -82,13 +82,13 @@ export async function syncAllCompanies(
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("ERROR", "GraphQL call failed during company sync", msg, { shopDomain, shopId, cursor });
+      logger.app("ERROR", "company.syncAllCompanies — GraphQL call failed", msg, { shopDomain, shopId, cursor });
       errors.push(`GraphQL request failed at cursor "${cursor}": ${msg}`);
       break;
     }
 
     // Diagnostic: log raw GraphQL response for debugging
-    logger.app("INFO", "Companies GraphQL response", undefined, {
+    logger.app("INFO", "company.syncAllCompanies — GraphQL response", null, {
       shopDomain,
       cursor,
       hasData: !!result.data,
@@ -106,12 +106,12 @@ export async function syncAllCompanies(
       for (const gqlErr of result.errors) {
         const code = gqlErr.extensions?.code ?? "UNKNOWN";
         errors.push(`GraphQL error [${code}]: ${gqlErr.message}`);
-        logger.app("WARN", "GraphQL error during company sync", gqlErr.message, { shopDomain, code, cursor });
+        logger.app("WARN", "company.syncAllCompanies — GraphQL error", gqlErr.message, { shopDomain, code, cursor });
       }
     }
 
     if (!result.data?.companies) {
-      logger.app("WARN", "Sync companies: no data returned", undefined, { shopDomain, cursor });
+      logger.app("WARN", "company.syncAllCompanies — no data returned", null, { shopDomain, cursor });
       if (!result.errors?.length) {
         errors.push("No companies data returned from Shopify (empty response)");
       }
@@ -172,7 +172,7 @@ export async function syncAllCompanies(
           }
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
-          logger.app("WARN", "Failed to upsert customer", msg, { shopId, customerId: c.id, email: c.email });
+          logger.app("WARN", "company.syncAllCompanies — failed to upsert customer", msg, { shopId, customerId: c.id });
         }
       }
     }
@@ -181,7 +181,7 @@ export async function syncAllCompanies(
     cursor = result.data.companies.pageInfo.endCursor;
   }
 
-  logger.app("INFO", "Company sync complete", undefined, { shopId, created, updated, errorCount: errors.length });
+  logger.app("INFO", "company.syncAllCompanies OK", null, { shopId, created, updated, errorCount: errors.length });
   return { created, updated, errors };
 }
 
@@ -201,6 +201,7 @@ export async function upsertCompanyContact(
     netTermsDays?: number;
   },
 ): Promise<{ id: string; created: boolean }> {
+  logger.app("INFO", "company.upsertCompanyContact START", null, { shopId, shopifyCustomerId: contact.shopifyCustomerId, companyName: contact.companyName });
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email;
 
   const existing = await prisma.customer.findUnique({
@@ -225,6 +226,7 @@ export async function upsertCompanyContact(
         updatedAt: new Date(),
       },
     });
+    logger.app("INFO", "company.upsertCompanyContact OK", null, { shopId, customerId: contact.shopifyCustomerId, created: false });
     return { id: updated.id, created: false };
   }
 
@@ -244,5 +246,6 @@ export async function upsertCompanyContact(
       creditGrade: "C",
     },
   });
+  logger.app("INFO", "company.upsertCompanyContact OK", null, { shopId, customerId: contact.shopifyCustomerId, created: true });
   return { id: created.id, created: true };
 }

@@ -143,11 +143,12 @@ export async function createCollectionDraftOrder(args: {
   shopifyCustomerId: string;
 }): Promise<{ draftOrderId: string | null; invoiceUrl: string | null }> {
   const { shopId, customerId: _customerId, invoiceId, invoiceNumber, amount, currency: _currency, customerEmail, shopifyCustomerId } = args;
+  logger.app("INFO", "invoiceOrdering.createCollectionDraftOrder START", null, { shopId, invoiceId, invoiceNumber, amount });
 
   // Get shop access token
   const shopToken = await getShopToken(shopId);
   if (!shopToken) {
-    logger.app("WARN", "Collection draft order: no shop token", undefined, { shopId, invoiceId });
+    logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder no shop token", null, { shopId, invoiceId });
     return { draftOrderId: null, invoiceUrl: null };
   }
 
@@ -178,7 +179,7 @@ export async function createCollectionDraftOrder(args: {
 
     const userErrors = draftResult.data?.draftOrderCreate?.userErrors ?? [];
     if (userErrors.length > 0) {
-      logger.app("WARN", "Draft order creation failed with user errors", undefined, {
+      logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder user errors", null, {
         shopId,
         invoiceId,
         errors: userErrors.map(e => e.message),
@@ -188,7 +189,7 @@ export async function createCollectionDraftOrder(args: {
 
     const draftOrderGid = draftResult.data?.draftOrderCreate?.draftOrder?.id;
     if (!draftOrderGid) {
-      logger.app("WARN", "Draft order creation returned no ID", undefined, { shopId, invoiceId });
+      logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder no ID returned", null, { shopId, invoiceId });
       return { draftOrderId: null, invoiceUrl: null };
     }
 
@@ -212,7 +213,7 @@ export async function createCollectionDraftOrder(args: {
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "Payment terms apply failed on draft order", msg, { draftOrderGid });
+      logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder payment terms failed", msg, { draftOrderGid });
       // Continue — draft order is still valid without payment terms
     }
 
@@ -226,7 +227,7 @@ export async function createCollectionDraftOrder(args: {
 
     const invoiceErrors = invoiceResult.data?.draftOrderInvoiceSend?.userErrors ?? [];
     if (invoiceErrors.length > 0) {
-      logger.app("WARN", "Draft order invoice send failed", undefined, {
+      logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder invoice send failed", null, {
         shopId,
         invoiceId,
         draftOrderGid,
@@ -273,10 +274,10 @@ export async function createCollectionDraftOrder(args: {
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("WARN", "Failed to record collection event for draft order", msg, { draftOrderGid });
+      logger.app("WARN", "invoiceOrdering.createCollectionDraftOrder failed to record event", msg, { draftOrderGid });
     }
 
-    logger.app("INFO", "Collection draft order created + invoice sent + payment link stored", undefined, {
+    logger.app("INFO", "invoiceOrdering.createCollectionDraftOrder OK", null, {
       shopId,
       invoiceId,
       draftOrderGid,
@@ -286,7 +287,7 @@ export async function createCollectionDraftOrder(args: {
     return { draftOrderId: draftOrderGid, invoiceUrl };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Collection draft order creation failed", msg, {
+    logger.app("ERROR", "invoiceOrdering.createCollectionDraftOrder ERROR", msg, {
       shopId,
       invoiceId,
     });
@@ -303,6 +304,7 @@ export async function sendOrderInvoice(args: {
   orderGid: string;
 }): Promise<boolean> {
   const { shopId, orderGid } = args;
+  logger.app("INFO", "invoiceOrdering.sendOrderInvoice START", null, { shopId, orderGid });
   const shopToken = await getShopToken(shopId);
   if (!shopToken) return false;
 
@@ -316,14 +318,15 @@ export async function sendOrderInvoice(args: {
 
     const errors = result.data?.orderInvoiceSend?.userErrors ?? [];
     if (errors.length > 0) {
-      logger.app("WARN", "Order invoice send failed", undefined, { orderGid, errors: errors.map(e => e.message) });
+      logger.app("WARN", "invoiceOrdering.sendOrderInvoice user errors", null, { orderGid, errors: errors.map(e => e.message) });
       return false;
     }
 
+    logger.app("INFO", "invoiceOrdering.sendOrderInvoice OK", null, { orderGid });
     return true;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Order invoice send exception", msg, { orderGid });
+    logger.app("ERROR", "invoiceOrdering.sendOrderInvoice ERROR", msg, { orderGid });
     return false;
   }
 }

@@ -33,6 +33,8 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Customers" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.customers START");
   try {
     const { shopId } = await resolveShop(request);
 
@@ -55,11 +57,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
     });
 
+    logger.app("INFO", "loader:app.customers OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: result.total,
+      page,
+    });
     return json({ result });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Customers loader failed", msg);
+    logger.app("ERROR", "loader:app.customers ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

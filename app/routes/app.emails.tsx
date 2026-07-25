@@ -38,6 +38,8 @@ export const meta: MetaFunction = () => [{ title: "TruCredit — Email Templates
 // ═══════════════════ Loader ═══════════════════
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.emails START");
   try {
     const { shopId } = await resolveShop(request);
     const url = new URL(request.url);
@@ -51,11 +53,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     await ensureDefaultTemplates(shopId);
 
     const result = await listTemplates(shopId, { page, pageSize });
+    logger.app("INFO", "loader:app.emails OK", null, {
+      durationMs: Date.now() - t0,
+      totalCount: result.items?.length ?? 0,
+    });
     return json(result);
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Emails loader failed", msg);
+    logger.app("ERROR", "loader:app.emails ERROR", msg, { durationMs: Date.now() - t0 });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
@@ -63,6 +69,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ═══════════════════ Actions ═══════════════════
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.emails START");
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
@@ -100,20 +108,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         toneLevel: isNaN(toneLevel) ? 3 : toneLevel,
       });
 
+      logger.app("INFO", "action:app.emails create OK", null, { durationMs: Date.now() - ta });
       return json({ success: true });
     }
 
     if (intent === "delete") {
       const templateId = formData.get("templateId") as string;
       const result = await deleteTemplate(templateId, shopId);
+      logger.app("INFO", "action:app.emails delete OK", null, {
+        durationMs: Date.now() - ta,
+        templateId,
+        success: result.success,
+      });
       return json(result);
     }
 
+    logger.app("WARN", "action:app.emails unknown_intent", null, { intent });
     return json({ success: false, error: "Unknown intent" });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Email action failed", msg);
+    logger.app("ERROR", "action:app.emails ERROR", msg, { durationMs: Date.now() - ta });
     throw new Response("Something went wrong", { status: 500 });
   }
 };

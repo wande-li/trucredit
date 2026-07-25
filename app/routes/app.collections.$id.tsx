@@ -41,6 +41,8 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Collection Detail" }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const t0 = Date.now();
+  logger.app("INFO", "loader:app.collections.$id START", null, { sequenceId: params.id });
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "manage_collections");
@@ -51,16 +53,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const sequence = await getSequence(sequenceId, shopId);
     if (!sequence) throw new Response("Not Found", { status: 404 });
 
+    logger.app("INFO", "loader:app.collections.$id OK", null, {
+      durationMs: Date.now() - t0,
+      sequenceId,
+      stepCount: sequence.steps.length,
+    });
     return json({ sequence });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Collection detail loader failed", msg);
+    logger.app("ERROR", "loader:app.collections.$id ERROR", msg, { durationMs: Date.now() - t0, sequenceId: params.id });
     throw new Response("Something went wrong", { status: 500 });
   }
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:app.collections.$id START", null, { sequenceId: params.id });
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "manage_collections");
@@ -87,6 +96,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           triggerDays: triggerDays !== undefined ? parseInt(triggerDays, 10) : undefined,
         });
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id updateMeta OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
@@ -109,6 +119,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           subject,
         });
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id addStep OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
@@ -131,6 +142,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           subject: subject ?? undefined,
         });
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id editStep OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
@@ -140,6 +152,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const result = await deleteStep(stepId, sequenceId, shopId);
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id deleteStep OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
@@ -162,6 +175,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         [steps[idx], steps[swapIdx]] = [steps[swapIdx]!, steps[idx]!];
         const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id reorderStep OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
@@ -186,16 +200,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));
         if (!result.success) return json({ error: result.error }, { status: 400 });
+        logger.app("INFO", "action:app.collections.$id dragReorder OK", null, { durationMs: Date.now() - ta });
         return json({ success: true });
       }
 
       default:
+        logger.app("WARN", "action:app.collections.$id unknown_intent", null, { intent });
         return json({ error: "Unknown intent" }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "Collections detail action failed", msg);
+    logger.app("ERROR", "action:app.collections.$id ERROR", msg, { durationMs: Date.now() - ta, sequenceId: params.id });
     return json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 };

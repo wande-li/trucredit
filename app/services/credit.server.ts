@@ -11,6 +11,7 @@ import type {
   CreditRecommendation,
 } from "~/types/credit";
 import { CREDIT_SCORE, SCORING_WEIGHTS, CREDIT_BASE_LIMITS } from "~/lib/constants";
+import { logger } from "~/services/logger.server";
 
 /**
  * Calculate credit score (0-100) from customer payment behavior
@@ -28,6 +29,7 @@ export function calculateCreditScore(params: {
   totalOrders: number;
   totalRevenue: number;
 }): { score: number; components: CreditScoreComponents } {
+  logger.app("INFO", "credit.calculateCreditScore START", null, { orders: params.totalOrders, revenue: params.totalRevenue });
   const W = SCORING_WEIGHTS;
 
   // Payment History
@@ -59,6 +61,7 @@ export function calculateCreditScore(params: {
     Math.max(CREDIT_SCORE.MIN, paymentHistory + creditUtilization + orderVolume + revenueHistory),
   );
 
+  logger.app("INFO", "credit.calculateCreditScore OK", null, { score });
   return {
     score,
     components: { paymentHistory, creditUtilization, orderVolume, revenueHistory },
@@ -70,12 +73,15 @@ export function calculateCreditScore(params: {
  */
 export function scoreToGrade(score: number): CreditGrade {
   const t = CREDIT_SCORE.GRADE_THRESHOLDS;
-  if (score >= t.A_PLUS) return "A_PLUS";
-  if (score >= t.A) return "A";
-  if (score >= t.B) return "B";
-  if (score >= t.C) return "C";
-  if (score >= t.D) return "D";
-  return "F";
+  let result: CreditGrade;
+  if (score >= t.A_PLUS) result = "A_PLUS";
+  else if (score >= t.A) result = "A";
+  else if (score >= t.B) result = "B";
+  else if (score >= t.C) result = "C";
+  else if (score >= t.D) result = "D";
+  else result = "F";
+  logger.app("INFO", "credit.scoreToGrade OK", null, { score, grade: result });
+  return result;
 }
 
 /**
@@ -126,7 +132,9 @@ export function recommendCreditLimit(params: {
   // Adjust by order volume (bonus for repeat customers, capped by MAX_ORDER_BONUS)
   const orderBonus = Math.min(W.MAX_ORDER_BONUS, params.totalOrders * W.ORDER_BONUS_PER_ORDER);
 
-  return Math.round(base * revenueMultiplier + orderBonus);
+  const result = Math.round(base * revenueMultiplier + orderBonus);
+  logger.app("INFO", "credit.recommendCreditLimit OK", null, { grade: params.grade, limit: result });
+  return result;
 }
 
 /**
@@ -144,6 +152,7 @@ export function assessCredit(params: {
   totalOrders: number;
   totalRevenue: number;
 }): CreditRecommendation {
+  logger.app("INFO", "credit.assessCredit START", null, { orders: params.totalOrders, revenue: params.totalRevenue });
   const { score, components } = calculateCreditScore(params);
   const grade = scoreToGrade(score);
   const riskLevel = gradeToRisk(grade);
@@ -165,7 +174,9 @@ export function assessCredit(params: {
     warnings.push(`Credit utilization over ${Math.round(W.UTILIZATION_WARN * 100)}%`);
   }
 
-  return { score, grade, riskLevel, recommendedLimit, components, warnings };
+  const result = { score, grade, riskLevel, recommendedLimit, components, warnings };
+  logger.app("INFO", "credit.assessCredit OK", null, { score, grade, riskLevel });
+  return result;
 }
 
 /**

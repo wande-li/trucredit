@@ -37,6 +37,11 @@ export interface CreditCheckResult {
  */
 export async function checkCreditEligibility(input: CreditCheckInput): Promise<CreditCheckResult> {
   const { shopDomain, customerEmail, cartTotal } = input;
+  logger.app("INFO", "checkout.checkCreditEligibility START", null, {
+    shopDomain,
+    customerEmail,
+    cartTotal,
+  });
 
   // Step 1: Find shop
   const shop = await prisma.shop.findUnique({
@@ -45,6 +50,7 @@ export async function checkCreditEligibility(input: CreditCheckInput): Promise<C
   });
 
   if (!shop) {
+    logger.app("WARN", "checkout.checkCreditEligibility — shop not found", null, { shopDomain });
     return { eligible: false, reason: "Shop not found", suggestion: "PAY_NOW" };
   }
 
@@ -145,6 +151,11 @@ export async function checkCreditEligibility(input: CreditCheckInput): Promise<C
   }
 
   // All checks passed
+  logger.app("INFO", "checkout.checkCreditEligibility OK", null, {
+    customerId: customer.id,
+    cartTotal,
+    availableCredit,
+  });
   return {
     eligible: true,
     customerId: customer.id,
@@ -169,6 +180,11 @@ export async function reserveCredit(params: {
   amount: number;
   orderName: string;
 }): Promise<{ success: boolean; error?: string }> {
+  logger.app("INFO", "checkout.reserveCredit START", null, {
+    customerId: params.customerId,
+    amount: params.amount,
+    orderName: params.orderName,
+  });
   try {
     // Idempotency: check if credit was already reserved for this order
     const existingEvent = await prisma.creditEvent.findFirst({
@@ -180,7 +196,7 @@ export async function reserveCredit(params: {
       },
     });
     if (existingEvent) {
-      logger.app("INFO", "Credit reservation — idempotent skip (already reserved)", undefined, {
+      logger.app("INFO", "checkout.reserveCredit — idempotent skip", null, {
         customerId: params.customerId,
         orderName: params.orderName,
         eventId: existingEvent.id,
@@ -226,7 +242,7 @@ export async function reserveCredit(params: {
       },
     });
 
-    logger.app("INFO", "Credit reserved for checkout", undefined, {
+    logger.app("INFO", "checkout.reserveCredit OK", null, {
       customerId: params.customerId,
       amount: params.amount,
       orderName: params.orderName,
@@ -235,7 +251,10 @@ export async function reserveCredit(params: {
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "Credit reservation failed", undefined, { error: msg });
+    logger.app("ERROR", "checkout.reserveCredit ERROR", msg, {
+      customerId: params.customerId,
+      orderName: params.orderName,
+    });
     return { success: false, error: "Internal error" };
   }
 }

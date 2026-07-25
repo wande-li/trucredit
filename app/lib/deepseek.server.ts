@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "~/services/logger.server";
 
 // P2-8: Fail-fast — refuse to start with empty API key
 if (!process.env.DEEPSEEK_API_KEY) {
@@ -36,10 +37,15 @@ export async function aiComplete(params: AiCompleteParams) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const systemLen = params.system.length;
+  const userLen = params.user.length;
+  logger.deepseek("INFO", "deepseek.aiComplete START", null, { model, systemLen, userLen, timeout });
+
   try {
-    return await deepseek.chat.completions.create(
+    const result = await deepseek.chat.completions.create(
       {
-        model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+        model,
         messages: [
           { role: "system", content: params.system },
           { role: "user", content: params.user },
@@ -52,6 +58,14 @@ export async function aiComplete(params: AiCompleteParams) {
       },
       { signal: controller.signal },
     );
+    const usage = result.usage;
+    logger.deepseek("INFO", "deepseek.aiComplete OK", null, {
+      model,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+      totalTokens: usage?.total_tokens,
+    });
+    return result;
   } finally {
     clearTimeout(timeoutId);
   }

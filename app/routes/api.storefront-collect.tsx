@@ -30,6 +30,8 @@ const CollectSchema = z.object({
  * Rate limit: 100 req/min per IP (RATE_LIMIT_RPM env, default 100)
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const ta = Date.now();
+  logger.app("INFO", "action:api.storefront-collect START");
   if (request.method !== "POST") {
     return json({ error: "Method Not Allowed" }, { status: 405 });
   }
@@ -120,7 +122,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: false, error: result.error }, { status: 402 });
   }
 
-  logger.app("INFO", "Storefront credit collected", undefined, {
+  logger.app("INFO", "action:api.storefront-collect OK", null, {
+    durationMs: Date.now() - ta,
     shopId: shop.id,
     customerId: customer.id,
     orderId,

@@ -5,6 +5,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { InvoiceRecord } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
+import { logger } from "~/services/logger.server";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ function statusLabel(status: InvoiceStatus): string {
  * Generate a professional invoice PDF and return as Buffer.
  */
 export function generateInvoicePdf(data: InvoicePdfData): Buffer {
+  logger.app("INFO", "pdf.generateInvoicePdf START", null, { invoiceNumber: data.invoice.invoiceNumber });
   const { invoice, customer, shopInfo } = data;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -296,7 +298,9 @@ export function generateInvoicePdf(data: InvoicePdfData): Buffer {
   addFooter(doc);
 
   const arrayBuffer = doc.output("arraybuffer");
-  return Buffer.from(arrayBuffer);
+  const result = Buffer.from(arrayBuffer);
+  logger.app("INFO", "pdf.generateInvoicePdf OK", null, { size: result.length });
+  return result;
 }
 
 // ── Statement PDF ──────────────────────────────────────────────────────────
@@ -305,6 +309,7 @@ export function generateInvoicePdf(data: InvoicePdfData): Buffer {
  * Generate a customer account statement PDF and return as Buffer.
  */
 export function generateStatementPdf(data: StatementPdfData): Buffer {
+  logger.app("INFO", "pdf.generateStatementPdf START", null, { customer: data.customer.name, invoiceCount: data.invoices.length });
   const { customer, invoices, aging, totalOutstanding, totalOverdue, generatedDate, shopInfo } = data;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -510,5 +515,7 @@ export function generateStatementPdf(data: StatementPdfData): Buffer {
   addFooter(doc);
 
   const arrayBuffer = doc.output("arraybuffer");
-  return Buffer.from(arrayBuffer);
+  const result = Buffer.from(arrayBuffer);
+  logger.app("INFO", "pdf.generateStatementPdf OK", null, { size: result.length });
+  return result;
 }

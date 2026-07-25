@@ -1,6 +1,8 @@
 // CSV Export Utility — generic, server-only
 // Handles comma escaping, quote wrapping, BOM for Excel compatibility
 
+import { logger } from "~/services/logger.server";
+
 /**
  * Encode a single CSV field value.
  * Wraps in double-quotes if the value contains comma, quote, or newline.
@@ -27,10 +29,13 @@ function csvEscape(value: string): string {
  * @returns Full CSV string ready for Response body
  */
 export function exportToCsv(headers: string[], rows: string[][]): string {
+  logger.app("INFO", "export.exportToCsv START", null, { headerCount: headers.length, rowCount: rows.length });
   const headerLine = headers.map(csvEscape).join(",");
   const dataLines = rows.map((row) => row.map(csvEscape).join(","));
   // BOM (U+FEFF) ensures Excel recognizes UTF-8 encoding
-  return "\uFEFF" + [headerLine, ...dataLines].join("\n") + "\n";
+  const result = "\uFEFF" + [headerLine, ...dataLines].join("\n") + "\n";
+  logger.app("INFO", "export.exportToCsv OK", null, { size: result.length });
+  return result;
 }
 
 /**

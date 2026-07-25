@@ -45,11 +45,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    logger.app("INFO", "Manual sync triggered from Customers page", undefined, { shopDomain, shopId: shop.id });
+    logger.app("INFO", "action:api.sync-companies START", undefined, { shopDomain, shopId: shop.id });
 
     const result = await syncAllCompanies(admin, shopDomain, shop.id);
 
-    logger.app("INFO", "Manual sync complete", undefined, {
+    logger.app("INFO", "action:api.sync-companies OK", null, {
       shopId: shop.id,
       created: result.created,
       updated: result.updated,
@@ -66,7 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    logger.app("ERROR", "Manual sync failed", msg, { shopDomain, stack: stack?.slice(0, 500) });
+    logger.app("ERROR", "action:api.sync-companies ERROR", msg, { shopDomain, stack: stack?.slice(0, 500) });
     return json(
       {
         success: false,

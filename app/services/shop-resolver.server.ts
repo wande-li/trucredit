@@ -31,7 +31,10 @@ async function deriveRole(
   userEmail?: string | null,
 ): Promise<Role> {
   // 1. Account owner from online session (authoritative for real Shopify users)
-  if (isAccountOwner) return "admin";
+  if (isAccountOwner) {
+    logger.app("INFO", "deriveRole → admin (online session account_owner=true)", { shopDomain });
+    return "admin";
+  }
 
   // 2. DB fallback — offline sessions (dev auto-seed, install) don't carry onlineAccessInfo
   try {
@@ -40,7 +43,16 @@ async function deriveRole(
       orderBy: { id: "desc" },
       select: { accountOwner: true },
     });
-    if (dbSession?.accountOwner) return "admin";
+    logger.app(
+      "INFO",
+      `deriveRole DB session lookup: found=${!!dbSession}, accountOwner=${dbSession?.accountOwner ?? "N/A"}`,
+      undefined,
+      { shopDomain },
+    );
+    if (dbSession?.accountOwner) {
+      logger.app("INFO", "deriveRole → admin (DB session.accountOwner=true)", { shopDomain });
+      return "admin";
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("WARN", "Session accountOwner lookup failed", msg, { shopDomain });
@@ -53,15 +65,24 @@ async function deriveRole(
         where: { shopId_email: { shopId, email: userEmail.toLowerCase() } },
         select: { role: true },
       });
-      if (member) return member.role as Role;
+      if (member) {
+        logger.app("INFO", `deriveRole → ${member.role} (TeamMember explicit)`, { shopId, email: userEmail });
+        return member.role as Role;
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.app("WARN", "TeamMember role lookup failed", msg, { shopId, email: userEmail });
     }
   }
 
-  // 4. Default: viewer (safe for unknown collaborators)
-  return "viewer";
+  // 4. Default → admin: no explicit viewer downgrade means this is the account owner
+  //    (or a staff member that hasn't been added to TeamMember yet — safe default)
+  logger.app("WARN", "deriveRole → admin (default — no TeamMember record found)", {
+    shopDomain,
+    shopId,
+    email: userEmail ?? "(none)",
+  });
+  return "admin";
 }
 
 /**

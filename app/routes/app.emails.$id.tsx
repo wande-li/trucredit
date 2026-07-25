@@ -32,8 +32,8 @@ import ActionToast from "~/components/ActionToast";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
-    const { shopDomain } = await resolveShop(request);
-    const template = await getTemplateById(params.id!, shopDomain);
+    const { shopId } = await resolveShop(request);
+    const template = await getTemplateById(params.id!, shopId);
     if (!template) throw new Response("Template not found", { status: 404 });
     return json({ template });
   } catch (e: unknown) {
@@ -48,7 +48,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
-    const { shopDomain } = await resolveShop(request);
+    const { shopId } = await resolveShop(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -66,7 +66,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const result = await updateTemplate({
         templateId: params.id!,
-        shopId: shopDomain,
+        shopId,
         name: name.trim(),
         subject: subject.trim(),
         body: body.trim(),
@@ -78,7 +78,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     // Delete template
     if (intent === "delete") {
-      const result = await deleteTemplate(params.id!, shopDomain);
+      const result = await deleteTemplate(params.id!, shopId);
       return json(result);
     }
 

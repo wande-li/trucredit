@@ -176,6 +176,14 @@ export async function deleteTemplate(
 
 /** Seed default templates for a shop if none exist */
 export async function ensureDefaultTemplates(shopId: string): Promise<void> {
+  // Clean up orphaned domain-based templates (pre-fix: shopDomain was incorrectly used as shopId)
+  const orphaned = await prisma.emailTemplate.deleteMany({
+    where: { shopId: { contains: "." } },
+  });
+  if (orphaned.count > 0) {
+    logger.app("INFO", `Cleaned up ${orphaned.count} orphaned email templates`, { shopId });
+  }
+
   const count = await prisma.emailTemplate.count({ where: { shopId } });
   if (count > 0) return;
 

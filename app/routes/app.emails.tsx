@@ -44,9 +44,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!isPaid) return redirect("/app/billing");
 
     // Auto-seed default templates
-    await ensureDefaultTemplates(shopDomain);
+    await ensureDefaultTemplates(shopId);
 
-    const result = await listTemplates(shopDomain, { page, pageSize });
+    const result = await listTemplates(shopId, { page, pageSize });
     return json(result);
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -60,7 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const { shopDomain } = await resolveShop(request);
+    const { shopId } = await resolveShop(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -87,7 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       await createTemplate({
-        shopId: shopDomain,
+        shopId,
         name: name.trim(),
         type,
         subject: subject.trim(),
@@ -100,7 +100,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent === "delete") {
       const templateId = formData.get("templateId") as string;
-      const result = await deleteTemplate(templateId, shopDomain);
+      const result = await deleteTemplate(templateId, shopId);
       return json(result);
     }
 

@@ -84,7 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       where.status = statusFilter;
     }
 
-    const [tasks, total] = await Promise.all([
+    const [tasks, total, sequenceCount] = await Promise.all([
       prisma.collectionTask.findMany({
         where,
         include: {
@@ -98,6 +98,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         take: pageSize,
       }),
       prisma.collectionTask.count({ where }),
+      prisma.collectionSequence.count({ where: { shopId } }),
     ]);
 
     // Summary counts
@@ -123,6 +124,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalPages: Math.ceil(total / pageSize),
       summary: { active: activeCount, paused: pausedCount, escalated: escalatedCount },
       statusFilter,
+      hasSequences: sequenceCount > 0,
     });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -229,7 +231,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function TasksPage() {
-  const { tasks, page, totalPages, summary, statusFilter } = useLoaderData<typeof loader>();
+  const { tasks, page, totalPages, summary, statusFilter, hasSequences } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [, setSearchParams] = useSearchParams();
   const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
@@ -329,13 +331,26 @@ export default function TasksPage() {
 
         {tasks.length === 0 ? (
           <Card>
-            <EmptyState
-              heading="No collection tasks"
-              image=""
-              action={{ content: "Set Up Sequences", url: "/app/collections" }}
-            >
-              <p>Active collection sequences will automatically create tasks for overdue invoices.</p>
-            </EmptyState>
+            {hasSequences ? (
+              <EmptyState
+                heading="No collection tasks yet"
+                image=""
+                action={{ content: "View Sequences", url: "/app/collections" }}
+              >
+                <p>
+                  Tasks are automatically created when invoices become overdue and match an active collection sequence.
+                  Make sure your sequences are active and you have overdue invoices.
+                </p>
+              </EmptyState>
+            ) : (
+              <EmptyState
+                heading="No collection tasks"
+                image=""
+                action={{ content: "Set Up Sequences", url: "/app/collections" }}
+              >
+                <p>Active collection sequences will automatically create tasks for overdue invoices.</p>
+              </EmptyState>
+            )}
           </Card>
         ) : (
           <Card padding="0">

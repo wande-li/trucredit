@@ -38,7 +38,7 @@ export default function RouteErrorBoundary() {
   const message = error instanceof Error ? error.message : String(error);
 
   return (
-    <Page title="Something went wrong">
+    <Page title="Something went wrong — Please Refresh">
       <BlockStack gap="400">
         <Banner tone="critical">
           <Text as="p" variant="bodyMd">

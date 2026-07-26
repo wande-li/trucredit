@@ -190,7 +190,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app._index ERROR", msg, { durationMs: Date.now() - t0 });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 

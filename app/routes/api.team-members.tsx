@@ -116,7 +116,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:api.team-members unknown_intent", null, { intent });
-        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
+        return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

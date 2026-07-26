@@ -64,7 +64,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app.collections.$id ERROR", msg, { durationMs: Date.now() - t0, sequenceId: params.id });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 
@@ -168,7 +168,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "reorderStep": {
         const stepId = formData.get("stepId")?.toString();
         const direction = formData.get("direction")?.toString();
-        if (!stepId || !direction) return json({ error: "Something went wrong. Please try again." }, { status: 400 });
+        if (!stepId || !direction) return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
 
         const seq = await getSequence(sequenceId, shopId);
         if (!seq) return json({ error: "Sequence not found" }, { status: 404 });
@@ -191,7 +191,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "dragReorder": {
         const stepId = formData.get("stepId")?.toString();
         const toOrderStr = formData.get("toOrder")?.toString();
-        if (!stepId || !toOrderStr) return json({ error: "Something went wrong. Please try again." }, { status: 400 });
+        if (!stepId || !toOrderStr) return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
         const targetOrder = parseInt(toOrderStr, 10);
 
         const seq = await getSequence(sequenceId, shopId);
@@ -214,13 +214,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:app.collections.$id unknown_intent", null, { intent });
-        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
+        return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.collections.$id ERROR", msg, { durationMs: Date.now() - ta, sequenceId: params.id });
-    return json({ error: "Something went wrong. Please try again." }, { status: 500 });
+    return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 500 });
   }
 };
 

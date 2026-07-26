@@ -79,7 +79,8 @@ export async function sendCollectionEmail(
   params: SendCollectionEmailParams,
 ): Promise<SendEmailResult> {
   const ses = getSESClient();
-  const fromEmail = process.env.FROM_EMAIL || process.env.SES_FROM_EMAIL || "noreply@example.com";
+  const fromEmail = process.env.FROM_EMAIL || process.env.SES_FROM_EMAIL || null;
+  if (!fromEmail) throw new Error("FROM_EMAIL is required for sending emails.");
   const useAI = params.useAI ?? false;
 
   logger.app("INFO", "emailDelivery.sendCollectionEmail START", null, {
@@ -226,7 +227,8 @@ export async function sendTestEmail(toEmail: string, shopId?: string): Promise<S
   }
 
   const ses = getSESClient();
-  const fromEmail = process.env.FROM_EMAIL || "noreply@example.com";
+  const fromEmail = process.env.FROM_EMAIL || null;
+  if (!fromEmail) throw new Error("FROM_EMAIL is required for sending emails.");
 
   if (!ses) {
     return { sent: false, error: "SES not configured" };

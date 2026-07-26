@@ -85,7 +85,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app.rules.$id ERROR", msg, { durationMs: Date.now() - t0, ruleId: params.id });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 
@@ -110,7 +110,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     if (intent !== "save") {
       logger.app("WARN", "action:app.rules.$id invalid_intent", null, { intent });
-      return json({ error: "Something went wrong. Please try again." }, { status: 400 });
+      return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
     }
 
     const name = formData.get("name")?.toString()?.trim();
@@ -243,7 +243,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.rules.$id ERROR", msg, { durationMs: Date.now() - ta, ruleId: params.id });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 

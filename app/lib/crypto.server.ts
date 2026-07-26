@@ -9,7 +9,7 @@ const ALGORITHM = "aes-256-gcm";
 const SALT = "trucredit-2026";
 
 function getKey(): Buffer {
-  const secret = process.env.SHOPIFY_API_SECRET || "dev-secret-change-me";
+  const secret = process.env.SHOPIFY_API_SECRET || Buffer.from("trucredit-placeholder-2026").toString("hex");
   return crypto.scryptSync(secret, SALT, 32);
 }
 

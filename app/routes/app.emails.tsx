@@ -63,7 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app.emails ERROR", msg, { durationMs: Date.now() - t0 });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 
@@ -125,12 +125,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.emails unknown_intent", null, { intent });
-    return json({ success: false, error: "Something went wrong. Please try again." });
+    return json({ success: false, error: "We encountered an issue. Please refresh the page and try again." });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.emails ERROR", msg, { durationMs: Date.now() - ta });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 

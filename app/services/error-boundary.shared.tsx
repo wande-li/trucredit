@@ -26,7 +26,7 @@ export function RouteError({ error }: { error?: unknown }) {
           marginBottom: 12,
         }}
       >
-        Something Went Wrong
+        Something Went Wrong — Please Refresh
       </h1>
       <p
         style={{

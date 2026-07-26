@@ -89,7 +89,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app.settings ERROR", msg, { durationMs: Date.now() - t0 });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 
@@ -113,7 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent !== "save") {
       logger.app("WARN", "action:app.settings invalid_intent", null, { intent });
-      return json({ error: "Something went wrong. Please try again." } satisfies ActionData);
+      return json({ error: "We encountered an issue. Please refresh the page and try again." } satisfies ActionData);
     }
 
     // P2-6: Validate emailReplyTo format

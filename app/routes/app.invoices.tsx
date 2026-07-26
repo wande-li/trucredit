@@ -64,7 +64,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:app.invoices ERROR", msg, { durationMs: Date.now() - t0 });
-    throw new Response("Something went wrong", { status: 500 });
+    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
   }
 };
 
@@ -90,7 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.invoices unknown_intent", null, { intent });
-    return json({ error: "Something went wrong. Please try again.", ok: false });
+    return json({ error: "We encountered an issue. Please refresh the page and try again.", ok: false });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);

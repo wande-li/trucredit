@@ -235,7 +235,7 @@ function UnauthedFallback({ apiKey }: { apiKey: string }) {
         window.location.reload();
       } else {
         setMessage(
-          "Something went wrong. Please reload the app from your Shopify Admin.",
+          "We encountered an issue. Please reload the app from your Shopify Admin.",
         );
       }
     }, 2500);

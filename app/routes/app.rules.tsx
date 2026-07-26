@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const intent = formData.get("intent")?.toString();
     const ruleId = formData.get("ruleId")?.toString();
 
-    if (!ruleId) return json({ error: "Rule ID required" }, { status: 400 });
+    if (!ruleId) return json({ error: "A rule is required." }, { status: 400 });
 
     // Verify rule belongs to shop
     const rule = await prisma.creditRule.findFirst({
@@ -130,7 +130,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       default:
         logger.app("WARN", "action:app.rules unknown_intent", null, { intent });
-        return json({ error: "Unknown action" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

@@ -161,7 +161,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.emails.$id unknown_intent", null, { intent });
-    return json({ success: false, error: "Unknown intent" });
+    return json({ success: false, error: "Something went wrong. Please try again." });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -307,6 +307,7 @@ export default function EmailTemplateDetail() {
                   value={name}
                   onChange={setName}
                   autoComplete="off"
+                  requiredIndicator
                 />
                 <TextField
                   label="Subject"
@@ -314,6 +315,7 @@ export default function EmailTemplateDetail() {
                   onChange={setSubject}
                   autoComplete="off"
                   helpText="Use {{customerName}}, {{invoiceNumber}}, {{amount}}, etc."
+                  requiredIndicator
                 />
                 <TextField
                   label="Body"
@@ -322,6 +324,7 @@ export default function EmailTemplateDetail() {
                   autoComplete="off"
                   multiline={12}
                   helpText="Use {{customerName}}, {{companyName}}, {{invoiceNumber}}, {{amount}}, {{dueDate}}, {{daysOverdue}}, {{paymentLink}} as placeholders"
+                  requiredIndicator
                 />
                 <Select
                   label="Tone Level"

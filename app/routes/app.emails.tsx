@@ -92,7 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         "PAYMENT_RECEIVED", "CREDIT_APPROVED", "CREDIT_FROZEN", "CUSTOM",
       ];
       if (!VALID_TYPES.includes(rawType as TemplateType)) {
-        return json({ success: false, error: `Invalid template type: "${rawType}"` });
+        return json({ success: false, error: "Please select a valid template type." });
       }
       const type = rawType as TemplateType;
 
@@ -125,7 +125,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.emails unknown_intent", null, { intent });
-    return json({ success: false, error: "Unknown intent" });
+    return json({ success: false, error: "Something went wrong. Please try again." });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -385,6 +385,7 @@ function CreateTemplateModal({
             onChange={setName}
             autoComplete="off"
             placeholder="Standard Gentle Reminder"
+            requiredIndicator
           />
           <Select
             label="Template Type"
@@ -399,6 +400,7 @@ function CreateTemplateModal({
             autoComplete="off"
             placeholder="Payment reminder: Invoice {{invoiceNumber}}"
             helpText="Use {{customerName}}, {{companyName}}, {{invoiceNumber}}, {{amount}}, {{dueDate}}, {{daysOverdue}}, {{paymentLink}} as placeholders"
+            requiredIndicator
           />
           <TextField
             label="Body"
@@ -407,6 +409,7 @@ function CreateTemplateModal({
             autoComplete="off"
             multiline={8}
             placeholder="Dear {{customerName}}..."
+            requiredIndicator
             helpText="Use placeholders like {{customerName}}, {{invoiceNumber}}, {{amount}}, {{paymentLink}}"
           />
           <Select

@@ -90,7 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.invoices unknown_intent", null, { intent });
-    return json({ error: "Unknown intent", ok: false });
+    return json({ error: "Something went wrong. Please try again.", ok: false });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -129,6 +129,20 @@ export default function Invoices() {
   const { invoiceResult, agingReport } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      await downloadCSV("/api/invoices/export/csv");
+    } catch (e: unknown) {
+      setExportError(e instanceof Error ? e.message : "Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const fetcher = useFetcher<{ ok?: boolean; count?: number; error?: string }>();
   const [selectedResources, setSelectedResources] = useState<string[] | "All">([]);
   const currentTab = searchParams.get("agingBucket") ?? "all";
@@ -174,6 +188,12 @@ export default function Invoices() {
             <Text as="p">{fetcher.data.count} invoice{fetcher.data.count !== 1 ? "s" : ""} marked as paid.</Text>
           </Banner>
         )}
+        {/* Export error banner */}
+        {exportError && (
+          <Banner tone="critical" onDismiss={() => setExportError(null)}>
+            <Text as="p">{exportError}</Text>
+          </Banner>
+        )}
         {fetcher.data?.error && (
           <Banner tone="critical" onDismiss={() => fetcher.load?.(window.location.pathname)}>
             <Text as="p">{fetcher.data.error}</Text>
@@ -185,8 +205,13 @@ export default function Invoices() {
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Invoices</Text>
             <InlineStack gap="200">
-              <Button variant="tertiary" onClick={() => downloadCSV("/api/invoices/export/csv")}>
-                Export CSV
+              <Button
+                variant="tertiary"
+                onClick={handleExportCSV}
+                disabled={isExporting}
+                loading={isExporting}
+              >
+                {isExporting ? "Exporting..." : "Export CSV"}
               </Button>
               <Button variant="primary" onClick={() => navigate("/app/invoices/new")}>Create Invoice</Button>
             </InlineStack>

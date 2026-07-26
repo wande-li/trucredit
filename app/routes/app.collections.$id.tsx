@@ -49,10 +49,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     requirePermission(role, "manage_collections");
 
     const sequenceId = params.id;
-    if (!sequenceId) throw new Response("Not Found", { status: 404 });
+    if (!sequenceId) throw new Response("Sequence not found.", { status: 404 });
 
     const sequence = await getSequence(sequenceId, shopId);
-    if (!sequence) throw new Response("Not Found", { status: 404 });
+    if (!sequence) throw new Response("Sequence not found.", { status: 404 });
 
     logger.app("INFO", "loader:app.collections.$id OK", null, {
       durationMs: Date.now() - t0,
@@ -83,7 +83,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     const sequenceId = params.id;
-    if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });
+    if (!sequenceId) return json({ error: "Sequence not found." }, { status: 404 });
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
@@ -133,7 +133,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       case "editStep": {
         const stepId = formData.get("stepId")?.toString();
-        if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
+        if (!stepId) return json({ error: "A step is required." }, { status: 400 });
 
         const delayDays = formData.get("delayDays")?.toString();
         const channel = formData.get("channel")?.toString() as Channel | undefined;
@@ -156,7 +156,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       case "deleteStep": {
         const stepId = formData.get("stepId")?.toString();
-        if (!stepId) return json({ error: "Step ID required" }, { status: 400 });
+        if (!stepId) return json({ error: "A step is required." }, { status: 400 });
 
         const result = await deleteStep(stepId, sequenceId, shopId);
         if (!result.success) return json({ error: result.error }, { status: 400 });
@@ -168,7 +168,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "reorderStep": {
         const stepId = formData.get("stepId")?.toString();
         const direction = formData.get("direction")?.toString();
-        if (!stepId || !direction) return json({ error: "Missing parameters" }, { status: 400 });
+        if (!stepId || !direction) return json({ error: "Something went wrong. Please try again." }, { status: 400 });
 
         const seq = await getSequence(sequenceId, shopId);
         if (!seq) return json({ error: "Sequence not found" }, { status: 404 });
@@ -191,7 +191,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "dragReorder": {
         const stepId = formData.get("stepId")?.toString();
         const toOrderStr = formData.get("toOrder")?.toString();
-        if (!stepId || !toOrderStr) return json({ error: "Missing parameters" }, { status: 400 });
+        if (!stepId || !toOrderStr) return json({ error: "Something went wrong. Please try again." }, { status: 400 });
         const targetOrder = parseInt(toOrderStr, 10);
 
         const seq = await getSequence(sequenceId, shopId);
@@ -214,7 +214,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:app.collections.$id unknown_intent", null, { intent });
-        return json({ error: "Unknown intent" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -331,6 +331,7 @@ export default function CollectionDetailPage() {
                 value={name}
                 onChange={setName}
                 autoComplete="off"
+                requiredIndicator
               />
               <TextField
                 label="Description"

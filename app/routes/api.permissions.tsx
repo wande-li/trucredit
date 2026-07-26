@@ -29,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         role: "viewer" as Role,
         roleLabel: "Viewer",
         permissions: ["view"],
-        error: "Falling back to viewer permissions due to auth error.",
+        error: "Unable to verify your access. View-only mode enabled.",
       },
       { status: 200 }, // Don't block the UI — degrade gracefully
     );

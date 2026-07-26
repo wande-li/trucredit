@@ -43,10 +43,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return json({ error: "Email and role are required" }, { status: 400 });
         }
         if (!["admin", "manager", "viewer"].includes(role)) {
-          return json({ error: "Invalid role" }, { status: 400 });
+          return json({ error: "Please select a valid role." }, { status: 400 });
         }
         if (!email.includes("@")) {
-          return json({ error: "Invalid email address" }, { status: 400 });
+          return json({ error: "Please enter a valid email address." }, { status: 400 });
         }
 
         // Check if already a member
@@ -74,7 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return json({ error: "Member ID and role are required" }, { status: 400 });
         }
         if (!["admin", "manager", "viewer"].includes(role)) {
-          return json({ error: "Invalid role" }, { status: 400 });
+          return json({ error: "Please select a valid role." }, { status: 400 });
         }
 
         const member = await prisma.teamMember.findFirst({
@@ -116,7 +116,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:api.team-members unknown_intent", null, { intent });
-        return json({ error: "Unknown intent" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

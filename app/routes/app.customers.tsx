@@ -84,6 +84,20 @@ export default function CustomersPage() {
   const syncFetcher = useFetcher<{ success?: boolean; created?: number; updated?: number; error?: string }>();
   const isSyncing = syncFetcher.state !== "idle";
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      await downloadCSV("/api/customers/export/csv");
+    } catch (e: unknown) {
+      setExportError(e instanceof Error ? e.message : "Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const handleSearch = useCallback(
     (value: string) => {
       const next = new URLSearchParams(searchParams);
@@ -136,8 +150,9 @@ export default function CustomersPage() {
       subtitle={`${total} total`}
       secondaryActions={[
         {
-          content: "Export CSV",
-          onAction: () => downloadCSV("/api/customers/export/csv"),
+          content: isExporting ? "Exporting..." : "Export CSV",
+          onAction: handleExportCSV,
+          disabled: isExporting || isSyncing,
         },
         {
           content: isSyncing ? "Syncing..." : "Sync from Shopify",
@@ -153,6 +168,12 @@ export default function CustomersPage() {
 
       {/* Sync result feedback */}
       <ActionToast fetcher={syncFetcher} successMessage="Sync completed successfully" />
+      {/* Export error banner */}
+      {exportError && (
+        <Banner tone="critical" onDismiss={() => setExportError(null)}>
+          <Text as="p">{exportError}</Text>
+        </Banner>
+      )}
       {syncFetcher.data?.success && (syncFetcher.data.created ?? 0) === 0 && (syncFetcher.data.updated ?? 0) === 0 ? (
         <Box padding="400">
           <Banner tone="info">
@@ -174,7 +195,7 @@ export default function CustomersPage() {
         <Box padding="400">
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
-              Sync failed: {syncFetcher.data.error ?? "Unknown error"}
+              Sync failed: {syncFetcher.data.error ?? "Please try again."}
             </Text>
           </Banner>
         </Box>

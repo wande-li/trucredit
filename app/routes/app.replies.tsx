@@ -120,7 +120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const taskId = formData.get("taskId")?.toString();
       const notes = formData.get("notes")?.toString()?.trim();
 
-      if (!eventId || !taskId) return json({ error: "Missing parameters" }, { status: 400 });
+      if (!eventId || !taskId) return json({ error: "Something went wrong. Please try again." }, { status: 400 });
 
       const result = await resolveReply({ eventId, taskId, shopId, notes });
       if (!result.success) {
@@ -132,7 +132,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     logger.app("WARN", "action:app.replies unknown_intent", null, { intent });
-    return json({ error: "Unknown intent" }, { status: 400 });
+    return json({ error: "Something went wrong. Please try again." }, { status: 400 });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);

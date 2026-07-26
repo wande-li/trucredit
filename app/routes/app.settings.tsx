@@ -71,7 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }),
     ]);
 
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Store not found.", { status: 404 });
 
     logger.app("INFO", "loader:app.settings OK", null, {
       durationMs: Date.now() - t0,
@@ -113,7 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent !== "save") {
       logger.app("WARN", "action:app.settings invalid_intent", null, { intent });
-      return json({ error: "Invalid intent" } satisfies ActionData);
+      return json({ error: "Something went wrong. Please try again." } satisfies ActionData);
     }
 
     // P2-6: Validate emailReplyTo format
@@ -122,7 +122,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(emailReplyTo)) {
         return json({
-          error: "Invalid email format for Reply-To address",
+          error: "Please enter a valid email address for Reply-To.",
         } satisfies ActionData);
       }
       if (emailReplyTo.length > 320) {

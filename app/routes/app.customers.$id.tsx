@@ -52,7 +52,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!isPaid) throw redirect("/app/billing");
 
     if (!params.id) {
-      throw new Response("Customer ID required", { status: 400 });
+      throw new Response("A customer is required.", { status: 400 });
     }
 
     const customer = await getCustomer({
@@ -114,7 +114,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     if (!params.id) {
-      throw new Response("Customer ID required", { status: 400 });
+      throw new Response("A customer is required.", { status: 400 });
     }
 
     const formData = await request.formData();
@@ -129,7 +129,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         const newLimit = parseFloat(newLimitStr);
         if (isNaN(newLimit) || newLimit <= 0) {
-          return json({ error: "Invalid limit amount" }, { status: 400 });
+          return json({ error: "Please enter a valid credit limit." }, { status: 400 });
         }
 
         await setCreditLimit({
@@ -235,7 +235,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:app.customers.$id unknown_intent", null, { intent });
-        return json({ error: "Unknown action" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

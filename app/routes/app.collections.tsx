@@ -129,7 +129,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         const sequenceId = formData.get("sequenceId")?.toString();
-        if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
+        if (!sequenceId) return json({ error: "A sequence is required." }, { status: 400 });
 
         const result = await deleteSequence(sequenceId, shopId);
         if (!result.success) {
@@ -156,7 +156,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         const sequenceId = formData.get("sequenceId")?.toString();
         const isActive = formData.get("isActive") === "true";
-        if (!sequenceId) return json({ error: "Sequence ID required" }, { status: 400 });
+        if (!sequenceId) return json({ error: "A sequence is required." }, { status: 400 });
 
         const result = await updateSequence({
           sequenceId,
@@ -177,7 +177,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:app.collections unknown_intent", null, { intent });
-        return json({ error: "Unknown intent" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
@@ -439,6 +439,7 @@ function CreateSequenceModal({
             value={name}
             onChange={setName}
             autoComplete="off"
+            requiredIndicator
             placeholder="Standard 7-Stage Collection"
             helpText="A descriptive name for this collection workflow"
           />

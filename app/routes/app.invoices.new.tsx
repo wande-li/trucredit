@@ -45,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       select: { currency: true },
     });
 
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Store not found.", { status: 404 });
 
     const [customers, nextSeq] = await Promise.all([
       prisma.customer.findMany({
@@ -103,7 +103,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       select: { plan: true },
     });
 
-    if (!shop) throw new Response("Shop not found", { status: 404 });
+    if (!shop) throw new Response("Store not found.", { status: 404 });
 
     // Check invoice quota
     const quota = await checkInvoiceQuota(shopId, shop.plan);
@@ -126,7 +126,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const intent = formData.get("intent")?.toString();
     if (intent !== "create") {
       logger.app("WARN", "action:app.invoices.new invalid_intent", null, { intent });
-      return json({ error: "Invalid action" }, { status: 400 });
+      return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
 
     const customerId = formData.get("customerId")?.toString();
@@ -271,6 +271,7 @@ export default function NewInvoice() {
                 onChange={(v) => setCustomerId(v)}
                 placeholder="Select a customer..."
                 disabled={isSubmitting}
+                requiredIndicator
               />
 
               <TextField
@@ -292,6 +293,7 @@ export default function NewInvoice() {
                 placeholder="0.00"
                 disabled={isSubmitting}
                 min={0.01}
+                requiredIndicator
                 step={0.01}
                 error={exceedsCredit ? `Exceeds available credit of ${currency} ${availableCredit!.toFixed(2)}` : undefined}
               />

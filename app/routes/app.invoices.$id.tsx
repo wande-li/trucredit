@@ -49,7 +49,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!isPaid) throw redirect("/app/billing");
 
     if (!params.id) {
-      throw new Response("Invoice ID required", { status: 400 });
+      throw new Response("An invoice is required.", { status: 400 });
     }
 
     const invoice = await getInvoice({
@@ -124,7 +124,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     if (!params.id) {
-      throw new Response("Invoice ID required", { status: 400 });
+      throw new Response("An invoice is required.", { status: 400 });
     }
 
     const formData = await request.formData();
@@ -337,7 +337,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       default:
         logger.app("WARN", "action:app.invoices.$id unknown_intent", null, { intent });
-        return json({ error: "Unknown action" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

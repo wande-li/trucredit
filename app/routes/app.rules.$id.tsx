@@ -71,7 +71,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       return json({ isNew: true, rule: null, shopId });
     }
 
-    if (!params.id) throw new Response("Rule ID required", { status: 400 });
+    if (!params.id) throw new Response("A rule is required.", { status: 400 });
 
     const rule = await getRule({ shopId, ruleId: params.id });
     if (!rule) throw new Response("Rule not found", { status: 404 });
@@ -110,7 +110,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     if (intent !== "save") {
       logger.app("WARN", "action:app.rules.$id invalid_intent", null, { intent });
-      return json({ error: "Invalid action" }, { status: 400 });
+      return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
 
     const name = formData.get("name")?.toString()?.trim();
@@ -216,7 +216,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         actionValue,
       });
     } else {
-      if (!params.id) throw new Error("Rule ID required");
+      if (!params.id) throw new Error("A rule is required.");
       // Verify ownership before update
       const existing = await getRule({ shopId, ruleId: params.id });
       if (!existing) throw new Response("Rule not found", { status: 404 });
@@ -579,6 +579,7 @@ export default function RuleEditPage() {
                 options={ACTION_OPTIONS}
                 value={action}
                 onChange={(v, _id) => setAction(v as CreditAction)}
+                requiredIndicator
               />
 
               {(action === "SET_LIMIT" || action === "ADJUST_LIMIT") && (
@@ -601,6 +602,7 @@ export default function RuleEditPage() {
                   options={GRADE_OPTIONS}
                   value={actionGrade}
                   onChange={(v, _id) => setActionGrade(v)}
+                  requiredIndicator
                 />
               )}
 

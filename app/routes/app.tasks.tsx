@@ -150,7 +150,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
     const taskId = formData.get("taskId")?.toString();
-    if (!taskId) return json({ error: "Task ID required" }, { status: 400 });
+    if (!taskId) return json({ error: "A task is required." }, { status: 400 });
 
     switch (intent) {
       case "pause": {
@@ -169,7 +169,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: taskId, sequence: { shopId } },
         });
         if (!task || task.status !== "PAUSED") {
-          return json({ error: "Task not found or not paused" }, { status: 400 });
+          return json({ error: "This task cannot be resumed right now. It may already be active." }, { status: 400 });
         }
         await prisma.collectionTask.update({
           where: { id: taskId, sequence: { shopId } },
@@ -189,7 +189,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
         });
         if (!task || !task.customer || !task.invoice) {
-          return json({ error: "Task, customer, or invoice not found" }, { status: 400 });
+          return json({ error: "Required data is missing. Please refresh the page." }, { status: 400 });
         }
 
         const daysOverdue = Math.floor(
@@ -221,7 +221,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       default:
         logger.app("WARN", "action:app.tasks unknown_intent", null, { intent });
-        return json({ error: "Unknown intent" }, { status: 400 });
+        return json({ error: "Something went wrong. Please try again." }, { status: 400 });
     }
   } catch (e: unknown) {
     if (e instanceof Response) throw e;

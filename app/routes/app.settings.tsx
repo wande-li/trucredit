@@ -3,7 +3,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remi
 import { json } from "@remix-run/node";
 
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Page,
   Card,
@@ -32,18 +32,6 @@ import ActionToast from "~/components/ActionToast";
 export const meta: MetaFunction = () => [{ title: "TruCredit — Settings" }];
 
 // ── Constants ──
-const TIMEZONES = [
-  { label: "Eastern Time (US)", value: "America/New_York" },
-  { label: "Central Time (US)", value: "America/Chicago" },
-  { label: "Mountain Time (US)", value: "America/Denver" },
-  { label: "Pacific Time (US)", value: "America/Los_Angeles" },
-  { label: "London (GMT)", value: "Europe/London" },
-  { label: "Berlin (CET)", value: "Europe/Berlin" },
-  { label: "Tokyo (JST)", value: "Asia/Tokyo" },
-  { label: "Shanghai (CST)", value: "Asia/Shanghai" },
-  { label: "Sydney (AEST)", value: "Australia/Sydney" },
-];
-
 const CURRENCIES = [
   { label: "USD — US Dollar", value: "USD" },
   { label: "EUR — Euro", value: "EUR" },
@@ -68,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const [shop, teamMembers] = await Promise.all([
       prisma.shop.findUnique({
         where: { shopDomain },
-        select: { currency: true, timezone: true, emailFromName: true, emailReplyTo: true },
+        select: { currency: true, emailFromName: true, emailReplyTo: true },
       }),
       prisma.teamMember.findMany({
         where: { shopId },
@@ -130,19 +118,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // P2-6: Validate timezone against allowed list
-    const timezone = (formData.get("timezone") as string) || "America/New_York";
-    if (!TIMEZONES.some((tz) => tz.value === timezone)) {
-      return json({
-        error: `Invalid timezone: ${timezone}`,
-      } satisfies ActionData);
-    }
-
     await prisma.shop.update({
       where: { shopDomain },
       data: {
         currency: (formData.get("currency") as string) || "USD",
-        timezone,
         emailFromName: (formData.get("emailFromName") as string) || null,
         emailReplyTo,
       },
@@ -170,6 +149,19 @@ export default function SettingsPage() {
   const teamFetcher = useFetcher<{ success?: boolean; error?: string; member?: { id: string; email: string; role: string } }>();
   const isSubmitting = fetcher.state === "submitting";
   const [dismissedError, setDismissedError] = useState(false);
+
+  // Form field state — needed because Polaris TextField/Select requires onChange for controlled value
+  const [emailFromName, setEmailFromName] = useState(settings.emailFromName ?? "");
+  const [emailReplyTo, setEmailReplyTo] = useState(settings.emailReplyTo ?? "");
+  const [currency, setCurrency] = useState(settings.currency ?? "USD");
+
+  // Sync local state when settings reload (e.g., after successful save via fetcher.Form)
+  useEffect(() => {
+    setEmailFromName(settings.emailFromName ?? "");
+    setEmailReplyTo(settings.emailReplyTo ?? "");
+    setCurrency(settings.currency ?? "USD");
+    setDismissedError(false);
+  }, [settings]);
 
   // Team member modal state
   const [showAddMember, setShowAddMember] = useState(false);
@@ -212,28 +204,21 @@ export default function SettingsPage() {
             >
               <input type="hidden" name="intent" value="save" />
               <FormLayout>
-                <Select
-                  label="Currency"
-                  name="currency"
-                  options={CURRENCIES}
-                  value={settings.currency}
-                  helpText="Default currency for invoices and credit limits"
-                  disabled={isSubmitting}
-                />
+            <Select
+              label="Currency"
+              name="currency"
+              options={CURRENCIES}
+              value={currency}
+              onChange={setCurrency}
+              helpText="Default currency for invoices and credit limits"
+              disabled={isSubmitting}
+            />
 
-                <Select
-                  label="Timezone"
-                  name="timezone"
-                  options={TIMEZONES}
-                  value={settings.timezone}
-                  helpText="Used for scheduling emails and due date calculations"
-                  disabled={isSubmitting}
-                />
-
-                <TextField
+            <TextField
                   label="Email From Name"
                   name="emailFromName"
-                  value={settings.emailFromName ?? ""}
+                  value={emailFromName}
+                  onChange={setEmailFromName}
                   autoComplete="off"
                   helpText="Sender name displayed on collection emails (e.g., 'TruCredit Team')"
                   disabled={isSubmitting}
@@ -243,11 +228,23 @@ export default function SettingsPage() {
                   label="Email Reply-To"
                   name="emailReplyTo"
                   type="email"
-                  value={settings.emailReplyTo ?? ""}
+                  value={emailReplyTo}
+                  onChange={setEmailReplyTo}
                   autoComplete="email"
                   helpText="Where customer replies will be sent (e.g., 'billing@yourstore.com')"
                   disabled={isSubmitting}
                 />
+
+                {settings.emailFromName || settings.emailReplyTo ? (
+                  <Text as="p" tone="subdued">
+                    Collection emails will be sent from <strong>{settings.emailFromName || "TruCredit"}</strong>
+                    {settings.emailReplyTo ? <> with replies directed to <strong>{settings.emailReplyTo}</strong></> : ""}.
+                  </Text>
+                ) : (
+                  <Text as="p" tone="subdued">
+                    Customize the sender name and reply-to address for collection emails. If left empty, system defaults will be used.
+                  </Text>
+                )}
 
                 <Button submit variant="primary" disabled={isSubmitting}>
                   {isSubmitting ? "Saving…" : "Save Settings"}

@@ -3,7 +3,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 
-import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, Link } from "@remix-run/react";
+import { Outlet, useLoaderData, useFetcher, useLocation, useSearchParams, Link, useSubmit } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -23,7 +23,7 @@ import {
   Pagination,
   Tag,
 } from "@shopify/polaris";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
 import {
   listSequences,
@@ -404,15 +404,20 @@ function CreateSequenceModal({
   onClose: () => void;
   intent: string;
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
+  const submit = useSubmit();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [triggerDays, setTriggerDays] = useState("0");
 
   const handleSubmit = useCallback(() => {
-    formRef.current?.requestSubmit();
-    setTimeout(onClose, 100);
-  }, [onClose]);
+    const formData = new FormData();
+    formData.set("intent", intent);
+    formData.set("name", name.trim());
+    if (description.trim()) formData.set("description", description.trim());
+    formData.set("triggerDays", triggerDays);
+    formData.set("triggerType", "OVERDUE");
+    submit(formData, { method: "POST" });
+  }, [submit, intent, name, description, triggerDays]);
 
   return (
     <Modal
@@ -427,38 +432,35 @@ function CreateSequenceModal({
       secondaryActions={[{ content: "Cancel", onAction: onClose }]}
     >
       <Modal.Section>
-        <form ref={formRef} method="POST">
-          <input type="hidden" name="intent" value={intent} />
-          <FormLayout>
-            <TextField
-              label="Sequence Name"
-              name="name"
-              value={name}
-              onChange={setName}
-              autoComplete="off"
-              placeholder="Standard 7-Stage Collection"
-              helpText="A descriptive name for this collection workflow"
-            />
-            <TextField
-              label="Description"
-              name="description"
-              value={description}
-              onChange={setDescription}
-              autoComplete="off"
-              multiline={2}
-              placeholder="Optional description of when this sequence applies"
-            />
-            <TextField
-              label="Trigger Days"
-              name="triggerDays"
-              value={triggerDays}
-              onChange={setTriggerDays}
-              type="number"
-              autoComplete="off"
-              helpText="Days relative to due date (negative = before, 0 = on due, positive = after)"
-            />
-          </FormLayout>
-        </form>
+        <FormLayout>
+          <TextField
+            label="Sequence Name"
+            name="name"
+            value={name}
+            onChange={setName}
+            autoComplete="off"
+            placeholder="Standard 7-Stage Collection"
+            helpText="A descriptive name for this collection workflow"
+          />
+          <TextField
+            label="Description"
+            name="description"
+            value={description}
+            onChange={setDescription}
+            autoComplete="off"
+            multiline={2}
+            placeholder="Optional description of when this sequence applies"
+          />
+          <TextField
+            label="Trigger Days"
+            name="triggerDays"
+            value={triggerDays}
+            onChange={setTriggerDays}
+            type="number"
+            autoComplete="off"
+            helpText="Days relative to due date (negative = before, 0 = on due, positive = after)"
+          />
+        </FormLayout>
       </Modal.Section>
     </Modal>
   );

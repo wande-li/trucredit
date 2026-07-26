@@ -5,6 +5,7 @@ import { logger } from "~/services/logger.server";
 import type { TemplateType } from "@prisma/client";
 import { PAGINATION } from "~/lib/constants";
 import { fillTemplate, type TplDef, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
+import { sendTestEmail as sendTestEmailViaSES } from "~/services/email-delivery.server";
 
 export { fillTemplate, type TplDef, TEMPLATE_TYPE_LABELS };
 
@@ -216,10 +217,15 @@ export async function sendTestEmail(params: {
     return { success: false, error: "Invalid email address" };
   }
 
-  // Simulated send — replace with real email provider (Resend/SES) when ready
+  // Send via SES delivery service
   try {
-    logger.app("INFO", "email.sendTestEmail OK", null, { shopId, templateId, testEmail });
-    return { success: true };
+    const result = await sendTestEmailViaSES(testEmail, shopId);
+    if (result.sent) {
+      logger.app("INFO", "email.sendTestEmail OK", null, { shopId, templateId, testEmail, messageId: result.messageId });
+      return { success: true };
+    }
+    logger.app("WARN", "email.sendTestEmail — delivery failed", result.error, { shopId, templateId });
+    return { success: false, error: result.error || "Email delivery failed" };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "email.sendTestEmail ERROR", msg, { shopId, templateId });

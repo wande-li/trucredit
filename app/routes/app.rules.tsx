@@ -398,42 +398,21 @@ function RuleRow({
           <Badge tone={rule.isActive ? "success" : "critical"}>
             {rule.isActive ? "Active" : "Inactive"}
           </Badge>
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, "toggle", { isActive: String(!rule.isActive) })}
+          <Button
+            variant="plain"
+            onClick={(e: React.MouseEvent) => handleAction(e, "toggle", { isActive: String(!rule.isActive) })}
             disabled={isBusy}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: isBusy ? "not-allowed" : "pointer",
-              color: "#1B2A4A",
-              fontSize: "14px",
-              padding: "4px 8px",
-              borderRadius: "4px",
-              textDecoration: "underline",
-              opacity: isBusy ? 0.5 : 1,
-            }}
           >
             {rule.isActive ? "Disable" : "Enable"}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, "delete")}
+          </Button>
+          <Button
+            variant="plain"
+            tone="critical"
+            onClick={(e: React.MouseEvent) => handleAction(e, "delete")}
             disabled={isBusy}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: isBusy ? "not-allowed" : "pointer",
-              color: "#D82C0D",
-              fontSize: "14px",
-              padding: "4px 8px",
-              borderRadius: "4px",
-              textDecoration: "underline",
-              opacity: isBusy ? 0.5 : 1,
-            }}
           >
             Delete
-          </button>
+          </Button>
         </div>
       </IndexTable.Cell>
     </IndexTable.Row>

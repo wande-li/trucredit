@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { markInvoicePaid, bulkMarkInvoicePaid, recordPartialPayment } from "~/services/invoice.server";
+
 // ── Mock Prisma (vi.hoisted to avoid hoist init error) ──
 const { mockPrisma } = vi.hoisted(() => {
   const mock = {
@@ -21,8 +23,6 @@ const { mockPrisma } = vi.hoisted(() => {
 
 vi.mock("~/db.server", () => ({ default: mockPrisma }));
 vi.mock("~/services/logger.server", () => ({ logger: { app: vi.fn() } }));
-
-import { markInvoicePaid, bulkMarkInvoicePaid, recordPartialPayment } from "~/services/invoice.server";
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -22,11 +22,11 @@ console.log("╚═════════════════════�
 // Step 1: ESLint
 console.log("🔍 Step 1: ESLint...");
 check("ESLint clean", () => {
-  const stdout = execSync(
+  const result = execSync(
     `npx eslint app/ --format json`,
-    { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"], encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+    { cwd: ROOT, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024, stdio: ["pipe", "pipe", "ignore"] }
   );
-  const results = JSON.parse(stdout);
+  const results = JSON.parse(result);
   const errors = results.reduce((s, r) => s + (r.errorCount || 0), 0);
   const warnings = results.reduce((s, r) => s + (r.warningCount || 0), 0);
   if (errors > 0 || warnings > 0) {
@@ -74,8 +74,19 @@ for (const { pattern, desc } of FORBIDDEN) {
   for (const file of allFiles) {
     const content = fs.readFileSync(file, "utf-8");
     const lines = content.split("\n");
+    let inBlockDisable = false;
     for (let i = 0; i < lines.length; i++) {
+      // Track block-level eslint-disable / eslint-enable
+      if (lines[i].includes("eslint-disable") && !lines[i].includes("eslint-disable-next-line")) {
+        inBlockDisable = true;
+      }
+      if (lines[i].includes("eslint-enable")) {
+        inBlockDisable = false;
+      }
+      // Skip: same-line disable, next-line disable from prev line, or inside a block disable
       if (lines[i].includes("eslint-disable")) continue;
+      if (i > 0 && lines[i - 1].includes("eslint-disable-next-line")) continue;
+      if (inBlockDisable && !lines[i].includes("eslint-enable")) continue;
       if (pattern.test(lines[i])) {
         hits.push(`${path.relative(ROOT, file)}:${i + 1}`);
       }

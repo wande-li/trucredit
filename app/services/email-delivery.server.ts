@@ -8,6 +8,7 @@ import { generateCollectionEmail } from "~/services/ai.server";
 import type { TemplateType } from "@prisma/client";
 import type { CollectionStage, ToneLevel } from "~/types/collection";
 import redis, { REDIS_PREFIX } from "~/lib/redis.server";
+import prisma from "~/db.server";
 
 // P2-7: Rate limit — 1 test email per 60s per recipient
 const TEST_EMAIL_RATE = { max: 1, window: 60, prefix: `${REDIS_PREFIX}email:test:rate:` };
@@ -142,12 +143,30 @@ export async function sendCollectionEmail(
   // Plain-text body (strip HTML if any)
   const textBody = body.replace(/<[^>]*>/g, "");
 
+  // Fetch shop email settings (fromName, replyTo)
+  let shopEmailSettings: { emailFromName?: string | null; emailReplyTo?: string | null } = {};
+  try {
+    shopEmailSettings = (await prisma.shop.findUnique({
+      where: { id: params.shopId },
+      select: { emailFromName: true, emailReplyTo: true },
+    })) ?? {};
+  } catch (e: unknown) {
+    // Non-critical — use defaults if shop lookup fails
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "emailDelivery.sendCollectionEmail — shop lookup failed", msg);
+  }
+
+  // Build Source with display name: "From Name <email@domain.com>"
+  const displayName = shopEmailSettings.emailFromName || "TruCredit";
+  const source = `"${displayName}" <${fromEmail}>`;
+
   // Send via SES
   if (ses) {
     try {
       const command = new SendEmailCommand({
-        Source: fromEmail,
+        Source: source,
         Destination: { ToAddresses: [params.toEmail] },
+        ReplyToAddresses: shopEmailSettings.emailReplyTo ? [shopEmailSettings.emailReplyTo] : undefined,
         Message: {
           Subject: { Data: subject, Charset: "UTF-8" },
           Body: {
@@ -191,8 +210,8 @@ export async function sendCollectionEmail(
 /**
  * Send a test email to verify SES configuration
  */
-export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
-  logger.app("INFO", "emailDelivery.sendTestEmail START", null, { toEmail });
+export async function sendTestEmail(toEmail: string, shopId?: string): Promise<SendEmailResult> {
+  logger.app("INFO", "emailDelivery.sendTestEmail START", null, { toEmail, shopId });
   // P2-7: Rate limit — 1 test email per 60s per recipient
   const rateKey = `${TEST_EMAIL_RATE.prefix}${toEmail}`;
   try {
@@ -213,9 +232,26 @@ export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
     return { sent: false, error: "SES not configured" };
   }
 
+  // Read shop emailFromName for display name (same pattern as sendCollectionEmail)
+  let displayName = "TruCredit";
+  if (shopId) {
+    try {
+      const shop = await prisma.shop.findUnique({
+        where: { id: shopId },
+        select: { emailFromName: true },
+      });
+      if (shop?.emailFromName) displayName = shop.emailFromName;
+    } catch (e: unknown) {
+      // Non-critical — use default display name
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "emailDelivery.sendTestEmail — shop lookup failed", msg);
+    }
+  }
+  const source = `"${displayName}" <${fromEmail}>`;
+
   try {
     const command = new SendEmailCommand({
-      Source: fromEmail,
+      Source: source,
       Destination: { ToAddresses: [toEmail] },
       Message: {
         Subject: { Data: "TruCredit — Test Email", Charset: "UTF-8" },

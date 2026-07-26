@@ -19,6 +19,7 @@ import {
   Badge,
   Box,
   Divider,
+  Modal,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { requirePermission } from "~/services/rbac.server";
@@ -459,20 +460,22 @@ export default function EmailTemplateDetail() {
                   </BlockStack>
                   {/* P3: Test send */}
                   <Divider />
-                  <FormLayout>
-                    <Text variant="headingSm" as="h4">Send Test Email</Text>
-                    <TextField
-                      name="testEmail"
-                      label="Recipient Email"
-                      type="email"
-                      placeholder="test@example.com"
-                      autoComplete="email"
-                    />
-                    <input type="hidden" name="intent" value="sendTest" />
-                    <Button submit variant="primary">
-                      Send Test
-                    </Button>
-                  </FormLayout>
+                  <fetcher.Form method="post">
+                    <FormLayout>
+                      <Text variant="headingSm" as="h4">Send Test Email</Text>
+                      <TextField
+                        name="testEmail"
+                        label="Recipient Email"
+                        type="email"
+                        placeholder="test@example.com"
+                        autoComplete="email"
+                      />
+                      <input type="hidden" name="intent" value="sendTest" />
+                      <Button submit variant="primary">
+                        Send Test
+                      </Button>
+                    </FormLayout>
+                  </fetcher.Form>
                 </>
               )}
             </BlockStack>
@@ -480,36 +483,30 @@ export default function EmailTemplateDetail() {
         </Card>
       </BlockStack>
 
-      {/* Delete Modal */}
-      {showDelete && (
-        <div style={{ display: "none" }} data-delete-modal>
-          <div
-            role="dialog"
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1000,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(0,0,0,0.5)",
-            }}
-          >
-            <div style={{ background: "white", borderRadius: 8, padding: 24, maxWidth: 400 }}>
-              <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">Delete Template</Text>
-                <Text as="p">Are you sure you want to delete "{initialTemplate.name}"? This cannot be undone.</Text>
-                <InlineStack gap="300" align="end">
-                  <Button onClick={() => setShowDelete(false)}>Cancel</Button>
-                  <Button tone="critical" onClick={handleDelete}>
-                    Delete
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        title="Delete Template"
+        primaryAction={{
+          content: "Delete",
+          destructive: true,
+          onAction: handleDelete,
+          loading: deleteFetcher.state === "submitting",
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setShowDelete(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <Text as="p">
+            Are you sure you want to delete "{initialTemplate.name}"? This cannot be undone.
+          </Text>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }

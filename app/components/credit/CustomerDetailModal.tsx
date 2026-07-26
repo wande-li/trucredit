@@ -280,11 +280,11 @@ export function CustomerDetailModal({
                   <Text as="h2" variant="headingMd">
                     Credit Summary
                   </Text>
-                  {/* eslint-disable @typescript-eslint/no-explicit-any -- Prisma enum types from JSON serialized loader data */}
+                  {/* Prisma enum types from JSON serialized loader data */}
                   <CustomerStatusBadge
-                    status={customer.status as any}
-                    riskLevel={customer.riskLevel as any}
-                    creditGrade={customer.creditGrade as any}
+                    status={customer.status as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                    riskLevel={customer.riskLevel as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                    creditGrade={customer.creditGrade as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
                     isFrozen={customer.isFrozen}
                   />
                   {/* eslint-enable @typescript-eslint/no-explicit-any */}

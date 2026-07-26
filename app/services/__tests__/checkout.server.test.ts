@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { checkCreditEligibility, reserveCredit } from "~/services/checkout.server";
+
 // ── Mock Prisma (vi.hoisted to avoid hoist init error) ──
 const { mockPrismaClient } = vi.hoisted(() => ({
   mockPrismaClient: {
@@ -16,8 +18,6 @@ vi.mock("~/db.server", () => ({ default: mockPrismaClient }));
 vi.mock("~/services/logger.server", () => ({
   logger: { app: vi.fn() },
 }));
-
-import { checkCreditEligibility, reserveCredit } from "~/services/checkout.server";
 
 // ── Helpers ─────────────────────────────────────────
 const mockShop = { id: "shop_001" };

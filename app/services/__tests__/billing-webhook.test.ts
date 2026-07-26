@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { handleSubscriptionUpdate, checkPlanAccess, checkInvoiceQuota } from "~/services/billing.server";
+
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     shop: { findUniqueOrThrow: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
@@ -18,8 +20,6 @@ vi.mock("~/shopify.server", () => ({
   PLAN_ANNUAL: "TruCredit Pro Annual",
 }));
 vi.mock("~/services/logger.server", () => ({ logger: { app: vi.fn(), error: vi.fn() } }));
-
-import { handleSubscriptionUpdate, checkPlanAccess, checkInvoiceQuota } from "~/services/billing.server";
 
 beforeEach(() => vi.clearAllMocks());
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { action } from "~/routes/webhooks";
 
 // ── All mocks must be hoisted ──
 const { mockAuth } = vi.hoisted(() => ({ mockAuth: vi.fn() }));
@@ -97,8 +98,6 @@ vi.mock("~/services/invoice.server", () => ({
   markInvoiceVoided: vi.fn().mockResolvedValue({}),
   applyInvoiceRefund: vi.fn().mockResolvedValue({}),
 }));
-
-import { action } from "~/routes/webhooks";
 
 function req(topic: string, body: unknown, domain = "test.myshopify.com") {
   return new Request("https://a.up.railway.app/webhooks", {

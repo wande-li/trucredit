@@ -23,6 +23,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback, useEffect } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import {
   getSequence,
   updateSequence,
@@ -73,6 +74,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "manage_collections");
+
+    // Plan gate: collection sequences require paid plan
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.collections.$id plan_gate blocked", null, { shopId });
+      return json({ error: "Collection management requires a paid plan. Please upgrade." }, { status: 402 });
+    }
 
     const sequenceId = params.id;
     if (!sequenceId) return json({ error: "Not Found" }, { status: 404 });

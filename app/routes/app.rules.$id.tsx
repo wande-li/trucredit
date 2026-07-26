@@ -20,6 +20,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import {
   getRule,
   createRule,
@@ -92,6 +93,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate: custom rules require paid plan
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.rules.$id plan_gate blocked", null, { shopId });
+      return json({ error: "Credit rules require a paid plan. Please upgrade." }, { status: 402 });
+    }
 
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();

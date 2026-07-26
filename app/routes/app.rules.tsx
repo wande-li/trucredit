@@ -339,9 +339,7 @@ function RuleRow({
   fetcherRef.current = fetcher;
 
   const handleAction = useCallback(
-    (e: React.MouseEvent, intent: string, extra?: Record<string, string>) => {
-      e.stopPropagation();
-      e.preventDefault();
+    (intent: string, extra?: Record<string, string>) => {
       const fd = new FormData();
       fd.append("intent", intent);
       fd.append("ruleId", rule.id);
@@ -400,7 +398,7 @@ function RuleRow({
           </Badge>
           <Button
             variant="plain"
-            onClick={(e: React.MouseEvent) => handleAction(e, "toggle", { isActive: String(!rule.isActive) })}
+            onClick={() => handleAction("toggle", { isActive: String(!rule.isActive) })}
             disabled={isBusy}
           >
             {rule.isActive ? "Disable" : "Enable"}
@@ -408,7 +406,7 @@ function RuleRow({
           <Button
             variant="plain"
             tone="critical"
-            onClick={(e: React.MouseEvent) => handleAction(e, "delete")}
+            onClick={() => handleAction("delete")}
             disabled={isBusy}
           >
             Delete

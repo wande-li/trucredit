@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { handleSubscriptionUpdate } from "~/services/billing.server";
-import { upsertCustomerFromShopify } from "~/services/customer.server";
+import { upsertCustomerFromShopify, checkCustomerQuota } from "~/services/customer.server";
 import { upsertCompanyContact } from "~/services/company.server";
 import { syncCreditMetafield, clearCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
@@ -134,9 +134,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       const dbShop = await prisma.shop.findUnique({
         where: { shopDomain: shopDomain.trim() },
-        select: { id: true },
+        select: { id: true, plan: true },
       });
       if (!dbShop) throw new Response("Shop not found", { status: 404 });
+
+      // Quota gate: skip new customers when plan quota exceeded
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { shopId: dbShop.id, shopifyCustomerId: String(p.id) },
+        select: { id: true },
+      });
+      if (!existingCustomer) {
+        const quota = await checkCustomerQuota(dbShop.id, dbShop.plan);
+        if (!quota.allowed) {
+          logger.app("WARN", "action:webhooks CUSTOMERS_UPDATE quota_exceeded skip", null, {
+            shopDomain: shopDomain.trim(),
+            current: quota.current,
+            limit: quota.limit,
+            plan: dbShop.plan,
+          });
+          return new Response(null, { status: 200 });
+        }
+      }
 
       const shopifyCustomerId = String(p.id);
       const email = String(p.email || "");
@@ -166,7 +184,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       const dbShop = await prisma.shop.findUnique({
         where: { shopDomain: shopDomain.trim() },
-        select: { id: true },
+        select: { id: true, plan: true },
       });
       if (!dbShop) throw new Response("Shop not found", { status: 404 });
 
@@ -176,9 +194,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string };
       }> = Array.isArray(p.contacts) ? p.contacts : [];
 
+      // Quota gate: check once before processing all contacts
+      let quotaChecked = false;
+      const getQuotaOk = async () => {
+        if (quotaChecked) return true;
+        const q = await checkCustomerQuota(dbShop.id, dbShop.plan);
+        quotaChecked = true;
+        if (!q.allowed) {
+          logger.app("WARN", `action:webhooks ${topic} quota_exceeded skip`, null, {
+            shopDomain: shopDomain.trim(),
+            current: q.current,
+            limit: q.limit,
+            plan: dbShop.plan,
+            contactCount: contacts.length,
+          });
+          return false;
+        }
+        return true;
+      };
+
       for (const contact of contacts) {
         const c = contact.customer;
         if (!c?.id || !c?.email) continue;
+
+        // Skip new contacts when quota exceeded (existing contacts still update)
+        const exists = await prisma.customer.findFirst({
+          where: { shopId: dbShop.id, shopifyCustomerId: String(c.id) },
+          select: { id: true },
+        });
+        if (!exists && !(await getQuotaOk())) continue;
 
         await upsertCompanyContact(dbShop.id, {
           shopifyCustomerId: String(c.id),

@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 
@@ -17,6 +18,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   logger.app("INFO", "action:api.team-members START");
   try {
     const { shopId, role: callerRole } = await resolveShop(request);
+    
+    // Plan gate: team management requires a paid plan
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:api.team-members plan_gate blocked", null, { shopId });
+      return json({ error: "Team management requires a paid plan. Please upgrade." }, { status: 402 });
+    }
     
     // Only admins can manage team members
     if (callerRole !== "admin") {

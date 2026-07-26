@@ -22,6 +22,7 @@ import {
   Modal,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import { requirePermission } from "~/services/rbac.server";
 import { getTemplateById, updateTemplate, deleteTemplate, sendTestEmail } from "~/services/email.server";
 import { fillTemplate, TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
@@ -63,6 +64,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate: email template editing requires paid plan
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.emails.$id plan_gate blocked", null, { shopId });
+      return json({ error: "Email management requires a paid plan. Please upgrade." }, { status: 402 });
+    }
+
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -492,7 +501,7 @@ export default function EmailTemplateDetail() {
           content: "Delete",
           destructive: true,
           onAction: handleDelete,
-          loading: deleteFetcher.state === "submitting",
+          loading: fetcher.state === "submitting",
         }}
         secondaryActions={[
           {

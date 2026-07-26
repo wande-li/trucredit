@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
@@ -24,7 +24,7 @@ import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { generateInvoiceNumber } from "~/types/invoice";
 import { COLLECTION } from "~/lib/constants";
-import { checkInvoiceQuota } from "~/services/billing.server";
+import { checkInvoiceQuota, checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
 
@@ -35,6 +35,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   logger.app("INFO", "loader:app.invoices.new START");
   try {
     const { shopId } = await resolveShop(request);
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) throw redirect("/app/billing");
 
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },
@@ -86,6 +90,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const { admin } = await authenticate.admin(request);
     const { shopId, shopDomain, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.invoices.new plan_gate blocked", null, { shopId });
+      return json({ error: "Creating invoices requires a paid plan. Please upgrade." }, { status: 402 });
+    }
 
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },

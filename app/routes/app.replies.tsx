@@ -105,6 +105,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
 
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.replies plan_gate blocked", null, { shopId });
+      return json({ error: "Reply management requires a paid plan. Please upgrade." }, { status: 402 });
+    }
+
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
 

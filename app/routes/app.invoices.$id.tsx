@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { downloadPDF } from "~/utils/export-csv";
@@ -30,6 +30,7 @@ import { requirePermission } from "~/services/rbac.server";
 import { sendCollectionEmail } from "~/services/email-delivery.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
+import { checkPlanAccess } from "~/services/billing.server";
 import prisma from "~/db.server";
 import { useState, useCallback, useEffect } from "react";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -42,6 +43,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   logger.app("INFO", "loader:app.invoices.$id START", null, { invoiceId: params.id });
   try {
     const { shopId } = await resolveShop(request);
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) throw redirect("/app/billing");
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });
@@ -110,6 +115,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const { admin } = await authenticate.admin(request);
     const { shopId, shopDomain, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.invoices.$id plan_gate blocked", null, { shopId });
+      return json({ error: "Invoice management requires a paid plan. Please upgrade." }, { status: 402 });
+    }
 
     if (!params.id) {
       throw new Response("Invoice ID required", { status: 400 });

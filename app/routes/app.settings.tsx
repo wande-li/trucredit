@@ -1,6 +1,6 @@
 // Settings Page — shop currency, timezone, email preferences
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
@@ -23,6 +23,7 @@ import {
 import { resolveShop } from "~/services/shop-resolver.server";
 import { requirePermission, getAvailableActions } from "~/services/rbac.server";
 import prisma from "~/db.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import { logger } from "~/services/logger.server";
 import { ROLE_LABELS, type Role } from "~/lib/constants";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -53,6 +54,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   logger.app("INFO", "loader:app.settings START");
   try {
     const { shopDomain, shopId, role } = await resolveShop(request);
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) return redirect("/app/billing");
+
     const [shop, teamMembers] = await Promise.all([
       prisma.shop.findUnique({
         where: { shopDomain },
@@ -92,8 +98,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const t0 = Date.now();
   logger.app("INFO", "action:app.settings START");
   try {
-    const { shopDomain, role } = await resolveShop(request);
+    const { shopDomain, role, shopId } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) {
+      logger.app("WARN", "action:app.settings plan_gate blocked", null, { shopId });
+      return json({ error: "Settings management requires a paid plan. Please upgrade." } satisfies ActionData);
+    }
+
     const formData = await request.formData();
     const intent = formData.get("intent");
 

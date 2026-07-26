@@ -1,6 +1,6 @@
 // Credit Rules — create / edit page
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
@@ -60,6 +60,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // Plan gate
+    const { isPaid } = await checkPlanAccess(shopId);
+    if (!isPaid) throw redirect("/app/billing");
 
     const isNew = params.id === "new";
     if (isNew) {

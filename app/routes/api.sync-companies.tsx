@@ -4,6 +4,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { syncAllCompanies } from "~/services/company.server";
+import { checkPlanAccess } from "~/services/billing.server";
 import { logger } from "~/services/logger.server";
 import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
 import prisma from "~/db.server";
@@ -37,11 +38,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
-    select: { id: true },
+    select: { id: true, plan: true },
   });
 
   if (!shop) {
     return json({ success: false, error: "Shop not found" }, { status: 404 });
+  }
+
+  // Plan gate
+  const { isPaid } = await checkPlanAccess(shop.id);
+  if (!isPaid) {
+    logger.app("WARN", "action:api.sync-companies plan_gate blocked", null, { shopDomain, shopId: shop.id });
+    return json({ error: "Company sync requires a paid plan. Please upgrade." }, { status: 402 });
   }
 
   try {

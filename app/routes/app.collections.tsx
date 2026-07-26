@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const description = formData.get("description")?.toString()?.trim();
         const triggerDays = parseInt(formData.get("triggerDays")?.toString() ?? "0", 10);
 
-        if (!name) return json({ error: "Name is required" }, { status: 400 });
+        if (!name) return json({ error: "Please enter a sequence name." }, { status: 400 });
 
         const seq = await createSequence({
           shopId,

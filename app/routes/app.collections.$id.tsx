@@ -94,7 +94,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const description = formData.get("description")?.toString()?.trim();
         const triggerDays = formData.get("triggerDays")?.toString();
 
-        if (!name) return json({ error: "Name is required" }, { status: 400 });
+        if (!name) return json({ error: "Please enter a sequence name." }, { status: 400 });
 
         const result = await updateSequence({
           sequenceId,
@@ -115,7 +115,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const toneLevel = parseInt(formData.get("toneLevel")?.toString() ?? "3", 10);
         const subject = formData.get("subject")?.toString()?.trim() || undefined;
 
-        if (order < 1) return json({ error: "Order must be >= 1" }, { status: 400 });
+        if (order < 1) return json({ error: "Step order must be 1 or higher." }, { status: 400 });
 
         const result = await addStep({
           sequenceId,
@@ -178,7 +178,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (idx === -1) return json({ error: "Step not found" }, { status: 400 });
 
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-        if (swapIdx < 0 || swapIdx >= steps.length) return json({ error: "Cannot move" }, { status: 400 });
+        if (swapIdx < 0 || swapIdx >= steps.length) return json({ error: "Unable to reorder step. Please try again." }, { status: 400 });
 
         [steps[idx], steps[swapIdx]] = [steps[swapIdx]!, steps[idx]!];
         const result = await reorderSteps(sequenceId, shopId, steps.map((s) => s.id));

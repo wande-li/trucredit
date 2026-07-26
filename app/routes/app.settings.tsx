@@ -127,7 +127,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       if (emailReplyTo.length > 320) {
         return json({
-          error: "Email address is too long (max 320 characters)",
+          error: "Please enter an email address under 320 characters.",
         } satisfies ActionData);
       }
     }
@@ -146,7 +146,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.settings ERROR", msg, { durationMs: Date.now() - t0 });
-    return json({ error: `Failed to save settings: ${msg}` } satisfies ActionData);
+    return json({ error: "Unable to save settings. Please try again." } satisfies ActionData);
   }
 };
 
@@ -183,6 +183,7 @@ export default function SettingsPage() {
   const [newMemberRole, setNewMemberRole] = useState("viewer");
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState("viewer");
+  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
 
   // Error message from fetcher data
   const errorMsg =
@@ -386,13 +387,18 @@ export default function SettingsPage() {
                           size="slim"
                           tone="critical"
                           onClick={() => {
-                            teamFetcher.submit(
-                              { intent: "remove-team-member", memberId: member.id },
-                              { method: "POST", action: "/api/team-members" },
-                            );
+                            if (removeConfirmId === member.id) {
+                              setRemoveConfirmId(null);
+                              teamFetcher.submit(
+                                { intent: "remove-team-member", memberId: member.id },
+                                { method: "POST", action: "/api/team-members" },
+                              );
+                            } else {
+                              setRemoveConfirmId(member.id);
+                            }
                           }}
                         >
-                          Remove
+                          {removeConfirmId === member.id ? "Confirm Remove?" : "Remove"}
                         </Button>
                       </InlineStack>
                     </InlineStack>

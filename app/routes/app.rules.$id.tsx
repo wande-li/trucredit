@@ -119,11 +119,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const isActive = formData.get("isActive") === "true";
     const action = formData.get("action")?.toString() as CreditAction | undefined;
 
-    if (!name) return json({ error: "Name is required" }, { status: 400 });
-    if (!action) return json({ error: "Action is required" }, { status: 400 });
+    if (!name) return json({ error: "Please enter a rule name." }, { status: 400 });
+    if (!action) return json({ error: "Please select an action." }, { status: 400 });
 
     const priority = parseInt(priorityStr, 10);
-    if (isNaN(priority)) return json({ error: "Invalid priority" }, { status: 400 });
+    if (isNaN(priority)) return json({ error: "Please enter a valid priority number." }, { status: 400 });
 
     // Build conditions from form fields
     const conditions: RuleConditions = {};
@@ -179,21 +179,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const limit = formData.get("actionLimit")?.toString();
         if (!limit) return json({ error: "Credit limit amount is required" }, { status: 400 });
         const num = parseFloat(limit);
-        if (isNaN(num) || num <= 0) return json({ error: "Invalid limit amount" }, { status: 400 });
+        if (isNaN(num) || num <= 0) return json({ error: "Please enter a valid credit limit amount." }, { status: 400 });
         actionValue.creditLimit = num;
         break;
       }
       case "SET_GRADE": {
         const grade = formData.get("actionGrade")?.toString();
-        if (!grade) return json({ error: "Grade is required" }, { status: 400 });
+        if (!grade) return json({ error: "Please select a credit grade." }, { status: 400 });
         actionValue.creditGrade = grade;
         break;
       }
       case "SET_TERMS": {
         const terms = formData.get("actionTerms")?.toString();
-        if (!terms) return json({ error: "Net terms days is required" }, { status: 400 });
-        const num = parseInt(terms, 10);
-        if (isNaN(num) || num <= 0) return json({ error: "Invalid net terms" }, { status: 400 });
+        if (!terms) return json({ error: "Please enter the net terms days." }, { status: 400 });
+        const num2 = parseInt(terms, 10);
+        if (isNaN(num2) || num2 <= 0) return json({ error: "Please enter a valid number of days." }, { status: 400 });
         actionValue.netTerms = num;
         break;
       }

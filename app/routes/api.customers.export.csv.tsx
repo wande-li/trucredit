@@ -80,7 +80,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:api.customers.export.csv ERROR", msg, { durationMs: Date.now() - t0 });
-    return new Response("Failed to export customers", { status: 500 });
+    return new Response("Unable to export customers. Please try again.", { status: 500 });
   }
 };
 

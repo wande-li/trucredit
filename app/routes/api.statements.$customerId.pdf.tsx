@@ -79,7 +79,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:api.statements.$customerId.pdf ERROR", msg, { durationMs: Date.now() - t0, customerId: params.customerId });
-    return new Response("Failed to generate statement PDF", { status: 500 });
+    return new Response("Unable to generate statement. Please try again.", { status: 500 });
   }
 };
 

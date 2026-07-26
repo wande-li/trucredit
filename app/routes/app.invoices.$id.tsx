@@ -155,7 +155,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "update-status": {
         const newStatus = formData.get("newStatus")?.toString() as InvoiceStatus | undefined;
 
-        if (!newStatus) return json({ error: "New status is required" }, { status: 400 });
+        if (!newStatus) return json({ error: "Please select a new status." }, { status: 400 });
 
         const currentInvoice = await prisma.invoice.findFirst({
           where: { id: params.id, shopId },
@@ -163,13 +163,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
 
         if (!currentInvoice) {
-          return json({ error: "Invoice not found" }, { status: 404 });
+          return json({ error: "Invoice not found. It may have been deleted." }, { status: 404 });
+
         }
 
         const allowed = INVOICE_TRANSITIONS[currentInvoice.status] as InvoiceStatus[];
         if (!allowed.includes(newStatus)) {
           return json(
-            { error: `Cannot transition from ${currentInvoice.status} to ${newStatus}` },
+            { error: "This status change is not allowed. Please refresh the page and try again." },
             { status: 400 },
           );
         }
@@ -239,7 +240,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const paymentAmount = parseFloat(formData.get("paymentAmount")?.toString() ?? "0");
         const paymentMethod = formData.get("paymentMethod")?.toString() ?? undefined;
         if (!paymentAmount || paymentAmount <= 0) {
-          return json({ error: "Enter a valid payment amount" }, { status: 400 });
+          return json({ error: "Please enter a valid payment amount." }, { status: 400 });
         }
         await recordPartialPayment({
           shopId,
@@ -275,7 +276,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           updateData.netTermsDays = parsed;
         }
         if (Object.keys(updateData).length === 0) {
-          return json({ error: "No fields to update" }, { status: 400 });
+          return json({ error: "No changes detected. Please modify a field before saving." }, { status: 400 });
         }
         await updateInvoice({
           shopId,
@@ -293,14 +294,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       case "send-invoice-email": {
         const currentInvoice = await getInvoice({ shopId, invoiceId: params.id! });
         if (!currentInvoice) {
-          return json({ error: "Invoice not found" }, { status: 404 });
+          return json({ error: "Invoice not found. It may have been deleted." }, { status: 404 });
+
         }
         const invCustomer = await prisma.customer.findUnique({
           where: { id: currentInvoice.customerId },
           select: { email: true, name: true, company: true },
         });
         if (!invCustomer?.email) {
-          return json({ error: "Customer has no email address" }, { status: 400 });
+          return json({ error: "This customer does not have an email address on file. Please update the customer record first." }, { status: 400 });
         }
         const daysOverdue = Math.max(
           0,
@@ -325,7 +327,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
         if (!result.sent) {
           logger.app("WARN", "action:app.invoices.$id send-invoice-email failed", result.error);
-          return json({ error: result.error ?? "Failed to send email" }, { status: 500 });
+          return json({ error: "Unable to send the email. Please check your email settings and try again." }, { status: 500 });
         }
         logger.app("INFO", "action:app.invoices.$id send-invoice-email OK", null, {
           durationMs: Date.now() - ta,
@@ -378,6 +380,7 @@ export default function InvoiceDetail() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [editAmount, setEditAmount] = useState(Number(invoice.amount).toFixed(2));
   const [editNetTerms, setEditNetTerms] = useState(invoice.netTermsDays?.toString() ?? "30");
+  const [pendingStatusConfirm, setPendingStatusConfirm] = useState<string | null>(null);
 
   const isPaid = invoice.status === "PAID";
   const isVoid = invoice.status === "VOID";
@@ -787,18 +790,35 @@ export default function InvoiceDetail() {
                     {/* Other Status Transitions */}
                     {allowedTransitions
                       .filter((s) => s !== "PAID")
-                      .map((targetStatus) => (
-                        <Button
-                          key={targetStatus}
-                          onClick={() => handleStatusChange(targetStatus)}
-                          variant={targetStatus === "VOID" ? "plain" : "secondary"}
-                          tone={targetStatus === "DISPUTED" ? "critical" : undefined}
-                          fullWidth
-                          loading={isBusy("update-status")}
-                        >
-                          Mark as {statusLabel[targetStatus] ?? targetStatus}
-                        </Button>
-                      ))}
+                      .map((targetStatus) => {
+                        const isDestructive = targetStatus === "DISPUTED" || targetStatus === "VOID";
+                        const needsConfirm = isDestructive && pendingStatusConfirm !== targetStatus;
+                        return (
+                          <Button
+                            key={targetStatus}
+                            onClick={() => {
+                              if (isDestructive) {
+                                if (pendingStatusConfirm === targetStatus) {
+                                  setPendingStatusConfirm(null);
+                                  handleStatusChange(targetStatus);
+                                } else {
+                                  setPendingStatusConfirm(targetStatus);
+                                }
+                              } else {
+                                handleStatusChange(targetStatus);
+                              }
+                            }}
+                            variant={targetStatus === "VOID" ? "primary" : "secondary"}
+                            tone={targetStatus === "DISPUTED" ? "critical" : targetStatus === "VOID" ? "critical" : undefined}
+                            fullWidth
+                            loading={isBusy("update-status")}
+                          >
+                            {needsConfirm
+                              ? `Confirm: Mark as ${statusLabel[targetStatus] ?? targetStatus}?`
+                              : `Mark as ${statusLabel[targetStatus] ?? targetStatus}`}
+                          </Button>
+                        );
+                      })}
 
                     <Divider />
 

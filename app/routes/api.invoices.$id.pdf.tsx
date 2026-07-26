@@ -18,13 +18,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     const invoiceId = params.id;
     if (!invoiceId) {
-      return new Response("Invoice ID is required", { status: 400 });
+      return new Response("An invoice is required to generate a PDF.", { status: 400 });
     }
 
     // Fetch invoice
     const invoice = await getInvoice({ shopId, invoiceId });
     if (!invoice) {
-      return new Response("Invoice not found", { status: 404 });
+      return new Response("Unable to generate PDF. The invoice could not be found.", { status: 404 });
     }
 
     // Fetch customer info
@@ -71,7 +71,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "loader:api.invoices.$id.pdf ERROR", msg, { durationMs: Date.now() - t0, invoiceId: params.id });
-    return new Response("Failed to generate PDF", { status: 500 });
+    return new Response("Unable to generate PDF. Please try again.", { status: 500 });
   }
 };
 

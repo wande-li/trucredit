@@ -551,7 +551,6 @@ function StepRow({
         <Badge tone={step.toneLevel <= 2 ? "success" : step.toneLevel <= 4 ? "attention" : "critical"}>
           {`Tone ${step.toneLevel}`}
         </Badge>
-        {step.skipIfPaid && <Badge tone="new">Auto-skip if paid</Badge>}
         {step.useAI && <Badge tone="new">AI Generated</Badge>}
         {step.subject && (
           <Text as="span" tone="subdued" truncate>

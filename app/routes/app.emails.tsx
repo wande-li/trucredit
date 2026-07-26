@@ -20,6 +20,7 @@ import {
   BlockStack,
   InlineStack,
   Box,
+  EmptyState,
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { requirePermission } from "~/services/rbac.server";
@@ -248,17 +249,15 @@ function EmailsList() {
         {items.length === 0 ? (
           <Card>
             <Box padding="800">
-              <BlockStack gap="400" align="center">
-                <BlockStack gap="200" align="center">
-                  <Text as="h2" variant="headingMd">No email templates yet</Text>
-                  <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
-                    Create your first email template to customize collection emails.
-                  </Text>
-                </BlockStack>
-                <Button variant="primary" onClick={() => setShowCreate(true)}>
-                  Create Template
-                </Button>
-              </BlockStack>
+              <EmptyState
+                heading="No email templates yet"
+                image=""
+                action={{ content: "Create Template", onAction: () => setShowCreate(true) }}
+              >
+                <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                  Create your first email template to customize collection emails.
+                </Text>
+              </EmptyState>
             </Box>
           </Card>
         ) : (

@@ -27,6 +27,7 @@ import { PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Collection Tasks" }];
@@ -514,6 +515,11 @@ export default function TasksPage() {
       </BlockStack>
     </Page>
   );
+}
+
+// Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 
 // Route-level ErrorBoundary

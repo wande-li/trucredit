@@ -29,6 +29,7 @@ import type { ReplyIntent } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Reply History" }];
@@ -452,6 +453,11 @@ function ReplyDetailModal({
       </Modal.Section>
     </Modal>
   );
+}
+
+// Route-level loading skeleton
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 
 // Route-level ErrorBoundary

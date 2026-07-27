@@ -417,7 +417,7 @@ export default function Dashboard() {
 
           {/* P3: Last updated timestamp */}
           <Text as="p" variant="bodySm" tone="subdued" alignment="end">
-            Last refreshed: {new Date(generatedAt).toLocaleString(undefined, {
+            Last refreshed: {new Date(generatedAt).toLocaleString("en-US", {
               month: "short",
               day: "numeric",
               hour: "2-digit",

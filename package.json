@@ -17,6 +17,7 @@
     "lint-staged": "lint-staged",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/pre-delivery-check.cjs",
+    "pre-deploy": "powershell scripts/pre-deploy.ps1",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

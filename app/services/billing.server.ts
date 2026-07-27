@@ -106,7 +106,7 @@ export const PLANS: PlanDefinition[] = [
       { key: "ai", label: "AI email generation", included: true },
       { key: "replies", label: "Reply classification", included: true },
       { key: "sequences", label: "Auto sequences", included: true },
-      { key: "rules", label: "Custom rules engine", included: false },
+      { key: "rules", label: "Custom rules engine", included: true },
       { key: "priority", label: "Priority support", included: true },
       { key: "dedicated", label: "Dedicated support", included: false },
     ],

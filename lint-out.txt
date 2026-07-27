@@ -1,14 +1,22 @@
-
+﻿
 > trucredit@1.1.0 lint
 > eslint --cache --cache-location ./node_modules/.cache/eslint .
 
-⚠️ REMIX FUTURE CHANGE: The `@remix-run/eslint-config` package is deprecated and will not be included in React Router v7.  We recommend moving towards a streamlined ESLint config such as the ones included in the Remix templates. See https://github.com/remix-run/remix/blob/v2/templates/remix/.eslintrc.cjs.
+node.exe : ⚠️ REMIX FUTURE CHANGE: The `@remix-run/eslint-config` package is deprecated and will not be included in Rea
+ct Router v7.  We recommend moving towards a streamlined ESLint config such as the ones included in the Remix templates
+. See https://github.com/remix-run/remix/blob/v2/templates/remix/.eslintrc.cjs.
+所在位置 C:\Program Files\nodejs\npm.ps1:29 字符: 3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (⚠️ REMIX FUTURE.../.eslintrc.cjs.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\app\routes\app._index.tsx
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\app\routes\app._index.tsx
   406:14  error  'Banner' is not defined  react/jsx-no-undef
   418:14  error  'Banner' is not defined  react/jsx-no-undef
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\CSSTransition-iiSV-r1y.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\CSSTransition-iiSV-r1y.js
    1:122   error    'J' is a function                                                                                                                                          no-func-assign
    1:293   warning  Unexpected use of comma operator                                                                                                                           no-sequences
    1:484   error    'ue' is a function                                                                                                                                         no-func-assign
@@ -100,12 +108,12 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\CSSTransitio
   13:8735  warning  Unexpected use of comma operator                                                                                                                           no-sequences
   13:8807  warning  Expected an assignment or function call and instead saw an expression                                                                                      no-unused-expressions
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Checkbox-DNOQP3KY.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Checkbox-DNOQP3KY.js
   1:2553  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:2631  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:2668  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\DataTable-UqAeUXtf.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\DataTable-UqAeUXtf.js
   1:591    warning  Unexpected use of comma operator                                       no-sequences
   1:1118   warning  Unexpected use of comma operator                                       no-sequences
   1:1553   warning  Unexpected use of comma operator                                       no-sequences
@@ -137,11 +145,11 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\DataTable-Uq
   1:17401  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:17426  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\FormLayout-BrddUeml.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\FormLayout-BrddUeml.js
   1:486  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:560  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\IndexTable-grMuZGnq.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\IndexTable-grMuZGnq.js
   1:668    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:677    warning  Unexpected use of comma operator                                       no-sequences
   1:690    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -192,10 +200,10 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\IndexTable-g
   1:29854  warning  Unexpected use of comma operator                                       no-sequences
   1:30666  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\LegacyStack-DfKLTHJF.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\LegacyStack-DfKLTHJF.js
   1:273  error  React Hook "S.useCallback" is called in function "v" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Modal-DZWXrqcN.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Modal-DZWXrqcN.js
   1:742    error    'e' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
   1:804    warning  Unexpected use of comma operator                                                   no-sequences
   1:841    warning  Unexpected use of comma operator                                                   no-sequences
@@ -225,7 +233,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Modal-DZWXrq
   1:10909  warning  Expected an assignment or function call and instead saw an expression              no-unused-expressions
   1:11093  warning  Unexpected use of comma operator                                                   no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Page-OraG3Zoc.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Page-OraG3Zoc.js
   1:1396   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1408   warning  Unexpected use of comma operator                                       no-sequences
   1:1435   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -246,7 +254,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Page-OraG3Zo
   1:13805  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:13820  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Popover-DtVy-gmZ.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Popover-DtVy-gmZ.js
   1:178     warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:206     warning  Unexpected use of comma operator                                       no-sequences
   1:3727    warning  Unexpected use of comma operator                                       no-sequences
@@ -412,7 +420,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Popover-DtVy
   2:212671  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   2:212715  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Select-DWwkGBqo.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Select-DWwkGBqo.js
   1:811   error    React Hook "S.useId" is called in function "le" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"        react-hooks/rules-of-hooks
   1:896   error    React Hook "S.useCallback" is called in function "le" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
   1:914   warning  Expected an assignment or function call and instead saw an expression                                                                                                                                                                          no-unused-expressions
@@ -426,13 +434,13 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Select-DWwkG
   1:2469  warning  Unexpected use of comma operator                                                                                                                                                                                                               no-sequences
   1:2515  error    'l' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                   @typescript-eslint/no-unused-vars
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Sticky-2Kav0fd8.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\Sticky-2Kav0fd8.js
   1:231  warning  Unexpected use of comma operator                                       no-sequences
   1:411  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:422  warning  Unexpected use of comma operator                                       no-sequences
   1:668  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app-BwpnsZN1.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app-BwpnsZN1.js
   1:802    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:820    warning  Unexpected use of comma operator                                       no-sequences
   1:857    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -471,10 +479,10 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app-BwpnsZN1
   1:19488  warning  Unexpected use of comma operator                                       no-sequences
   1:20103  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app._index-Des_OnQY.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app._index-Des_OnQY.js
   1:2065  warning  Unexpected use of comma operator  no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collections-Br_kMPom.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collections-Br_kMPom.js
   1:2509  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:2565  warning  Unexpected use of comma operator                                       no-sequences
   1:2746  warning  Unexpected use of comma operator                                       no-sequences
@@ -482,7 +490,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collecti
   1:5941  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:5967  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collections._id-DxjG1REC.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collections._id-DxjG1REC.js
   1:3578   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:3591   warning  Unexpected use of comma operator                                       no-sequences
   1:3723   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -502,7 +510,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.collecti
   1:10454  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:10558  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers-uYqqfGIf.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers-uYqqfGIf.js
   1:806   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:844   warning  Unexpected use of comma operator                                       no-sequences
   1:930   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -510,7 +518,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customer
   1:1036  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1059  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers._id-Fl6FlK2g.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers._id-Fl6FlK2g.js
   1:1110  warning  Unexpected use of comma operator  no-sequences
   1:1796  warning  Unexpected use of comma operator  no-sequences
   1:2729  error    'assessment' is not defined       no-undef
@@ -523,10 +531,10 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customer
   1:3518  error    'assessment' is not defined       no-undef
   1:3609  error    'assessment' is not defined       no-undef
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers.new-Dc2FWfqD.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.customers.new-Dc2FWfqD.js
   1:1886  error  'E' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails-BEqUDVvS.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails-BEqUDVvS.js
   1:1190  warning  Unexpected use of comma operator                                       no-sequences
   1:1222  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:3514  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -535,7 +543,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails-B
   1:4213  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:4240  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails._id-BG4OAVg-.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails._id-BG4OAVg-.js
   1:1271  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1275  warning  Unexpected use of comma operator                                       no-sequences
   1:1363  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -544,7 +552,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.emails._
   1:1893  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1923  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices-BLqRSPsR.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices-BLqRSPsR.js
   1:1171   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1662   warning  Unexpected use of comma operator                                       no-sequences
   1:1740   warning  Unexpected use of comma operator                                       no-sequences
@@ -608,18 +616,18 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices
   1:22648  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:22678  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices._id-Dhth_S52.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices._id-Dhth_S52.js
   1:957   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:984   warning  Unexpected use of comma operator                                       no-sequences
   1:1094  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1125  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices.new-DZOFUvgA.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.invoices.new-DZOFUvgA.js
   1:911   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:935   warning  Unexpected use of comma operator                                       no-sequences
   1:2987  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.replies-BIXHLgtv.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.replies-BIXHLgtv.js
   1:1554  warning  Unexpected use of comma operator                                       no-sequences
   1:1655  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1659  warning  Unexpected use of comma operator                                       no-sequences
@@ -628,11 +636,11 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.replies-
   1:4291  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:4354  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.rules-CyKrD33S.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.rules-CyKrD33S.js
   1:2482  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:2505  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.rules._id-Ccj4ZIyq.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.rules._id-Ccj4ZIyq.js
   1:2021  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:2043  warning  Unexpected use of comma operator                                       no-sequences
   1:3206  error    'a' is defined but never used. Allowed unused args must match /^_/u    @typescript-eslint/no-unused-vars
@@ -647,18 +655,18 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.rules._i
   1:6159  error    'a' is defined but never used. Allowed unused args must match /^_/u    @typescript-eslint/no-unused-vars
   1:6446  error    'a' is defined but never used. Allowed unused args must match /^_/u    @typescript-eslint/no-unused-vars
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.settings-Dt9HhitH.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.settings-Dt9HhitH.js
   1:1925  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1930  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.tasks-CuzJNbCM.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\app.tasks-CuzJNbCM.js
   1:1488  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:1538  warning  Unexpected use of comma operator                                       no-sequences
   1:1705  warning  Unexpected use of comma operator                                       no-sequences
   1:1783  warning  Unexpected use of comma operator                                       no-sequences
   1:1839  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\components-BGAN7yEl.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\components-BGAN7yEl.js
     9:66     error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                                                                                                                                                                no-undef
     9:138    error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                                                                                                                                                                no-undef
     9:254    warning  Expected an assignment or function call and instead saw an expression                                                                                                                                                                          no-unused-expressions
@@ -3085,7 +3093,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\components-B
   299:392    error    '__remixContext' is not defined                                                                                                                                                                                                                no-undef
   299:1220   warning  Unexpected use of comma operator                                                                                                                                                                                                               no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\constants-DOVVLNiX.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\constants-DOVVLNiX.js
   1:48    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:68    warning  Unexpected use of comma operator                                       no-sequences
   1:166   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -3108,11 +3116,11 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\constants-DO
   1:3308  warning  Unexpected use of comma operator                                       no-sequences
   1:3351  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\email-utils-DTdMyhGd.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\email-utils-DTdMyhGd.js
   1:76   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:104  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\entry.client-DmTsOHV_.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\entry.client-DmTsOHV_.js
   10:301   warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   10:316   warning  Unexpected use of comma operator                                       no-sequences
   10:329   error    Empty block statement                                                  no-empty
@@ -3129,11 +3137,11 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\entry.client
   19:2034  warning  Unexpected use of comma operator                                       no-sequences
   19:2667  warning  Block is redundant                                                     no-lone-blocks
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\error-boundary.shared-B1WNNLS6.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\error-boundary.shared-B1WNNLS6.js
   1:845  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   1:863  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\index-C3fBhJDi.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\index-C3fBhJDi.js
    9:646    warning  Nested block is redundant                                                                            no-lone-blocks
    9:763    warning  Nested block is redundant                                                                            no-lone-blocks
    9:818    warning  Expected an assignment or function call and instead saw an expression                                no-unused-expressions
@@ -3549,7 +3557,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\index-C3fBhJ
   43:9981   warning  Expected an assignment or function call and instead saw an expression                                no-unused-expressions
   43:10874  warning  Unexpected use of comma operator                                                                     no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\polaris-icons-BirN9PP3.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\polaris-icons-BirN9PP3.js
    1:481    warning  Expected an assignment or function call and instead saw an expression                                no-unused-expressions
    9:66     error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                      no-undef
    9:138    error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                      no-undef
@@ -3736,17 +3744,17 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\polaris-icon
   31:6111   error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                      no-undef
   31:6182   error    '__REACT_DEVTOOLS_GLOBAL_HOOK__' is not defined                                                      no-undef
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\root-Lcq8dET6.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\client\assets\root-Lcq8dET6.js
   10:491  warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
   10:507  warning  Unexpected use of comma operator                                       no-sequences
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\collection.worker-IS6K0wTk.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\collection.worker-IS6K0wTk.js
   17:1  warning  `'react'` imported without a local `React` binding  react/no-typos
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\email.worker-BXAJq1is.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\email.worker-BXAJq1is.js
   18:1  warning  `'react'` imported without a local `React` binding  react/no-typos
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\server-build--KgjDqhT.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\server-build--KgjDqhT.js
    227:1    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
    230:1    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
    231:1    warning  Expected an assignment or function call and instead saw an expression  no-unused-expressions
@@ -3771,12 +3779,12 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\server-build
   3426:9    error    'assessment' is not defined                                            no-undef
   3426:156  error    'assessment' is not defined                                            no-undef
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\sync.server-BCEn-OLY.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\assets\sync.server-BCEn-OLY.js
    16:1   warning  `'react'` imported without a local `React` binding  react/no-typos
   132:36  error    'result' is not defined                             no-undef
   133:33  error    'result' is not defined                             no-undef
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\index.js
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\index.js
    2:1  error    Import in body of module; reorder to top            import/first
    3:1  error    Import in body of module; reorder to top            import/first
    4:1  error    Import in body of module; reorder to top            import/first
@@ -3799,7 +3807,7 @@ c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\build\server\index.js
   20:1  error    Import in body of module; reorder to top            import/first
   21:1  error    Import in body of module; reorder to top            import/first
 
-c:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\e2e\golden-path.spec.ts
+C:\Users\BW-LP-093\WorkBuddy\shopify-b2b-credit\e2e\golden-path.spec.ts
   141:22  error  'path' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 ✖ 3712 problems (387 errors, 3325 warnings)

@@ -134,7 +134,7 @@ describe("hasFeature", () => {
     expect(hasFeature("PRO", "replyClassification")).toBe(true);
     expect(hasFeature("PRO", "autoSequences")).toBe(true);
     expect(hasFeature("PRO", "prioritySupport")).toBe(true);
-    expect(hasFeature("PRO", "customRules")).toBe(false);
+    expect(hasFeature("PRO", "customRules")).toBe(true);
     expect(hasFeature("PRO", "dedicatedSupport")).toBe(false);
   });
 

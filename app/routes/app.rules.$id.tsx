@@ -20,7 +20,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { checkPlanAccess } from "~/services/billing.server";
+import { checkPlanAccess, hasFeature } from "~/services/billing.server";
 import {
   getRule,
   createRule,
@@ -63,8 +63,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     requirePermission(role, "edit");
 
     // Plan gate
-    const { isPaid } = await checkPlanAccess(shopId);
+    const { isPaid, plan } = await checkPlanAccess(shopId);
     if (!isPaid) throw redirect("/app/billing");
+    if (!hasFeature(plan, 'customRules')) throw redirect("/app/billing");
 
     const isNew = params.id === "new";
     if (isNew) {

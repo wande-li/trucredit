@@ -1,0 +1,113 @@
+﻿
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mC:/Users/BW-LP-093/WorkBuddy/shopify-b2b-credit[39m
+
+ [32m✓[39m app/types/__tests__/collection.test.ts [2m([22m[2m47 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m app/services/__tests__/checkout.server.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m app/routes/__tests__/webhooks.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 245[2mms[22m[39m
+ [32m✓[39m app/services/__tests__/constants.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m app/services/__tests__/billing-webhook.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mreturns perfect 100 for ideal customer
+[22m[39m{"timestamp":"2026-07-27T06:47:18.787Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":100,"revenue":500000}}
+{"timestamp":"2026-07-27T06:47:18.793Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":100}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mreturns low score for risky customer
+[22m[39m{"timestamp":"2026-07-27T06:47:18.799Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":1,"revenue":100}}
+{"timestamp":"2026-07-27T06:47:18.799Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":23}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mclamps score to 0-100 range
+[22m[39m{"timestamp":"2026-07-27T06:47:18.801Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":10000,"revenue":10000000}}
+{"timestamp":"2026-07-27T06:47:18.802Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":100}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mhandles null onTimePaymentRate (defaults to 0.5)
+[22m[39m{"timestamp":"2026-07-27T06:47:18.803Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":5,"revenue":5000}}
+{"timestamp":"2026-07-27T06:47:18.804Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":56}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mhandles zero credit limit (100% utilization = 0 score)
+[22m[39m{"timestamp":"2026-07-27T06:47:18.806Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":10,"revenue":10000}}
+{"timestamp":"2026-07-27T06:47:18.807Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":57}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mcalculateCreditScore[2m > [22m[2mcomponent sum equals score within rounding tolerance
+[22m[39m{"timestamp":"2026-07-27T06:47:18.810Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":20,"revenue":50000}}
+{"timestamp":"2026-07-27T06:47:18.811Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":76}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 95 → grade A_PLUS
+[22m[39m{"timestamp":"2026-07-27T06:47:18.814Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":95,"grade":"A_PLUS"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 90 → grade A_PLUS
+[22m[39m{"timestamp":"2026-07-27T06:47:18.816Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":90,"grade":"A_PLUS"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 89 → grade A
+[22m[39m{"timestamp":"2026-07-27T06:47:18.817Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":89,"grade":"A"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 80 → grade A
+[22m[39m{"timestamp":"2026-07-27T06:47:18.819Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":80,"grade":"A"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 79 → grade B
+[22m[39m{"timestamp":"2026-07-27T06:47:18.820Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":79,"grade":"B"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 70 → grade B
+[22m[39m{"timestamp":"2026-07-27T06:47:18.821Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":70,"grade":"B"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 69 → grade C
+[22m[39m{"timestamp":"2026-07-27T06:47:18.822Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":69,"grade":"C"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 60 → grade C
+[22m[39m{"timestamp":"2026-07-27T06:47:18.823Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":60,"grade":"C"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 59 → grade D
+[22m[39m{"timestamp":"2026-07-27T06:47:18.824Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":59,"grade":"D"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 50 → grade D
+[22m[39m{"timestamp":"2026-07-27T06:47:18.826Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":50,"grade":"D"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 49 → grade F
+[22m[39m{"timestamp":"2026-07-27T06:47:18.827Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":49,"grade":"F"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mscoreToGrade[2m > [22m[2mscore 0 → grade F
+[22m[39m{"timestamp":"2026-07-27T06:47:18.828Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":0,"grade":"F"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mrecommendCreditLimit[2m > [22m[2mrecommends higher limits for A+ customers
+[22m[39m{"timestamp":"2026-07-27T06:47:18.832Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"A_PLUS","limit":83495}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mrecommendCreditLimit[2m > [22m[2mrecommends low limits for F grade
+[22m[39m{"timestamp":"2026-07-27T06:47:18.833Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"F","limit":750}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2mrecommendCreditLimit[2m > [22m[2mincludes order volume bonus
+[22m[39m{"timestamp":"2026-07-27T06:47:18.834Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"A","limit":37747}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2massessCredit[2m > [22m[2mfull assessment includes all fields
+[22m[39m{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.assessCredit START","error":"null","context":{"orders":50,"revenue":200000}}
+{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":50,"revenue":200000}}
+{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":88}}
+{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":88,"grade":"A"}}
+{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"A","limit":43253}}
+{"timestamp":"2026-07-27T06:47:18.836Z","level":"INFO","service":"App","message":"credit.assessCredit OK","error":"null","context":{"score":88,"grade":"A","riskLevel":"LOW"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2massessCredit[2m > [22m[2mgenerates warnings for high utilization
+[22m[39m{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.assessCredit START","error":"null","context":{"orders":30,"revenue":100000}}
+{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":30,"revenue":100000}}
+{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":64}}
+{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":64,"grade":"C"}}
+{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"C","limit":10500}}
+{"timestamp":"2026-07-27T06:47:18.838Z","level":"INFO","service":"App","message":"credit.assessCredit OK","error":"null","context":{"score":64,"grade":"C","riskLevel":"MEDIUM"}}
+
+[90mstdout[2m | app/services/__tests__/credit.server.test.ts[2m > [22m[2massessCredit[2m > [22m[2mgenerates warnings for low payment rate
+[22m[39m{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.assessCredit START","error":"null","context":{"orders":10,"revenue":50000}}
+{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.calculateCreditScore START","error":"null","context":{"orders":10,"revenue":50000}}
+{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.calculateCreditScore OK","error":"null","context":{"score":68}}
+{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.scoreToGrade OK","error":"null","context":{"score":68,"grade":"C"}}
+{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.recommendCreditLimit OK","error":"null","context":{"grade":"C","limit":8349}}
+{"timestamp":"2026-07-27T06:47:18.840Z","level":"INFO","service":"App","message":"credit.assessCredit OK","error":"null","context":{"score":68,"grade":"C","riskLevel":"MEDIUM"}}
+
+ [32m✓[39m app/services/__tests__/credit.server.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m app/services/__tests__/invoice.server.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+[90mstdout[2m | app/services/__tests__/billing.server.test.ts
+[22m[39m[shopify-api/INFO] version 13.1.0, environment Remix (Node)
+
+ [32m✓[39m app/services/__tests__/billing.server.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[32m181 passed[39m[22m[90m (181)[39m
+[2m   Start at [22m 14:47:14
+[2m   Duration [22m 5.79s[2m (transform 3.17s, setup 0ms, collect 17.22s, tests 563ms, environment 14ms, prepare 7.07s)[22m
+

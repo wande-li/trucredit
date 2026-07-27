@@ -1,0 +1,6 @@
+﻿app/routes/app._index.tsx(406,14): error TS2304: Cannot find name 'Banner'.
+app/routes/app._index.tsx(413,15): error TS2304: Cannot find name 'Banner'.
+app/routes/app._index.tsx(418,14): error TS2304: Cannot find name 'Banner'.
+app/routes/app._index.tsx(422,15): error TS2304: Cannot find name 'Banner'.
+e2e/golden-path.spec.ts(63,12): error TS18047: 'text' is possibly 'null'.
+e2e/golden-path.spec.ts(141,22): error TS6133: 'path' is declared but its value is never read.

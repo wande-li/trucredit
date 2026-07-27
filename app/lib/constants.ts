@@ -71,7 +71,7 @@ export const PLANS = {
     displayFeatures: [
       "Up to 50 customers",
       "Up to 100 invoices",
-      "Advanced AI credit scoring",
+      "Advanced credit scoring",
       "Automated collections",
       "AI email generation",
     ],

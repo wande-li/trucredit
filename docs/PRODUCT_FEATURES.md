@@ -9,7 +9,7 @@
 
 | Feature | Description | File |
 |---------|-------------|------|
-| Auto Credit Limit Calculation | AI-powered credit scoring based on order history, payment behavior, and risk profile | `services/credit.server.ts` |
+| Auto Credit Limit Calculation | Algorithmic credit scoring based on order history, payment behavior, and risk profile | `services/credit.server.ts` |
 | Manual Credit Limit Adjustment | Admin/Manager can override or lock credit limits per customer | `components/credit/CreditLimitModal.tsx` |
 | Credit Risk Grading | A/B/C/D grade auto-classification with visual badges | `components/credit/CustomerStatusBadge.tsx` |
 | Credit Checkout Interception | Real-time credit validation at Shopify checkout — blocks orders exceeding available credit | `services/checkout.server.ts`, `api.storefront-collect.tsx` |
@@ -36,7 +36,7 @@
 | Invoice PDF | Generate branded PDF invoice with company info, line items, terms | `api.invoices.$id.pdf.tsx`, `services/pdf.server.ts` |
 | Statement PDF | Multi-invoice account statement per customer | `api.statements.$customerId.pdf.tsx` |
 | CSV Export | Export filtered invoice data | `api.invoices.export.csv.tsx` |
-| Custom Ordering | Drag-and-drop reorder of invoice line items | `services/invoice-ordering.server.ts` |
+| Custom Ordering | Shopify Draft Order creation + invoice sending | `services/draft-order.server.ts` |
 | Status Tracking | Auto-managed status lifecycle: open → overdue (based on due date) | `services/invoice.server.ts` |
 
 ## 4. Collections Engine

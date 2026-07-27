@@ -76,7 +76,7 @@ export const PLANS: PlanDefinition[] = [
     features: [
       { key: "customers", label: "Up to 50 customers", included: true },
       { key: "invoices", label: "Up to 100 invoices", included: true },
-      { key: "credit", label: "Advanced AI credit scoring", included: true },
+      { key: "credit", label: "Advanced credit scoring", included: true },
       { key: "collections", label: "Automated collections", included: true },
       { key: "ai", label: "AI email generation", included: true },
       { key: "replies", label: "Reply classification", included: false },
@@ -101,7 +101,7 @@ export const PLANS: PlanDefinition[] = [
     features: [
       { key: "customers", label: "Up to 200 customers", included: true },
       { key: "invoices", label: "Up to 500 invoices", included: true },
-      { key: "credit", label: "Advanced AI credit scoring", included: true },
+      { key: "credit", label: "Advanced credit scoring", included: true },
       { key: "collections", label: "Automated collections", included: true },
       { key: "ai", label: "AI email generation", included: true },
       { key: "replies", label: "Reply classification", included: true },
@@ -125,7 +125,7 @@ export const PLANS: PlanDefinition[] = [
     features: [
       { key: "customers", label: "Up to 500 customers", included: true },
       { key: "invoices", label: "Up to 2,000 invoices", included: true },
-      { key: "credit", label: "Advanced AI credit scoring", included: true },
+      { key: "credit", label: "Advanced credit scoring", included: true },
       { key: "collections", label: "Automated collections", included: true },
       { key: "ai", label: "AI email generation", included: true },
       { key: "replies", label: "Reply classification", included: true },

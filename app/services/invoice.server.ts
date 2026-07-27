@@ -12,7 +12,7 @@ import type {
   AgingBucket,
   PaginatedResult,
 } from "~/types";
-import { createCollectionDraftOrder } from "~/services/invoice-ordering.server";
+import { createCollectionDraftOrder } from "~/services/draft-order.server";
 import { logger } from "~/services/logger.server";
 
 // Reusable select row types to avoid implicit any

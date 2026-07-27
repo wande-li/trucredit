@@ -37,7 +37,9 @@ import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
 import { checkPlanAccess } from "~/services/billing.server";
 import prisma from "~/db.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
+import { DEFAULT_LOCALE } from "~/lib/constants";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Customer Detail" }];
 
@@ -585,7 +587,7 @@ export default function CustomerDetailPage() {
                                 {inv.invoiceNumber}
                               </Text>
                               <Text as="span" variant="bodySm" tone="subdued">
-                                Due {new Date(inv.dueDate).toLocaleDateString('en-US')}
+                                Due {new Date(inv.dueDate).toLocaleDateString(DEFAULT_LOCALE)}
                               </Text>
                             </BlockStack>
                             <BlockStack gap="050" align="end">
@@ -623,7 +625,7 @@ export default function CustomerDetailPage() {
                     </Text>
                     {customer.frozenAt && (
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Since {new Date(customer.frozenAt).toLocaleDateString('en-US')}
+                        Since {new Date(customer.frozenAt).toLocaleDateString(DEFAULT_LOCALE)}
                       </Text>
                     )}
                   </BlockStack>
@@ -732,7 +734,7 @@ export default function CustomerDetailPage() {
                               )}
                           </BlockStack>
                           <Text as="span" variant="bodySm" tone="subdued">
-                            {new Date(event.createdAt).toLocaleDateString('en-US')}
+                            {new Date(event.createdAt).toLocaleDateString(DEFAULT_LOCALE)}
                           </Text>
                         </InlineStack>
                       </Box>
@@ -764,5 +766,9 @@ export default function CustomerDetailPage() {
 // Route-level ErrorBoundary
 export function ErrorBoundary() {
   return <RouteErrorBoundary />;
+}
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 

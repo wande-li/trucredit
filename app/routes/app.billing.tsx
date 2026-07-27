@@ -25,6 +25,7 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
+import PageSkeleton from "~/components/PageSkeleton";
 import { logger } from "~/services/logger.server";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Billing & Plan" }];
@@ -298,18 +299,12 @@ function PlanCard({
         <BlockStack gap="050">
           <Text as="p" variant="bodySm">
             <strong>
-              {plan.customerQuota === Infinity || plan.customerQuota === "Unlimited"
-                ? "Unlimited"
-                : plan.customerQuota}{" "}
-              customers
+              {plan.customerQuota} customers
             </strong>
           </Text>
           <Text as="p" variant="bodySm">
             <strong>
-              {plan.invoiceQuota === Infinity || plan.invoiceQuota === "Unlimited"
-                ? "Unlimited"
-                : plan.invoiceQuota}{" "}
-              invoices
+              {plan.invoiceQuota} invoices
             </strong>
           </Text>
         </BlockStack>
@@ -475,4 +470,8 @@ function FeatureTable({
 export function ErrorBoundary() {
   const error = useRouteError();
   return <RouteError error={error} />;
+}
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }

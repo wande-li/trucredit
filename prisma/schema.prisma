@@ -16,7 +16,7 @@ enum Plan {
   FREE // 5 customers / 10 invoices
   STARTER // 50 customers / 100 invoices — $29/mo or $290/yr
   PRO // 200 customers / 500 invoices — $79/mo or $790/yr
-  ENTERPRISE // Unlimited — $149/mo or $1490/yr
+  ENTERPRISE // 500 customers, 2,000 invoices — $149/mo or $1490/yr
   GROWTH // @deprecated — auto-migrated to STARTER on next login
 }
 

@@ -7,8 +7,7 @@ import { sendCollectionEmail } from "~/services/email-delivery.server";
 import prisma from "~/db.server";
 import type { TemplateType } from "@prisma/client";
 import { emailQueue, type EmailJobData } from "~/queues/email.queue";
-
-const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+import { REDIS_URL } from "~/lib/redis.server";
 
 export function createEmailWorker(): Worker<EmailJobData> {
   // Startup SES health check

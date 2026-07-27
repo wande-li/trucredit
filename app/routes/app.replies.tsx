@@ -27,7 +27,7 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import { listReplies, resolveReply } from "~/services/reply.server";
 import type { ReplyIntent } from "@prisma/client";
 import { logger } from "~/services/logger.server";
-import { checkPlanAccess } from "~/services/billing.server";
+import { checkPlanAccess, hasFeature } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
@@ -77,8 +77,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId } = await resolveShop(request);
 
-    const { isPaid } = await checkPlanAccess(shopId);
+    const { isPaid, plan } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
+    if (!hasFeature(plan, 'replyClassification')) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;

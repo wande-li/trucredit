@@ -23,7 +23,7 @@ export const PLAN_QUOTAS = {
   FREE:       { customers: 5,  invoices: 10 },
   STARTER:    { customers: 50, invoices: 100 },
   PRO:        { customers: 200, invoices: 500 },
-  ENTERPRISE: { customers: Infinity, invoices: Infinity },
+  ENTERPRISE: { customers: 500, invoices: 2000 },
   // @deprecated — retained for backward compat, maps to STARTER quotas
   GROWTH:     { customers: 50, invoices: 100 },
 } as const;
@@ -98,8 +98,8 @@ export const PLANS = {
     period: "month",
     billingPlanName: "TruCredit Enterprise",
     displayFeatures: [
-      "Unlimited customers",
-      "Unlimited invoices",
+      "Up to 500 customers",
+      "Up to 2,000 invoices",
       "Everything in Pro, plus:",
       "Custom rules engine",
       "Custom payment gateway",
@@ -266,3 +266,17 @@ export function isRetryableError(error: unknown): boolean {
     lower.includes(pattern.toLowerCase()),
   );
 }
+
+// ─── Route pathnames (single source of truth for layout Outlet checks) ───
+export const PATH_NAMES = {
+  CUSTOMERS: "/app/customers",
+  INVOICES: "/app/invoices",
+  COLLECTIONS: "/app/collections",
+  RULES: "/app/rules",
+  EMAILS: "/app/emails",
+  BILLING: "/app/billing",
+  DASHBOARD: "/app",
+} as const;
+
+// Default locale for date/number formatting (user-visible English markets)
+export const DEFAULT_LOCALE = "en-US";

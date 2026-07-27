@@ -25,7 +25,7 @@ import {
 import { resolveShop } from "~/services/shop-resolver.server";
 import { requirePermission } from "~/services/rbac.server";
 import { listTemplates, createTemplate, deleteTemplate, ensureDefaultTemplates } from "~/services/email.server";
-import { PAGINATION, TONE_LABELS, TONE_COLORS } from "~/lib/constants";
+import { DEFAULT_LOCALE, PAGINATION, PATH_NAMES, TONE_LABELS, TONE_COLORS } from "~/lib/constants";
 import { TEMPLATE_TYPE_LABELS } from "~/lib/email-utils";
 import type { TemplateType } from "@prisma/client";
 import { logger } from "~/services/logger.server";
@@ -152,7 +152,7 @@ const TYPE_OPTIONS = Object.entries(TEMPLATE_TYPE_LABELS)
 
 export default function EmailsPage() {
   const location = useLocation();
-  if (location.pathname !== "/app/emails") {
+  if (location.pathname !== PATH_NAMES.EMAILS) {
     return <Outlet />;
   }
   return <EmailsList />;
@@ -225,7 +225,7 @@ function EmailsList() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text variant="bodySm" as="span" tone="subdued">
-          {new Date(tpl.updatedAt).toLocaleDateString('en-US')}
+          {new Date(tpl.updatedAt).toLocaleDateString(DEFAULT_LOCALE)}
         </Text>
       </IndexTable.Cell>
     </IndexTable.Row>

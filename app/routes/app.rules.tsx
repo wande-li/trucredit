@@ -24,7 +24,8 @@ import { listRules, toggleRule, deleteRule } from "~/services/credit-rule.server
 import prisma from "~/db.server";
 import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
-import { checkPlanAccess } from "~/services/billing.server";
+import { checkPlanAccess, hasFeature } from "~/services/billing.server";
+import { PATH_NAMES } from "~/lib/constants";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
@@ -56,8 +57,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     requirePermission(resolved.role, "edit");
     const { shopId, shopDomain } = resolved;
 
-    const { isPaid } = await checkPlanAccess(shopId);
+    const { isPaid, plan } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
+    if (!hasFeature(plan, 'customRules')) return redirect("/app/billing");
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
@@ -230,7 +232,7 @@ function formatActionValue(
 export default function RulesPage() {
   const location = useLocation();
   // Render child route (app.rules.new / app.rules.$id) when path is deeper than /app/rules
-  if (location.pathname !== "/app/rules") {
+  if (location.pathname !== PATH_NAMES.RULES) {
     return <Outlet />;
   }
 

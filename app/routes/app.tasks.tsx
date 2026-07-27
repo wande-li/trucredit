@@ -24,7 +24,7 @@ import prisma from "~/db.server";
 import { pauseTask, stopTask } from "~/services/collection.server";
 import { requirePermission } from "~/services/rbac.server";
 import { enqueueEmail } from "~/queues/email.queue";
-import { PAGINATION } from "~/lib/constants";
+import { DEFAULT_LOCALE, PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import { checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
@@ -428,7 +428,7 @@ export default function TasksPage() {
                     <IndexTable.Cell>
                       {task.nextStepAt ? (
                         <Text as="span" tone="subdued">
-                          {new Date(task.nextStepAt).toLocaleDateString('en-US')}
+                          {new Date(task.nextStepAt).toLocaleDateString(DEFAULT_LOCALE)}
                         </Text>
                       ) : (
                         <Text as="span" tone="subdued">

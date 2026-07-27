@@ -31,6 +31,7 @@ import type { CreditAction } from "@prisma/client";
 import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Rule Detail" }];
@@ -653,5 +654,9 @@ export default function RuleEditPage() {
 // Route-level ErrorBoundary
 export function ErrorBoundary() {
   return <RouteErrorBoundary />;
+}
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 

@@ -4,7 +4,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remi
 import { json } from "@remix-run/node";
 
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { TONE_LABELS } from "~/lib/constants";
+import { DEFAULT_LOCALE, TONE_LABELS } from "~/lib/constants";
 import {
   Page,
   Card,
@@ -30,6 +30,7 @@ import { generateCollectionEmail } from "~/services/ai.server";
 import type { CollectionStage, ToneLevel } from "~/types";
 import { logger } from "~/services/logger.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Email Template" }];
@@ -257,7 +258,7 @@ export default function EmailTemplateDetail() {
     companyName: "Your Company",
     invoiceNumber: "INV-001",
     amount: "$1,250.00",
-    dueDate: new Date().toLocaleDateString('en-US'),
+    dueDate: new Date().toLocaleDateString(DEFAULT_LOCALE),
     daysOverdue: "7",
     paymentLink: "#",
   };
@@ -526,5 +527,9 @@ export default function EmailTemplateDetail() {
 // Route-level ErrorBoundary
 export function ErrorBoundary() {
   return <RouteErrorBoundary />;
+}
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 

@@ -491,7 +491,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const orderId = String(p.id ?? "");
 
     let invoice = await prisma.invoice.findFirst({
-      where: { shopifyOrderId: orderId },
+      where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
       select: { id: true, customerId: true, amount: true, status: true },
     });
 
@@ -564,7 +564,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (financialStatus === "paid") {
       let invoice = await prisma.invoice.findFirst({
-        where: { shopifyOrderId: orderId },
+        where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
         select: { id: true, customerId: true, amount: true, status: true },
       });
 
@@ -625,7 +625,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const currentTotal = Number(p.total_price ?? 0);
       if (currentTotal > 0) {
         const syncInvoice = await prisma.invoice.findFirst({
-          where: { shopifyOrderId: orderId, status: { notIn: ["PAID", "VOID"] } },
+          where: { shopifyOrderId: orderId, status: { notIn: ["PAID", "VOID"] }, shop: { shopDomain: shopDomain?.trim() || undefined } },
           select: { id: true, amount: true },
         });
         if (syncInvoice && Number(syncInvoice.amount) !== currentTotal) {
@@ -653,7 +653,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const orderId = String(p.id ?? "");
 
     let invoice = await prisma.invoice.findFirst({
-      where: { shopifyOrderId: orderId },
+      where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
       select: { id: true, customerId: true, amount: true, status: true },
     });
 
@@ -728,6 +728,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           triggeredBy: "webhook:refunds_create",
           reason: { contains: dedupTag },
           createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) }, // 30-min window
+          customer: { shop: { shopDomain: shopDomain?.trim() || undefined } },
         },
         select: { id: true },
       });
@@ -758,7 +759,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (orderId && refundTotal > 0) {
       let invoice = await prisma.invoice.findFirst({
-        where: { shopifyOrderId: orderId },
+        where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
         select: { id: true, customerId: true, amount: true, status: true },
       });
 

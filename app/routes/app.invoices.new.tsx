@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 
-import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -23,7 +23,7 @@ import { createInvoice, getNextInvoiceSequence } from "~/services/invoice.server
 import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { generateInvoiceNumber } from "~/types/invoice";
-import { COLLECTION } from "~/lib/constants";
+import { COLLECTION, DEFAULT_LOCALE } from "~/lib/constants";
 import { checkInvoiceQuota, checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
@@ -145,7 +145,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // P1: Check credit limit before creating invoice
     const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { id: customerId, shopId },
       select: { creditAvailable: true, creditLimit: true, isFrozen: true, name: true },
     });
     if (!customer) return json({ error: "Customer not found." }, { status: 400 });
@@ -269,15 +269,24 @@ export default function NewInvoice() {
             <Text as="h2" variant="headingMd">Invoice Details</Text>
 
             <FormLayout>
-              <Select
-                label="Customer"
-                options={customerOptions}
-                value={customerId}
-                onChange={(v) => setCustomerId(v)}
-                placeholder="Select a customer..."
-                disabled={isSubmitting}
-                requiredIndicator
-              />
+              {customerOptions.length === 0 ? (
+                <Banner tone="warning">
+                  <Text as="p" variant="bodyMd">
+                    No customers added yet.{" "}
+                    <Link to="/app/customers">Add your first customer</Link> before creating an invoice.
+                  </Text>
+                </Banner>
+              ) : (
+                <Select
+                  label="Customer"
+                  options={customerOptions}
+                  value={customerId}
+                  onChange={(v) => setCustomerId(v)}
+                  placeholder="Select a customer..."
+                  disabled={isSubmitting}
+                  requiredIndicator
+                />
+              )}
 
               <TextField
                 label="Invoice Number"
@@ -346,7 +355,7 @@ export default function NewInvoice() {
                   {(() => {
                     const d = new Date();
                     d.setDate(d.getDate() + parseInt(netTermsDays, 10));
-                    return d.toLocaleDateString('en-US');
+                    return d.toLocaleDateString(DEFAULT_LOCALE);
                   })()}
                 </Text>
               </BlockStack>

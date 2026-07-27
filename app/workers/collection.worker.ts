@@ -15,8 +15,7 @@ import {
   freezeCheckQueue,
 } from "~/queues/collection.queue";
 import { enqueueEmail } from "~/queues/email.queue";
-
-const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+import { REDIS_URL } from "~/lib/redis.server";
 
 /** Map days overdue to collection stage string */
 function daysToCollectionStage(daysOverdue: number): string {

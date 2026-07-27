@@ -5,16 +5,18 @@ import type { Plan } from "@prisma/client";
 // ─── PLAN_QUOTAS ───────────────────────────────────
 
 describe("PLAN_QUOTAS", () => {
-  it("ENTERPRISE has unlimited quotas", () => {
-    expect(PLAN_QUOTAS.ENTERPRISE.customers).toBe(Infinity);
-    expect(PLAN_QUOTAS.ENTERPRISE.invoices).toBe(Infinity);
+  it("ENTERPRISE has 500 customers / 2,000 invoices", () => {
+    expect(PLAN_QUOTAS.ENTERPRISE.customers).toBe(500);
+    expect(PLAN_QUOTAS.ENTERPRISE.invoices).toBe(2000);
   });
 
-  it("plans scale from FREE → STARTER → PRO", () => {
+  it("plans scale from FREE → STARTER → PRO → ENTERPRISE", () => {
     expect(PLAN_QUOTAS.FREE.customers).toBeLessThan(PLAN_QUOTAS.STARTER.customers);
     expect(PLAN_QUOTAS.STARTER.customers).toBeLessThan(PLAN_QUOTAS.PRO.customers);
+    expect(PLAN_QUOTAS.PRO.customers).toBeLessThan(PLAN_QUOTAS.ENTERPRISE.customers);
     expect(PLAN_QUOTAS.FREE.invoices).toBeLessThan(PLAN_QUOTAS.STARTER.invoices);
     expect(PLAN_QUOTAS.STARTER.invoices).toBeLessThan(PLAN_QUOTAS.PRO.invoices);
+    expect(PLAN_QUOTAS.PRO.invoices).toBeLessThan(PLAN_QUOTAS.ENTERPRISE.invoices);
   });
 
   it("GROWTH mirrors STARTER (backward compat)", () => {

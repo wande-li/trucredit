@@ -34,7 +34,9 @@ import { checkPlanAccess } from "~/services/billing.server";
 import prisma from "~/db.server";
 import { useState, useCallback, useEffect } from "react";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
+import PageSkeleton from "~/components/PageSkeleton";
 import ActionToast from "~/components/ActionToast";
+import { DEFAULT_LOCALE } from "~/lib/constants";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Invoice Detail" }];
 
@@ -530,7 +532,7 @@ export default function InvoiceDetail() {
                         Issue Date
                       </Text>
                       <Text as="p" variant="headingMd" fontWeight="semibold">
-                        {new Date(invoice.issueDate).toLocaleDateString('en-US')}
+                        {new Date(invoice.issueDate).toLocaleDateString(DEFAULT_LOCALE)}
                       </Text>
                     </BlockStack>
                   </Box>
@@ -541,7 +543,7 @@ export default function InvoiceDetail() {
                         Due Date
                       </Text>
                       <Text as="p" variant="headingMd" fontWeight="semibold">
-                        {new Date(invoice.dueDate).toLocaleDateString('en-US')}
+                        {new Date(invoice.dueDate).toLocaleDateString(DEFAULT_LOCALE)}
                       </Text>
                     </BlockStack>
                   </Box>
@@ -553,7 +555,7 @@ export default function InvoiceDetail() {
                           Paid Date
                         </Text>
                         <Text as="p" variant="headingMd" fontWeight="semibold" tone="success">
-                          {new Date(invoice.paidDate).toLocaleDateString('en-US')}
+                          {new Date(invoice.paidDate).toLocaleDateString(DEFAULT_LOCALE)}
                         </Text>
                       </BlockStack>
                     </Box>
@@ -596,8 +598,8 @@ export default function InvoiceDetail() {
                           ? <Link url={`https://admin.shopify.com/store/orders/${invoice.shopifyOrderId}`} external target="_blank">{invoice.shopifyOrderName}</Link>
                           : "—",
                       ],
-                      ["Created", new Date(invoice.createdAt).toLocaleDateString('en-US')],
-                      ["Last Updated", new Date(invoice.updatedAt).toLocaleDateString('en-US')],
+                      ["Created", new Date(invoice.createdAt).toLocaleDateString(DEFAULT_LOCALE)],
+                      ["Last Updated", new Date(invoice.updatedAt).toLocaleDateString(DEFAULT_LOCALE)],
                     ]}
                   />
                 </BlockStack>
@@ -637,9 +639,9 @@ export default function InvoiceDetail() {
                           </Text>
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          Started: {new Date(task.startedAt).toLocaleDateString('en-US')}
+                          Started: {new Date(task.startedAt).toLocaleDateString(DEFAULT_LOCALE)}
                           {task.completedAt &&
-                            ` · Completed: ${new Date(task.completedAt).toLocaleDateString('en-US')}`}
+                            ` · Completed: ${new Date(task.completedAt).toLocaleDateString(DEFAULT_LOCALE)}`}
                         </Text>
                         {task.lastReplyIntent && (
                           <Text as="p" variant="bodySm">
@@ -888,7 +890,7 @@ export default function InvoiceDetail() {
                       </Text>
                       {invoice.paidDate && (
                         <Text as="p" variant="bodySm">
-                          {new Date(invoice.paidDate).toLocaleDateString('en-US')}
+                          {new Date(invoice.paidDate).toLocaleDateString(DEFAULT_LOCALE)}
                         </Text>
                       )}
                       {invoice.paymentMethod && (
@@ -945,5 +947,9 @@ export default function InvoiceDetail() {
 // Route-level ErrorBoundary
 export function ErrorBoundary() {
   return <RouteErrorBoundary />;
+}
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
 }
 

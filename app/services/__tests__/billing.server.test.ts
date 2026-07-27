@@ -44,9 +44,10 @@ describe("PLANS", () => {
     expect(Number(starter.invoiceQuota)).toBeLessThan(Number(pro.invoiceQuota));
   });
 
-  it("ENTERPRISE has unlimited quotas", () => {
+  it("ENTERPRISE has 500 customers / 2,000 invoices", () => {
     const ent = PLANS.find((p) => p.key === "ENTERPRISE")!;
-    expect(ent.customerQuota).toEqual(expect.stringMatching(/unlimited|∞|infinity/i) || "∞");
+    expect(ent.customerQuota).toBe(500);
+    expect(ent.invoiceQuota).toBe(2000);
   });
 });
 

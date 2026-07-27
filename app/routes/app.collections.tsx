@@ -36,7 +36,7 @@ import { checkPlanAccess } from "~/services/billing.server";
 import { requirePermission } from "~/services/rbac.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
-import { TONE_LABELS } from "~/lib/constants";
+import { PATH_NAMES, TONE_LABELS } from "~/lib/constants";
 import ActionToast from "~/components/ActionToast";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Collections" }];
@@ -191,7 +191,7 @@ export default function CollectionsPage() {
   const location = useLocation();
   // eslint-disable-next-line react-hooks/rules-of-hooks -- Remix layout pattern: early Outlet return before list hooks
   // Render child route (app.collections.$id) when path is deeper than /app/collections
-  if (location.pathname !== "/app/collections") {
+  if (location.pathname !== PATH_NAMES.COLLECTIONS) {
     return <Outlet />;
   }
 

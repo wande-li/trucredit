@@ -21,6 +21,7 @@ import {
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import { PATH_NAMES } from "~/lib/constants";
 import { listCustomers } from "~/services/customer.server";
 import { useCallback, useState } from "react";
 import { downloadCSV } from "~/utils/export-csv";
@@ -74,7 +75,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function CustomersPage() {
   const location = useLocation();
   // Render child route (app.customers.$id) when path is deeper than /app/customers
-  if (location.pathname !== "/app/customers") {
+  if (location.pathname !== PATH_NAMES.CUSTOMERS) {
     return <Outlet />;
   }
 

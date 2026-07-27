@@ -22,6 +22,7 @@ import {
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { checkPlanAccess } from "~/services/billing.server";
+import { DEFAULT_LOCALE, PATH_NAMES } from "~/lib/constants";
 import { requirePermission } from "~/services/rbac.server";
 import { listInvoices, getARAgingReport, bulkMarkInvoicePaid } from "~/services/invoice.server";
 import { useCallback, useMemo, useState } from "react";
@@ -130,7 +131,7 @@ const statusLabel: Record<string, string> = {
 export default function Invoices() {
   const location = useLocation();
   // Render child route (app.invoices.new / app.invoices.$id) when path is deeper than /app/invoices
-  if (location.pathname !== "/app/invoices") {
+  if (location.pathname !== PATH_NAMES.INVOICES) {
     return <Outlet />;
   }
 
@@ -461,12 +462,12 @@ export default function Invoices() {
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodyMd">
-                      {new Date(inv.issueDate).toLocaleDateString('en-US')}
+                      {new Date(inv.issueDate).toLocaleDateString(DEFAULT_LOCALE)}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodyMd">
-                      {new Date(inv.dueDate).toLocaleDateString('en-US')}
+                      {new Date(inv.dueDate).toLocaleDateString(DEFAULT_LOCALE)}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>

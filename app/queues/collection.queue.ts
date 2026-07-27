@@ -1,9 +1,7 @@
 // BullMQ queue definitions — Collection engine
 import { Queue } from "bullmq";
 import { logger } from "~/services/logger.server";
-import { BULLMQ_PREFIX } from "~/lib/redis.server";
-
-const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+import { BULLMQ_PREFIX, REDIS_URL } from "~/lib/redis.server";
 
 /** Default job options shared across all queues */
 const defaultJobOptions = {

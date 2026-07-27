@@ -14,6 +14,7 @@ import {
   Box,
   Button,
   Badge,
+  Banner,
   Divider,
 } from "@shopify/polaris";
 import {
@@ -389,7 +390,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
 
 // ── Dashboard ──
 export default function Dashboard() {
-  const { stats, quota, planName, aging, collectionStats, recentCustomers, generatedAt } =
+  const { stats, quota, planName, showUpgradePrompt, aging, collectionStats, recentCustomers, generatedAt } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
@@ -399,6 +400,28 @@ export default function Dashboard() {
         <BlockStack gap="500">
           {/* ═══ Onboarding Guide ═══ */}
           {stats.totalCustomers === 0 && <OnboardingGuide />}
+
+          {/* ═══ Plan alerts ═══ */}
+          {/* Paid user over-quota warning (P1-5): quotaBlocked=false for paid plans, so surface a gentle alert */}
+          {planName !== "FREE" && (quota.customerQuotaPercent > 100 || quota.invoiceQuotaPercent > 100) && (
+            <Banner tone="warning" onDismiss={() => {}}>
+              <Text as="p" variant="bodyMd">
+                Your plan limits have been exceeded ({quota.customerQuotaPercent > 100 ? `${quota.customerCount} customers (limit: ${quota.customerQuota})` : ""}
+                {quota.customerQuotaPercent > 100 && quota.invoiceQuotaPercent > 100 ? "; " : ""}
+                {quota.invoiceQuotaPercent > 100 ? `${quota.invoiceCount} invoices (limit: ${quota.invoiceQuota})` : ""}
+                ). Consider upgrading to a higher tier to avoid restrictions.
+              </Text>
+            </Banner>
+          )}
+
+          {/* FREE user upgrade prompt (P2-7) */}
+          {showUpgradePrompt && !quota.needsUpgrade && (
+            <Banner tone="info" action={{ content: "View Plans", url: "/app/billing" }}>
+              <Text as="p" variant="bodyMd">
+                You're on the Free plan. Upgrade to unlock automated collections, AI-powered emails, and more.
+              </Text>
+            </Banner>
+          )}
 
           {/* P3: Last updated timestamp */}
           <Text as="p" variant="bodySm" tone="subdued" alignment="end">

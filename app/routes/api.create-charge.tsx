@@ -81,7 +81,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // After charge confirmation, Shopify redirects user to returnUrl in top-level window.
   // We route through /billing/callback to redirect back into Shopify Admin iframe.
   // Include plan so the callback can update the database immediately.
-  const appUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost';
+  const appUrl = process.env.SHOPIFY_APP_URL;
+  if (!appUrl) throw new Error("SHOPIFY_APP_URL environment variable is required");
   const returnUrl = `${appUrl}/billing/callback?shop=${encodeURIComponent(session.shop)}&plan=${planKey}`;
 
   logger.app('INFO', 'Creating charge via admin.graphql()', {

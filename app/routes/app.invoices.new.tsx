@@ -232,7 +232,7 @@ export default function NewInvoice() {
   const customerOptions = useMemo(
     () =>
       customers.map((c) => ({
-        label: `${c.company ? `${c.name} (${c.company})` : c.name} — Available: ${Number(c.creditAvailable).toLocaleString(undefined, { minimumFractionDigits: 2 })} of ${Number(c.creditLimit).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        label: `${c.company ? `${c.name} (${c.company})` : c.name} — Available: ${Number(c.creditAvailable).toLocaleString("en-US", { minimumFractionDigits: 2 })} of ${Number(c.creditLimit).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
         value: c.id,
       })),
     [customers],
@@ -340,7 +340,7 @@ export default function NewInvoice() {
               <BlockStack gap="050">
                 <Text as="p" variant="bodySm" tone="subdued">Amount</Text>
                 <Text as="p" variant="headingMd" fontWeight="bold">
-                  {currency} {amount ? Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}
+                  {currency} {amount ? Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "0.00"}
                 </Text>
               </BlockStack>
               <BlockStack gap="050">

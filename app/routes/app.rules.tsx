@@ -185,10 +185,10 @@ function formatConditions(conditions: unknown): string {
   if (revenue) {
     const range =
       revenue.min !== undefined && revenue.max !== undefined
-        ? `$${revenue.min.toLocaleString()}–$${(revenue.max ?? 0).toLocaleString()}`
+        ? `$${revenue.min.toLocaleString("en-US")}–$${(revenue.max ?? 0).toLocaleString("en-US")}`
         : revenue.min !== undefined
-          ? `≥ $${revenue.min.toLocaleString()}`
-          : `≤ $${(revenue.max ?? 0).toLocaleString()}`;
+          ? `≥ $${revenue.min.toLocaleString("en-US")}`
+          : `≤ $${(revenue.max ?? 0).toLocaleString("en-US")}`;
     if (range) parts.push(`Revenue ${range}`);
   }
 
@@ -215,7 +215,7 @@ function formatActionValue(
   switch (action) {
     case "SET_LIMIT":
     case "ADJUST_LIMIT":
-      return v.creditLimit != null ? `$${Number(v.creditLimit).toLocaleString()}` : "—";
+      return v.creditLimit != null ? `$${Number(v.creditLimit).toLocaleString("en-US")}` : "—";
     case "SET_GRADE":
       return v.creditGrade != null ? String(v.creditGrade).replace("_", "+") : "—";
     case "SET_TERMS":

@@ -23,7 +23,7 @@ import {
 } from "@shopify/polaris";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
-import { PLANS as PLANS_V2, type PlanDefinition } from "~/services/billing.server";
+import { PLANS as PLANS_V2, type PlanDefinition, getShopBilling } from "~/services/billing.server";
 import { RouteError } from "~/services/error-boundary.shared";
 import PageSkeleton from "~/components/PageSkeleton";
 import { logger } from "~/services/logger.server";
@@ -38,10 +38,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { shopId, plan: currentPlan, subscriptionStatus } = await resolveShop(request);
 
-    const shop = await prisma.shop.findUnique({
-      where: { id: shopId },
-      select: { currentPeriodEnd: true },
-    });
+    const [shop, billing] = await Promise.all([
+      prisma.shop.findUnique({
+        where: { id: shopId },
+        select: { currentPeriodEnd: true },
+      }),
+      getShopBilling(shopId),
+    ]);
 
     const isTrialActive = subscriptionStatus === "ACTIVE" && currentPlan === "FREE";
     const planDef = PLANS_V2.find((p) => p.key === currentPlan);
@@ -61,6 +64,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         isTrialActive,
         plans: PLANS_V2,
         annualDiscountPercent: 17,
+        usage: {
+          customerCount: billing.customerCount,
+          customerQuota: billing.customerQuota,
+          customerQuotaPercent: billing.customerQuotaPercent,
+          invoiceCount: billing.invoiceCount,
+          invoiceQuota: billing.invoiceQuota,
+          invoiceQuotaPercent: billing.invoiceQuotaPercent,
+        },
       },
       {
         headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
@@ -79,6 +90,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         isTrialActive: false,
         plans: PLANS_V2,
         annualDiscountPercent: 17,
+        usage: {
+          customerCount: 0,
+          customerQuota: 0,
+          customerQuotaPercent: 0,
+          invoiceCount: 0,
+          invoiceQuota: 0,
+          invoiceQuotaPercent: 0,
+        },
       },
       {
         headers: { "Cache-Control": "private, max-age=30, must-revalidate" },
@@ -92,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ─── Component ──────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent } =
+  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent, usage } =
     useLoaderData<typeof loader>();
 
   const isActive = subscriptionStatus === "ACTIVE";
@@ -132,6 +151,69 @@ export default function BillingPage() {
             </Banner>
           )}
         </Box>
+
+        {/* ── Plan Usage ── */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">Plan Usage</Text>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 24,
+              }}
+            >
+              <BlockStack gap="200">
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodyMd" fontWeight="medium">Customers</Text>
+                  <Text as="span" variant="bodyMd" tone="subdued">
+                    {usage.customerCount.toLocaleString("en-US")} / {usage.customerQuota === -1 ? "Unlimited" : usage.customerQuota.toLocaleString("en-US")}
+                  </Text>
+                </InlineStack>
+                {usage.customerQuota > 0 && (
+                  <div style={{ width: "100%", height: 8, background: "var(--p-color-bg-fill-tertiary)", borderRadius: 4 }}>
+                    <div
+                      style={{
+                        width: `${Math.min(usage.customerQuotaPercent, 100)}%`,
+                        height: "100%",
+                        background: usage.customerQuotaPercent >= 90
+                          ? "var(--p-color-bg-fill-critical)"
+                          : usage.customerQuotaPercent >= 70
+                            ? "var(--p-color-bg-fill-caution)"
+                            : "var(--p-color-bg-fill-success)",
+                        borderRadius: 4,
+                      }}
+                    />
+                  </div>
+                )}
+              </BlockStack>
+              <BlockStack gap="200">
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodyMd" fontWeight="medium">Invoices</Text>
+                  <Text as="span" variant="bodyMd" tone="subdued">
+                    {usage.invoiceCount.toLocaleString("en-US")} / {usage.invoiceQuota === -1 ? "Unlimited" : usage.invoiceQuota.toLocaleString("en-US")}
+                  </Text>
+                </InlineStack>
+                {usage.invoiceQuota > 0 && (
+                  <div style={{ width: "100%", height: 8, background: "var(--p-color-bg-fill-tertiary)", borderRadius: 4 }}>
+                    <div
+                      style={{
+                        width: `${Math.min(usage.invoiceQuotaPercent, 100)}%`,
+                        height: "100%",
+                        background: usage.invoiceQuotaPercent >= 90
+                          ? "var(--p-color-bg-fill-critical)"
+                          : usage.invoiceQuotaPercent >= 70
+                            ? "var(--p-color-bg-fill-caution)"
+                            : "var(--p-color-bg-fill-success)",
+                        borderRadius: 4,
+                      }}
+                    />
+                  </div>
+                )}
+              </BlockStack>
+            </div>
+          </BlockStack>
+        </Card>
 
         {/* ── Plan Cards ── */}
         <div

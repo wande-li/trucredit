@@ -53,13 +53,25 @@ export async function listCustomers(params: {
   status?: string;
   creditGrade?: string;
   riskLevel?: string;
+  sortBy?: "name" | "creditUsed" | "creditLimit" | "overdueCount" | "riskLevel";
+  sortOrder?: "asc" | "desc";
   page?: number;
   pageSize?: number;
 }): Promise<PaginatedResult<CustomerSummary>> {
-  const { shopId, search, status, creditGrade, riskLevel } = params;
-  logger.app("INFO", "customer.listCustomers START", null, { shopId, page: params.page, search, status, creditGrade, riskLevel });
+  const { shopId, search, status, creditGrade, riskLevel, sortBy = "name", sortOrder = "asc" } = params;
+  logger.app("INFO", "customer.listCustomers START", null, { shopId, page: params.page, search, status, creditGrade, riskLevel, sortBy, sortOrder });
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(PAGINATION.MAX_PAGE_SIZE, params.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE);
+
+  // Build sort config
+  const sortFieldMap: Record<string, Record<string, unknown>> = {
+    name: { name: sortOrder },
+    creditUsed: { creditUsed: sortOrder },
+    creditLimit: { creditLimit: sortOrder },
+    overdueCount: { invoices: { _count: sortOrder } },
+    riskLevel: { riskLevel: sortOrder },
+  };
+  const orderBy = sortFieldMap[sortBy] ?? { name: sortOrder };
 
   const where: Record<string, unknown> = { shopId };
 
@@ -99,7 +111,7 @@ export async function listCustomers(params: {
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { updatedAt: "desc" },
+      orderBy,
     }),
     prisma.customer.count({ where }),
   ]);

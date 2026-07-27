@@ -7,6 +7,7 @@ import {
   Button,
   Box,
   InlineStack,
+  Badge,
 } from "@shopify/polaris";
 
 export default function OnboardingGuide() {
@@ -52,9 +53,32 @@ export default function OnboardingGuide() {
     <Card padding="500">
       <BlockStack gap="400">
         <BlockStack gap="200">
-          <Text as="h2" variant="headingLg">
-            Welcome to TruCredit
-          </Text>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingLg">
+              Welcome to TruCredit
+            </Text>
+            <Badge tone="info">{`${STEPS.length} steps to get started`}</Badge>
+          </InlineStack>
+          <Box paddingBlockEnd="300">
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+              }}
+            >
+              {STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 4,
+                    borderRadius: 2,
+                    background: "var(--p-color-bg-fill-success)",
+                  }}
+                />
+              ))}
+            </div>
+          </Box>
           <Text as="p" variant="bodyLg" tone="subdued">
             Automate B2B credit management and AR collections for your Shopify
             store. Complete these steps to get started:

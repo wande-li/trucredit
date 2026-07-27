@@ -521,7 +521,7 @@ export default function InvoiceDetail() {
                         Amount
                       </Text>
                       <Text as="p" variant="headingXl" fontWeight="bold">
-                        {invoice.currency} {Number(invoice.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {invoice.currency} {Number(invoice.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                       </Text>
                     </BlockStack>
                   </Box>

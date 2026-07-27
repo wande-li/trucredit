@@ -156,6 +156,7 @@ export default function Invoices() {
   const [selectedResources, setSelectedResources] = useState<string[] | "All">([]);
   const currentTab = searchParams.get("agingBucket") ?? "all";
   const currentStatus = searchParams.get("status") ?? "";
+  const search = searchParams.get("search") ?? "";
   const currentSortBy = searchParams.get("sortBy") ?? "dueDate";
   const currentSortOrder = searchParams.get("sortOrder") ?? "asc";
   const handleTabChange = useCallback(
@@ -250,7 +251,7 @@ export default function Invoices() {
                           : undefined
                       }
                     >
-                      ${Number(bucket.totalAmount).toLocaleString()}
+                      ${Number(bucket.totalAmount).toLocaleString("en-US")}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
                       {bucket.count} invoice{bucket.count !== 1 ? "s" : ""}
@@ -261,10 +262,10 @@ export default function Invoices() {
             </InlineStack>
             <InlineStack gap="400" align="start">
               <Text as="p" variant="bodyMd" fontWeight="bold">
-                Total Outstanding: ${Number(agingReport.totalOutstanding).toLocaleString()}
+                Total Outstanding: ${Number(agingReport.totalOutstanding).toLocaleString("en-US")}
               </Text>
               <Text as="p" variant="bodyMd" tone="critical">
-                Total Overdue: ${Number(agingReport.totalOverdue).toLocaleString()}
+                Total Overdue: ${Number(agingReport.totalOverdue).toLocaleString("en-US")}
               </Text>
             </InlineStack>
           </BlockStack>
@@ -345,6 +346,15 @@ export default function Invoices() {
             </InlineStack>
           </BlockStack>
         </Card>
+
+        {/* Search/Filter Summary */}
+        {search && (
+          <Box paddingBlockEnd="200">
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Found {invoiceResult.total} result{invoiceResult.total !== 1 ? "s" : ""} for "{search}"
+            </Text>
+          </Box>
+        )}
 
         {/* Invoice Table */}
         {invoiceResult.items.length === 0 ? (
@@ -457,7 +467,7 @@ export default function Invoices() {
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodyMd" fontWeight="bold">
-                      {inv.currency} {Number(inv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {inv.currency} {Number(inv.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>

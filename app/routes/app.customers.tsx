@@ -47,6 +47,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const status = url.searchParams.get("status") ?? undefined;
     const creditGrade = url.searchParams.get("creditGrade") ?? undefined;
     const riskLevel = url.searchParams.get("riskLevel") ?? undefined;
+    const sortBy = (url.searchParams.get("sortBy") ?? "name") as "name" | "creditUsed" | "creditLimit" | "overdueCount" | "riskLevel";
+    const sortOrder = (url.searchParams.get("sortOrder") ?? "asc") as "asc" | "desc";
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
 
     const result = await listCustomers({
@@ -55,6 +57,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       status,
       creditGrade,
       riskLevel,
+      sortBy,
+      sortOrder,
       page,
     });
 
@@ -143,12 +147,15 @@ export default function CustomersPage() {
   const statusSelect = searchParams.get("status") ?? "";
   const gradeSelect = searchParams.get("creditGrade") ?? "";
   const riskSelect = searchParams.get("riskLevel") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "name";
+  const sortOrder = searchParams.get("sortOrder") ?? "asc";
+  const search = searchParams.get("search") ?? "";
 
   return (
     <Page
       fullWidth
       title="Customers"
-      subtitle={`${total} total`}
+      subtitle={search ? `Found ${total} result${total !== 1 ? "s" : ""} for "${search}"` : `${total} total`}
       secondaryActions={[
         {
           content: isExporting ? "Exporting..." : "Export CSV",
@@ -253,6 +260,27 @@ export default function CustomersPage() {
                 ]}
                 value={riskSelect}
                 onChange={(v) => handleFilterChange("riskLevel", v)}
+              />
+              <Select
+                label="Sort by"
+                options={[
+                  { label: "Name (A-Z)", value: "name-asc" },
+                  { label: "Name (Z-A)", value: "name-desc" },
+                  { label: "Credit Used (Low → High)", value: "creditUsed-asc" },
+                  { label: "Credit Used (High → Low)", value: "creditUsed-desc" },
+                  { label: "Credit Limit (Low → High)", value: "creditLimit-asc" },
+                  { label: "Credit Limit (High → Low)", value: "creditLimit-desc" },
+                  { label: "Overdue Count (Low → High)", value: "overdueCount-asc" },
+                  { label: "Overdue Count (High → Low)", value: "overdueCount-desc" },
+                  { label: "Risk (Low → High)", value: "riskLevel-asc" },
+                  { label: "Risk (High → Low)", value: "riskLevel-desc" },
+                ]}
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(v) => {
+                  const [field, order] = v.split("-");
+                  handleFilterChange("sortBy", field ?? "name");
+                  handleFilterChange("sortOrder", order ?? "asc");
+                }}
               />
             </InlineStack>
 
@@ -407,8 +435,8 @@ export default function CustomersPage() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Text as="span" variant="bodyMd">
-                        ${Number(creditUsed).toLocaleString()} / $
-                        {Number(creditLimit).toLocaleString()}
+                        ${Number(creditUsed).toLocaleString("en-US")} / $
+                        {Number(creditLimit).toLocaleString("en-US")}
                       </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>

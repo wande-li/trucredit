@@ -91,13 +91,13 @@ export function CreditLimitModal({
 
           <BlockStack gap="200">
             <Text as="p" variant="bodyMd" tone="subdued">
-              Current Limit: ${Number(creditLimit).toLocaleString()}
+              Current Limit: ${Number(creditLimit).toLocaleString("en-US")}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
-              Credit Used: ${Number(creditUsed).toLocaleString()}
+              Credit Used: ${Number(creditUsed).toLocaleString("en-US")}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
-              AI Recommended: ${recommendation.recommendedLimit.toLocaleString()}
+              AI Recommended: ${recommendation.recommendedLimit.toLocaleString("en-US")}
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
               Score: {recommendation.score} ({recommendation.grade.replace("_", "+")})
@@ -115,12 +115,12 @@ export function CreditLimitModal({
               step={100}
               helpText={
                 recommendation.recommendedLimit > 0
-                  ? `AI recommends $${recommendation.recommendedLimit.toLocaleString()}`
+                  ? `AI recommends $${recommendation.recommendedLimit.toLocaleString("en-US")}`
                   : undefined
               }
               error={
                 isOver2x
-                  ? `Exceeds 2x recommended limit ($${recommendation.recommendedLimit.toLocaleString()})`
+                  ? `Exceeds 2x recommended limit ($${recommendation.recommendedLimit.toLocaleString("en-US")})`
                   : isOver50pct
                     ? `Score ${recommendation.score} — increases over 50% need review`
                     : undefined
@@ -141,7 +141,7 @@ export function CreditLimitModal({
               options={[
                 { label: "Custom", value: "" },
                 {
-                  label: `AI Recommended: $${recommendation.recommendedLimit.toLocaleString()}`,
+                  label: `AI Recommended: $${recommendation.recommendedLimit.toLocaleString("en-US")}`,
                   value: String(recommendation.recommendedLimit),
                 },
                 { label: "Double current", value: String(Number(creditLimit) * 2) },

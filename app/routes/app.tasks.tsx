@@ -388,7 +388,7 @@ export default function TasksPage() {
                           {task.invoice.invoiceNumber}
                         </Link>
                         <Text as="span" tone="subdued">
-                          {Number(task.invoice.amount).toLocaleString()} {task.invoice.currency}
+                          {Number(task.invoice.amount).toLocaleString("en-US")} {task.invoice.currency}
                         </Text>
                       </InlineStack>
                     </IndexTable.Cell>

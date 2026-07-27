@@ -339,8 +339,8 @@ export default function CustomerDetailPage() {
                           Utilization {utilizationPct}%
                         </Text>
                         <Text as="span" variant="bodySm">
-                          ${Number(customer.creditUsed).toLocaleString()} / $
-                          {Number(customer.creditLimit).toLocaleString()}
+                          ${Number(customer.creditUsed).toLocaleString("en-US")} / $
+                          {Number(customer.creditLimit).toLocaleString("en-US")}
                         </Text>
                       </InlineStack>
                       <Box
@@ -374,7 +374,7 @@ export default function CustomerDetailPage() {
                     Available:
                   </Text>
                   <Text as="span" variant="bodyMd" fontWeight="bold">
-                    ${Number(customer.creditAvailable).toLocaleString()}
+                    ${Number(customer.creditAvailable).toLocaleString("en-US")}
                   </Text>
                 </InlineStack>
 
@@ -383,7 +383,7 @@ export default function CustomerDetailPage() {
                     AI Recommended:
                   </Text>
                   <Text as="span" variant="bodyMd" fontWeight="bold">
-                    ${assessment.recommendedLimit.toLocaleString()}
+                    ${assessment.recommendedLimit.toLocaleString("en-US")}
                   </Text>
                 </InlineStack>
 
@@ -478,7 +478,7 @@ export default function CustomerDetailPage() {
                         Total Revenue
                       </Text>
                       <Text as="span" variant="bodyMd">
-                        ${Number(customer.totalRevenue).toLocaleString()}
+                        ${Number(customer.totalRevenue).toLocaleString("en-US")}
                       </Text>
                     </InlineStack>
                     <InlineStack align="space-between" blockAlign="center">
@@ -530,7 +530,7 @@ export default function CustomerDetailPage() {
                               bucket.label === "90+ Days" ? "critical" : undefined
                             }
                           >
-                            ${Number(bucket.totalAmount).toLocaleString()}
+                            ${Number(bucket.totalAmount).toLocaleString("en-US")}
                           </Text>
                           <Text as="span" variant="bodySm" tone="subdued">
                             {bucket.count} invoice{bucket.count !== 1 ? "s" : ""}
@@ -542,14 +542,14 @@ export default function CustomerDetailPage() {
                     <InlineStack align="space-between" blockAlign="center">
                       <Text as="span" variant="bodyMd">Total Outstanding</Text>
                       <Text as="span" variant="bodyMd" fontWeight="bold">
-                        ${Number(aging.totalOutstanding).toLocaleString()}
+                        ${Number(aging.totalOutstanding).toLocaleString("en-US")}
                       </Text>
                     </InlineStack>
                     {Number(aging.totalOverdue) > 0 && (
                       <InlineStack align="space-between" blockAlign="center">
                         <Text as="span" variant="bodyMd" tone="critical">Total Overdue</Text>
                         <Text as="span" variant="bodyMd" fontWeight="bold" tone="critical">
-                          ${Number(aging.totalOverdue).toLocaleString()}
+                          ${Number(aging.totalOverdue).toLocaleString("en-US")}
                         </Text>
                       </InlineStack>
                     )}
@@ -592,7 +592,7 @@ export default function CustomerDetailPage() {
                             </BlockStack>
                             <BlockStack gap="050" align="end">
                               <Text as="span" variant="bodyMd" fontWeight="bold">
-                                ${Number(inv.amount).toLocaleString()}
+                                ${Number(inv.amount).toLocaleString("en-US")}
                               </Text>
                               <Badge
                                 tone={
@@ -726,7 +726,7 @@ export default function CustomerDetailPage() {
                                   {Object.values(event.newValue as Record<string, unknown>)
                                     .map((v) =>
                                       typeof v === "number"
-                                        ? v.toLocaleString()
+                                        ? v.toLocaleString("en-US")
                                         : String(v),
                                     )
                                     .join(", ")}

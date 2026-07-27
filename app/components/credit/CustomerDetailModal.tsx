@@ -326,8 +326,8 @@ export function CustomerDetailModal({
                           Utilization {utilizationPct}%
                         </Text>
                         <Text as="span" variant="bodySm">
-                          ${Number(customer.creditUsed).toLocaleString()} / $
-                          {Number(customer.creditLimit).toLocaleString()}
+                          ${Number(customer.creditUsed).toLocaleString("en-US")} / $
+                          {Number(customer.creditLimit).toLocaleString("en-US")}
                         </Text>
                       </InlineStack>
                       <Box
@@ -361,7 +361,7 @@ export function CustomerDetailModal({
                     Available:
                   </Text>
                   <Text as="span" variant="bodyMd" fontWeight="bold">
-                    ${Number(customer.creditAvailable).toLocaleString()}
+                    ${Number(customer.creditAvailable).toLocaleString("en-US")}
                   </Text>
                 </InlineStack>
 
@@ -370,7 +370,7 @@ export function CustomerDetailModal({
                     AI Recommended:
                   </Text>
                   <Text as="span" variant="bodyMd" fontWeight="bold">
-                    ${assessment.recommendedLimit.toLocaleString()}
+                    ${assessment.recommendedLimit.toLocaleString("en-US")}
                   </Text>
                 </InlineStack>
 
@@ -410,9 +410,9 @@ export function CustomerDetailModal({
                         Adjust Credit Limit
                       </Text>
                       <Text as="p" variant="bodyMd" tone="subdued">
-                        Current: ${Number(customer.creditLimit).toLocaleString()}
-                        {" | "}Used: ${Number(customer.creditUsed).toLocaleString()}
-                        {" | "}AI Rec: ${assessment.recommendedLimit.toLocaleString()}
+                        Current: ${Number(customer.creditLimit).toLocaleString("en-US")}
+                        {" | "}Used: ${Number(customer.creditUsed).toLocaleString("en-US")}
+                        {" | "}AI Rec: ${assessment.recommendedLimit.toLocaleString("en-US")}
                       </Text>
                       <TextField
                         label="New Credit Limit (USD)"
@@ -422,10 +422,10 @@ export function CustomerDetailModal({
                         autoComplete="off"
                         min={0}
                         step={100}
-                        helpText={`AI recommends $${assessment.recommendedLimit.toLocaleString()}`}
+                        helpText={`AI recommends $${assessment.recommendedLimit.toLocaleString("en-US")}`}
                         error={
                           isOver2x
-                            ? `Exceeds 2x recommended limit ($${assessment.recommendedLimit.toLocaleString()})`
+                            ? `Exceeds 2x recommended limit ($${assessment.recommendedLimit.toLocaleString("en-US")})`
                             : isOver50pct
                               ? `Score ${assessment.score} — increases over 50% need review`
                               : undefined
@@ -444,7 +444,7 @@ export function CustomerDetailModal({
                         options={[
                           { label: "Custom", value: "" },
                           {
-                            label: `AI Recommended: $${assessment.recommendedLimit.toLocaleString()}`,
+                            label: `AI Recommended: $${assessment.recommendedLimit.toLocaleString("en-US")}`,
                             value: String(assessment.recommendedLimit),
                           },
                           {
@@ -535,7 +535,7 @@ export function CustomerDetailModal({
                       Total Revenue
                     </Text>
                     <Text as="span" variant="bodyMd">
-                      ${Number(customer.totalRevenue).toLocaleString()}
+                      ${Number(customer.totalRevenue).toLocaleString("en-US")}
                     </Text>
                   </InlineStack>
                   <InlineStack align="space-between">
@@ -591,7 +591,7 @@ export function CustomerDetailModal({
                                   : undefined
                               }
                             >
-                              ${Number(bucket.totalAmount).toLocaleString()}
+                              ${Number(bucket.totalAmount).toLocaleString("en-US")}
                             </Text>
                             <Text as="span" variant="bodySm" tone="subdued">
                               {bucket.count} invoice
@@ -606,7 +606,7 @@ export function CustomerDetailModal({
                         Total Outstanding
                       </Text>
                       <Text as="span" variant="bodyMd" fontWeight="bold">
-                        ${Number(aging.totalOutstanding).toLocaleString()}
+                        ${Number(aging.totalOutstanding).toLocaleString("en-US")}
                       </Text>
                     </InlineStack>
                     {Number(aging.totalOverdue) > 0 && (
@@ -620,7 +620,7 @@ export function CustomerDetailModal({
                           fontWeight="bold"
                           tone="critical"
                         >
-                          ${Number(aging.totalOverdue).toLocaleString()}
+                          ${Number(aging.totalOverdue).toLocaleString("en-US")}
                         </Text>
                       </InlineStack>
                     )}
@@ -665,7 +665,7 @@ export function CustomerDetailModal({
                               variant="bodyMd"
                               fontWeight="bold"
                             >
-                              ${Number(inv.amount).toLocaleString()}
+                              ${Number(inv.amount).toLocaleString("en-US")}
                             </Text>
                             <Badge
                               tone={
@@ -826,7 +826,7 @@ export function CustomerDetailModal({
                                   )
                                     .map((v) =>
                                       typeof v === "number"
-                                        ? v.toLocaleString()
+                                        ? v.toLocaleString("en-US")
                                         : String(v)
                                     )
                                     .join(", ")}

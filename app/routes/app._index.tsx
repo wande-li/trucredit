@@ -3,7 +3,7 @@ import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 
 
-import { useLoaderData, useNavigate, Link } from "@remix-run/react";
+import { useLoaderData, useNavigate, Link, useRevalidator } from "@remix-run/react";
 import { useState } from "react";
 import {
   Page,
@@ -27,6 +27,7 @@ import {
   CalendarIcon,
   CheckIcon,
   XIcon,
+  RefreshIcon,
 } from "@shopify/polaris-icons";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
@@ -385,6 +386,7 @@ export default function Dashboard() {
   const { stats, quota, planName, subscriptionStatus, currentPeriodEnd, planFeatures, showUpgradePrompt, aging, collectionStats, recentCustomers, generatedAt } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const { revalidate, state: revalidateState } = useRevalidator();
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -415,15 +417,25 @@ export default function Dashboard() {
             </Banner>
           )}
 
-          {/* P3: Last updated timestamp */}
-          <Text as="p" variant="bodySm" tone="subdued" alignment="end">
-            Last refreshed: {new Date(generatedAt).toLocaleString("en-US", {
+          {/* P3: Last updated timestamp with refresh */}
+          <InlineStack align="end" gap="200" blockAlign="center">
+            <Button
+              variant="tertiary"
+              onClick={() => revalidate()}
+              loading={revalidateState !== "idle"}
+              disabled={revalidateState !== "idle"}
+              size="slim"
+              icon={<RefreshIcon />}
+            />
+            <Text as="p" variant="bodySm" tone="subdued">
+              Last refreshed: {new Date(generatedAt).toLocaleString("en-US", {
               month: "short",
               day: "numeric",
               hour: "2-digit",
               minute: "2-digit",
             })}
-          </Text>
+              </Text>
+          </InlineStack>
 
           {/* ═══ KPI Row ═══ */}
           <InlineStack gap="400" wrap>
@@ -432,7 +444,7 @@ export default function Dashboard() {
             <KpiCard label="Frozen Accounts" value={stats.frozenCustomers} tone="warning" />
             <KpiCard label="Total Invoices" value={stats.totalInvoices} />
             <KpiCard label="Overdue Invoices" value={stats.overdueInvoices} tone="critical" />
-            <KpiCard label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString()}`} tone="critical" />
+            <KpiCard label="Overdue Amount" value={`$${Number(stats.overdueTotal).toLocaleString("en-US")}`} tone="critical" />
           </InlineStack>
 
           {/* ═══ AR Aging + Plan Usage ═══ */}
@@ -463,7 +475,7 @@ export default function Dashboard() {
                             <Text as="span" variant="bodySm">{bucket.count} inv</Text>
                           </InlineStack>
                           <Text as="span" variant="bodyMd" fontWeight="semibold">
-                            ${Number(bucket.totalAmount).toLocaleString()}
+                            ${Number(bucket.totalAmount).toLocaleString("en-US")}
                           </Text>
                         </InlineStack>
                         <div style={{ height: 6, width: "100%", background: "var(--p-color-bg-fill-tertiary)", borderRadius: 999 }}>
@@ -488,11 +500,11 @@ export default function Dashboard() {
                 <InlineStack gap="400" wrap>
                   <BlockStack gap="050">
                     <Text as="span" variant="bodySm" tone="subdued">Outstanding</Text>
-                    <Text as="span" variant="headingMd" fontWeight="bold">${Number(aging.totalOutstanding).toLocaleString()}</Text>
+                    <Text as="span" variant="headingMd" fontWeight="bold">${Number(aging.totalOutstanding).toLocaleString("en-US")}</Text>
                   </BlockStack>
                   <BlockStack gap="050">
                     <Text as="span" variant="bodySm" tone="subdued">Overdue</Text>
-                    <Text as="span" variant="headingMd" fontWeight="bold" tone="critical">${Number(aging.totalOverdue).toLocaleString()}</Text>
+                    <Text as="span" variant="headingMd" fontWeight="bold" tone="critical">${Number(aging.totalOverdue).toLocaleString("en-US")}</Text>
                   </BlockStack>
                   <BlockStack gap="050">
                     <Text as="span" variant="bodySm" tone="subdued">DSO</Text>
@@ -549,7 +561,7 @@ export default function Dashboard() {
                       gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
                       gap: "8px 16px",
                     }}>
-                      {planFeatures.map((f) => (
+                      {planFeatures.map((f: { key: string; label: string; included: boolean }) => (
                         <InlineStack key={f.key} gap="100" blockAlign="center">
                           {f.included ? (
                             <CheckIcon style={{ width: 14, height: 14, color: "var(--p-color-icon-success)" }} />

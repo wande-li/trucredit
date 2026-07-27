@@ -24,11 +24,15 @@ import {
   GaugeIcon,
   TargetIcon,
   ChartLineIcon,
+  CalendarIcon,
+  CheckIcon,
+  XIcon,
 } from "@shopify/polaris-icons";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
-import { getShopBilling, checkPlanAccess } from "~/services/billing.server";
+import { getShopBilling, checkPlanAccess, hasFeature } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
+import { PLAN_FEATURES } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import redis, { keys } from "~/lib/redis.server";
 import OnboardingGuide from "~/components/OnboardingGuide";
@@ -45,8 +49,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const { shopId } = await resolveShop(request);
 
     // P0-4: Dashboard Plan gate — prevent FREE users from accessing data
-    const { isPaid } = await checkPlanAccess(shopId);
-    const showUpgradePrompt = !isPaid;
+    const { isPaid, plan: currentPlan } = await checkPlanAccess(shopId);
+    const showUpgradePrompt = !isPaid || currentPlan === "FREE" || currentPlan === "STARTER";
+
+    // Plan feature checklist for dashboard
+    const FEATURE_LABELS: Record<string, string> = {
+      advancedCreditScoring: "Advanced credit scoring",
+      aiEmailGeneration: "AI Email Generation",
+      replyClassification: "Reply Classification",
+      autoSequences: "Auto Sequences",
+      customRules: "Custom Rules Engine",
+      prioritySupport: "Priority Support",
+    };
+    const planFeatures = Object.entries(FEATURE_LABELS).map(([key, label]) => ({
+      key,
+      label,
+      included: hasFeature(currentPlan, key as keyof typeof PLAN_FEATURES),
+    }));
 
     // P2: Redis cache — avoid 9 DB queries on every dashboard load (TTL 30s)
     const cacheKey = keys.dashboardCache(shopId);
@@ -129,6 +148,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       plan: billing.plan,
       planName: billing.planName,
       subscriptionStatus: billing.subscriptionStatus,
+      currentPeriodEnd: billing.currentPeriodEnd ?? null,
+      planFeatures,
       showUpgradePrompt,
       generatedAt: new Date().toISOString(),
       stats: {
@@ -257,60 +278,31 @@ function agingBadgeTone(label: string): "critical" | "warning" | "attention" | "
   return "success";
 }
 
-// ── Plan Usage ring-style visual ──
-function QuotaRing({ pct, label, used, total }: { pct: number; label: string; used: number; total: number | string }) {
+// ── Plan Usage progress bar ──
+function QuotaProgress({ pct, label, used, total }: { pct: number; label: string; used: number; total: number | string }) {
   const clamped = Math.min(Math.max(pct, 0), 100);
-  const circumference = 2 * Math.PI * 32;
-  const offset = circumference - (clamped / 100) * circumference;
   const tone = clamped >= 90 ? "critical" as const : clamped >= 70 ? "caution" as const : "success" as const;
-  const strokeColor =
-    tone === "critical" ? "var(--p-color-text-critical)" :
-    tone === "caution"  ? "var(--p-color-text-caution)" :
-                          "var(--p-color-text-success)";
-  const trackColor = "var(--p-color-bg-fill-tertiary)";
+  const barColor =
+    tone === "critical" ? "var(--p-color-bg-fill-critical)"
+    : tone === "caution" ? "var(--p-color-bg-fill-caution)"
+    : "var(--p-color-bg-fill-success)";
 
   return (
-    <InlineStack gap="300" blockAlign="center">
-      <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
-        <svg
-          width="80" height="80" viewBox="0 0 80 80"
-          role="img"
-          aria-label={`${label} usage: ${Math.round(clamped)}% — ${used} of ${total}`}
-        >
-          <circle cx="40" cy="40" r="32" fill="none" stroke={trackColor} strokeWidth="6" />
-          <circle
-            cx="40" cy="40" r="32"
-            fill="none"
-            stroke={strokeColor}
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            transform="rotate(-90 40 40)"
-            style={{ transition: "stroke-dashoffset 0.6s ease" }}
-          />
-        </svg>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text as="span" variant="bodySm" fontWeight="bold" tone={tone}>
-            {Math.round(clamped)}%
-          </Text>
-        </div>
+    <BlockStack gap="100">
+      <InlineStack align="space-between">
+        <Text as="span" variant="bodySm" fontWeight="medium">{label}</Text>
+        <Text as="span" variant="bodySm" tone="subdued">{used} / {total} ({Math.round(clamped)}%)</Text>
+      </InlineStack>
+      <div style={{ width: "100%", height: 8, background: "var(--p-color-bg-fill-tertiary)", borderRadius: 4 }}>
+        <div style={{
+          width: `${clamped}%`,
+          height: "100%",
+          background: barColor,
+          borderRadius: 4,
+          transition: "width 0.5s ease",
+        }} />
       </div>
-      <BlockStack gap="050">
-        <Text as="span" variant="bodyMd" fontWeight="medium">{label}</Text>
-        <Text as="span" variant="bodySm" tone="subdued">
-          {used} / {total}
-        </Text>
-      </BlockStack>
-    </InlineStack>
+    </BlockStack>
   );
 }
 
@@ -390,7 +382,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
 
 // ── Dashboard ──
 export default function Dashboard() {
-  const { stats, quota, planName, showUpgradePrompt, aging, collectionStats, recentCustomers, generatedAt } =
+  const { stats, quota, planName, subscriptionStatus, currentPeriodEnd, planFeatures, showUpgradePrompt, aging, collectionStats, recentCustomers, generatedAt } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
@@ -517,20 +509,70 @@ export default function Dashboard() {
             {/* ── Plan Usage ── */}
             <Card>
               <BlockStack gap="400">
+                {/* Header */}
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <GaugeIcon style={{ width: 20, height: 20, color: "var(--p-color-text-brand)" }} />
                     <Text as="h2" variant="headingMd">Plan Usage</Text>
                     <Badge tone={planName === "FREE" ? "info" : "success"}>{planName}</Badge>
+                    {subscriptionStatus === "ACTIVE" && (
+                      <InlineStack gap="100" blockAlign="center">
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--p-color-bg-fill-success)" }} />
+                        <Text as="span" variant="bodySm" tone="subdued">Active</Text>
+                      </InlineStack>
+                    )}
                   </InlineStack>
                   <Button onClick={() => navigate("/app/billing")} variant="plain">Manage</Button>
                 </InlineStack>
 
-                <BlockStack gap="500">
-                  <QuotaRing pct={quota.customerQuotaPercent} label="Customers" used={quota.customerCount} total={quota.customerQuota} />
-                  <QuotaRing pct={quota.invoiceQuotaPercent} label="Invoices" used={quota.invoiceCount} total={quota.invoiceQuota} />
+                {/* Subscription info */}
+                {currentPeriodEnd && (
+                  <Box padding="300" background="bg-fill-secondary" borderRadius="200">
+                    <InlineStack gap="200" blockAlign="center">
+                      <CalendarIcon style={{ width: 16, height: 16, color: "var(--p-color-text-subdued)" }} />
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        {subscriptionStatus === "TRIAL" ? "Trial ends" : "Renews"}{" "}
+                        {new Date(currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </Text>
+                    </InlineStack>
+                  </Box>
+                )}
+
+                {/* Feature checklist */}
+                <Box padding="300" background="bg-fill-secondary" borderRadius="200">
+                  <BlockStack gap="200">
+                    <Text as="span" variant="bodySm" fontWeight="medium" tone="subdued">
+                      Plan Features
+                    </Text>
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                      gap: "8px 16px",
+                    }}>
+                      {planFeatures.map((f) => (
+                        <InlineStack key={f.key} gap="100" blockAlign="center">
+                          {f.included ? (
+                            <CheckIcon style={{ width: 14, height: 14, color: "var(--p-color-icon-success)" }} />
+                          ) : (
+                            <XIcon style={{ width: 14, height: 14, color: "var(--p-color-icon-subdued)" }} />
+                          )}
+                          <Text as="span" variant="bodySm" tone={f.included ? undefined : "subdued"}>
+                            {f.label}
+                          </Text>
+                        </InlineStack>
+                      ))}
+                    </div>
+                  </BlockStack>
+                </Box>
+
+                {/* Quota usage */}
+                <BlockStack gap="300">
+                  <Text as="span" variant="bodySm" fontWeight="medium" tone="subdued">Quota Usage</Text>
+                  <QuotaProgress pct={quota.customerQuotaPercent} label="Customers" used={quota.customerCount} total={quota.customerQuota} />
+                  <QuotaProgress pct={quota.invoiceQuotaPercent} label="Invoices" used={quota.invoiceCount} total={quota.invoiceQuota} />
                 </BlockStack>
 
+                {/* Upgrade CTA */}
                 {quota.needsUpgrade && (
                   <Button onClick={() => navigate("/app/billing")} variant="primary" fullWidth>
                     Upgrade Plan

@@ -2,7 +2,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams, Link } from "@remix-run/react";
 import {
   Page,
   BlockStack,
@@ -79,20 +79,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const { isPaid, plan } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
-    if (!hasFeature(plan, 'replyClassification')) return redirect("/app/billing");
+    const hasAccess = hasFeature(plan, 'replyClassification');
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
     const intent = (url.searchParams.get("intent") ?? undefined) as ReplyIntent | undefined;
 
-    const result = await listReplies(shopId, { page, intent });
+    // Only query DB if user has access; otherwise return empty result
+    const result = hasAccess
+      ? await listReplies(shopId, { page, intent })
+      : { items: [], total: 0, totalPages: 0, page: 1 };
 
     logger.app("INFO", "loader:app.replies OK", null, {
       durationMs: Date.now() - t0,
       totalCount: result.items?.length ?? 0,
       page,
+      hasAccess,
     });
-    return json({ shopId, ...result });
+    return json({ shopId, ...result, hasAccess, plan });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -144,7 +148,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function RepliesPage() {
   const loaderData = useLoaderData<typeof loader>();
-  const { items, page, total, totalPages } = loaderData;
+  const { items, page, total, totalPages, hasAccess, plan } = loaderData;
   const fetcher = useFetcher();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -209,6 +213,19 @@ export default function RepliesPage() {
         {actionData?.error && !bannerDismissed && (
           <Banner tone="critical" onDismiss={() => setBannerDismissed(true)}>
             {actionData.error}
+          </Banner>
+        )}
+        {!hasAccess && (
+          <Banner tone="info" title="Pro Feature">
+            <BlockStack gap="200">
+              <Text as="p" variant="bodyMd">
+                AI Reply Classification is available on the <strong>Pro</strong> and <strong>Enterprise</strong> plans.
+                Your current plan ({plan ?? "Free"}) does not include this feature.
+              </Text>
+              <InlineStack gap="200">
+                <Link to="/app/billing"><Button variant="primary">View Plans</Button></Link>
+              </InlineStack>
+            </BlockStack>
           </Banner>
         )}
 

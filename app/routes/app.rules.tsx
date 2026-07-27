@@ -59,7 +59,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const { isPaid, plan } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
-    if (!hasFeature(plan, 'customRules')) return redirect("/app/billing");
+    const hasAccess = hasFeature(plan, 'customRules');
 
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") ?? "1", 10);
@@ -77,7 +77,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
       totalPages: result.totalPages,
     });
-    return json({ result, shopDomain, showInactive });
+    return json({ result, shopDomain, showInactive, hasAccess, plan });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -236,7 +236,7 @@ export default function RulesPage() {
     return <Outlet />;
   }
 
-  const { result } = useLoaderData<typeof loader>();
+  const { result, hasAccess, plan } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -262,10 +262,26 @@ export default function RulesPage() {
       <BlockStack gap="400">
         {actionError && <Banner tone="critical">{actionError}</Banner>}
 
+        {!hasAccess && (
+          <Banner tone="info" title="Enterprise Feature">
+            <BlockStack gap="200">
+              <Text as="p" variant="bodyMd">
+                Custom Credit Rules are available on the <strong>Enterprise</strong> plan.
+                Your current plan ({plan ?? "Free"}) does not include this feature.
+              </Text>
+              <InlineStack gap="200">
+                <Button variant="primary" onClick={() => navigate("/app/billing")}>View Plans</Button>
+              </InlineStack>
+            </BlockStack>
+          </Banner>
+        )}
+
         <Card>
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Credit Rules</Text>
-            <Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>
+            {hasAccess && (
+              <Button variant="primary" onClick={() => navigate("/app/rules/new")}>Add Rule</Button>
+            )}
           </InlineStack>
         </Card>
 

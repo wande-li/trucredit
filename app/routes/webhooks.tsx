@@ -144,7 +144,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const domain = shopDomain || String(p.shop_domain || p.myshopify_domain || "");
       if (!domain) throw new Response("Missing shop domain", { status: 400 });
 
-      const sub = p.app_subscription as ShopifyPayload | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Shopify webhook payload fields not in SDK types
+      const sub = p.app_subscription as Record<string, any> | undefined;
       const charge = {
         id: String(sub?.admin_graphql_api_id || sub?.id || ""),
         name: String(sub?.name || ""),

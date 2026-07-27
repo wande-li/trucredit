@@ -17,7 +17,8 @@ declare global {
 }
 
 function createRedis(): Redis {
-  const redis = new Redis(REDIS_URL, {
+  // After the guard above, REDIS_URL is guaranteed non-null; TS can't narrow process.env
+  const redis = new Redis(REDIS_URL as string, {
     maxRetriesPerRequest: null, // Required for BullMQ (handles own retry)
     enableReadyCheck: false,    // BullMQ workers perform their own readiness check
     lazyConnect: false,

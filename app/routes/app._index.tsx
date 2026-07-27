@@ -33,7 +33,7 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { getShopBilling, checkPlanAccess, hasFeature } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
-import { PLAN_FEATURES } from "~/lib/constants";
+import type { PLAN_FEATURES } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 import redis, { keys } from "~/lib/redis.server";
 import OnboardingGuide from "~/components/OnboardingGuide";

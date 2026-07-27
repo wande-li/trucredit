@@ -60,7 +60,7 @@ test.describe("Core Routes: Post-Install (requires session)", () => {
     // Both valid — must not crash (no 500/error page)
     await expect(page.locator("body")).toBeVisible();
     const text = await page.locator("body").textContent();
-    expect(text.length).toBeGreaterThan(0); // Not blank
+    expect(text?.length ?? 0).toBeGreaterThan(0); // Not blank
   });
 
   /* ─── 3a. Customers ─── */
@@ -138,7 +138,7 @@ test.describe("Core Routes: Post-Install (requires session)", () => {
     await expect(page.locator("body")).toBeVisible();
   });
 
-  for (const [label, path, outletRoute] of [
+  for (const [label, _path, outletRoute] of [
     ["Collections", "/app/collections", "/app/collections/1"],
     ["Rules", "/app/rules", "/app/rules/1"],
     ["Emails", "/app/emails", "/app/emails/1"],

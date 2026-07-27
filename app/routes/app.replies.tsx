@@ -161,13 +161,14 @@ export default function RepliesPage() {
   // Deduplicate: show only REPLY_RECEIVED events (skip INTENT_DETECTED duplicates)
   const deduped = useMemo(() => {
     const seen = new Set<string>();
-    return items.filter((e) => {
-      if (e.type === "REPLY_RECEIVED") {
-        seen.add(e.taskId + "::" + e.replyIntent);
+    return items.filter((event) => {
+      if (!event?.type) return false;
+      if (event.type === "REPLY_RECEIVED") {
+        seen.add(event.taskId + "::" + event.replyIntent);
         return true;
       }
       // INTENT_DETECTED: only if no REPLY_RECEIVED for same task+intent
-      const key = e.taskId + "::" + e.replyIntent;
+      const key = event.taskId + "::" + event.replyIntent;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -273,6 +274,7 @@ export default function RepliesPage() {
               ]}
             >
               {deduped.map((evt, idx) => {
+                if (!evt) return null;
                 const inv = evt.task?.invoice;
                 return (
                   <IndexTable.Row key={evt.id} id={evt.id} position={idx}>

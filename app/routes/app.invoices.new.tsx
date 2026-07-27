@@ -27,6 +27,7 @@ import { COLLECTION } from "~/lib/constants";
 import { checkInvoiceQuota, checkPlanAccess } from "~/services/billing.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import ActionToast from "~/components/ActionToast";
+import PageSkeleton from "~/components/PageSkeleton";
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — New Invoice" }];
 
@@ -193,6 +194,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 500 });
   }
 };
+
+export function HydrateFallback() {
+  return <PageSkeleton />;
+}
 
 export default function NewInvoice() {
   const { customers, nextNumber, currency, netTermsOptions } = useLoaderData<typeof loader>();

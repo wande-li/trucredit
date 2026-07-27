@@ -38,7 +38,8 @@ function run(input) {
   const metafieldValue = input.cart?.buyerIdentity?.customer?.metafield?.value;
   let credit = null;
   if (metafieldValue) {
-    try { credit = JSON.parse(metafieldValue); } catch (_) { /* ignore parse errors */ }
+    // Expected to fail when metafield contains non-JSON legacy data — safe to ignore
+    try { credit = JSON.parse(metafieldValue); } catch (_) { /* credit remains null → hide net terms */ }
   }
 
   // Scenario 1: Guest checkout — hide net terms entirely

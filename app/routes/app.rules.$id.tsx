@@ -194,7 +194,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (!terms) return json({ error: "Please enter the net terms days." }, { status: 400 });
         const num2 = parseInt(terms, 10);
         if (isNaN(num2) || num2 <= 0) return json({ error: "Please enter a valid number of days." }, { status: 400 });
-        actionValue.netTerms = num;
+        actionValue.netTerms = num2;
         break;
       }
       case "FREEZE":

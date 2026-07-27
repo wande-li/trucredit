@@ -75,6 +75,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // P1-6: Defense-in-depth Plan gate for actions
+    const { isPaid: _actionPaid } = await checkPlanAccess(shopId);
+    if (!_actionPaid) {
+      logger.app("WARN", "action:app.emails plan_gate blocked", null, { shopId });
+      return json({ success: false, error: "This action requires a paid plan. Please upgrade." }, { status: 402 });
+    }
+
     const formData = await request.formData();
     const intent = formData.get("intent") as string;
 
@@ -130,7 +138,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.emails ERROR", msg, { durationMs: Date.now() - ta });
-    throw new Response("We encountered an issue. Please refresh the page and try again.", { status: 500 });
+    return json({ success: false, error: "We encountered an issue. Please refresh the page and try again." }, { status: 500 });
   }
 };
 

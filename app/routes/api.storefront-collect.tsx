@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { reserveCredit } from "~/services/checkout.server";
 import prisma from "~/db.server";
+import redis, { keys as redisKeys } from "~/lib/redis.server";
 import { logger } from "~/services/logger.server";
 import { verifyApiKey } from "~/lib/api-auth.server";
 import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
@@ -33,17 +34,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const ta = Date.now();
   logger.app("INFO", "action:api.storefront-collect START");
   if (request.method !== "POST") {
-    return json({ error: "Method Not Allowed" }, { status: 405 });
+    return json({ success: false, error: "Method Not Allowed" }, { status: 405 });
   }
 
   if (!verifyApiKey(request)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
+    return json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   // Rate limit by IP
   const allowed = await checkRateLimit(getRateLimitKey(request, "storefront-collect"));
   if (!allowed) {
-    return json({ error: "Too Many Requests" }, { status: 429 });
+    return json({ success: false, error: "Too Many Requests" }, { status: 429 });
   }
 
   // Read raw body for signature verification + JSON parsing
@@ -55,16 +56,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const signature = request.headers.get("x-signature");
     const timestamp = request.headers.get("x-timestamp");
     if (!signature || !timestamp) {
-      return json({ error: "Missing signature headers" }, { status: 401 });
+      return json({ success: false, error: "Missing signature headers" }, { status: 401 });
     }
     // Replay window: ±5 minutes
     const ts = parseInt(timestamp, 10);
     if (Number.isNaN(ts) || Math.abs(Date.now() - ts * 1000) > 5 * 60 * 1000) {
-      return json({ error: "Request expired or invalid timestamp" }, { status: 401 });
+      return json({ success: false, error: "Request expired or invalid timestamp" }, { status: 401 });
     }
     const expected = crypto.createHmac("sha256", signingSecret).update(`${timestamp}.${rawBody}`).digest("hex");
     if (!timingSafeEqualHex(signature, expected)) {
-      return json({ error: "Invalid signature" }, { status: 401 });
+      return json({ success: false, error: "Invalid signature" }, { status: 401 });
     }
   }
 
@@ -75,7 +76,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("WARN", "storefront-collect: JSON parse failed", msg);
-    return json({ error: "Invalid JSON body" }, { status: 400 });
+    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
   const parsed = CollectSchema.safeParse(body);
@@ -111,27 +112,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: false, error: "Customer not found" }, { status: 404 });
   }
 
-  // Reserve credit
-  const result = await reserveCredit({
-    customerId: customer.id,
-    amount: totalPrice,
-    orderName,
-  });
+  // Reserve credit with distributed lock to prevent TOCTOU race
+  // P1-15: Lock on customer to serialize check+reserve for concurrent orders
+  const lockKey = redisKeys.creditCache(customer.id) + ":lock";
+  let result: { success: boolean; error?: string };
+  const acquired = await redis.set(lockKey, "1", "EX", 10, "NX");
+  try {
+    try {
+      result = await reserveCredit({
+        customerId: customer.id,
+        amount: totalPrice,
+        orderName,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("ERROR", "storefront-collect: reserveCredit failed", msg, {
+        customerId: customer.id,
+        orderName,
+        totalPrice,
+      });
+      return json({ success: false, error: "Credit reservation failed. Please try again." }, { status: 500 });
+    }
 
-  if (!result.success) {
-    return json({ success: false, error: result.error }, { status: 402 });
+    if (!result.success) {
+      return json({ success: false, error: result.error }, { status: 402 });
+    }
+
+    logger.app("INFO", "action:api.storefront-collect OK", null, {
+      durationMs: Date.now() - ta,
+      shopId: shop.id,
+      customerId: customer.id,
+      orderId,
+      orderName,
+      totalPrice,
+    });
+
+    return json({ success: true, orderId });
+  } finally {
+    if (acquired) {
+      redis.del(lockKey).catch(() => { /* best-effort: key will expire via TTL */ });
+    }
   }
-
-  logger.app("INFO", "action:api.storefront-collect OK", null, {
-    durationMs: Date.now() - ta,
-    shopId: shop.id,
-    customerId: customer.id,
-    orderId,
-    orderName,
-    totalPrice,
-  });
-
-  return json({ success: true, orderId });
 };
 
 /** Constant-time hex string comparison (P1-5: timing attack protection) */

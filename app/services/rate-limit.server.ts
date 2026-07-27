@@ -21,6 +21,14 @@ import { logger } from "~/services/logger.server";
 const RATE_LIMIT_RPM = Number(process.env.RATE_LIMIT_RPM) || 100;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
+// P2-21: Per-endpoint rate limit overrides (stricter for sensitive endpoints)
+const ENDPOINT_LIMITS: Record<string, number> = {
+  "credit-check": 30,       // Prevent credit info probing
+  "storefront-collect": 60, // Moderate checkout volume
+  "sync-companies": 20,     // Admin ops, less frequent
+  "inbound-reply": 10,      // Prevent email inbound spam
+};
+
 // In-memory store as Redis fallback
 const memoryStore = new Map<string, { count: number; resetAt: number }>();
 
@@ -42,16 +50,19 @@ export function getRateLimitKey(request: Request, route: string): string {
   return `api:${route}:${ip}`;
 }
 
-/** Check if a request should be rate-limited. */
+/** Check if a request should be rate-limited. Uses per-endpoint override if configured. */
 export async function checkRateLimit(key: string): Promise<boolean> {
+  // P2-21: Extract route from key for per-endpoint limit lookup
+  const route = key.split(":")[1]; // key format: "api:{route}:{ip}"
+  const limit = ENDPOINT_LIMITS[route] ?? RATE_LIMIT_RPM;
   if (redis.status === "ready") {
-    return redisSlidingWindow(key);
+    return redisSlidingWindow(key, limit);
   }
-  return memorySlidingWindow(key);
+  return memorySlidingWindow(key, limit);
 }
 
 /** Redis sliding window using sorted set. */
-async function redisSlidingWindow(key: string): Promise<boolean> {
+async function redisSlidingWindow(key: string, limit: number): Promise<boolean> {
   const rk = `ratelimit:${key}`;
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW_MS;
@@ -61,11 +72,11 @@ async function redisSlidingWindow(key: string): Promise<boolean> {
     await redis.zremrangebyscore(rk, 0, windowStart);
     const count = await redis.zcard(rk);
 
-    if (count >= RATE_LIMIT_RPM) {
+    if (count >= limit) {
       logger.app("WARN", "rateLimit — exceeded (redis)", null, {
         key,
         count,
-        limit: RATE_LIMIT_RPM,
+        limit,
       });
       return false;
     }
@@ -81,12 +92,12 @@ async function redisSlidingWindow(key: string): Promise<boolean> {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "rateLimit — Redis failed, fallback to memory", msg);
-    return memorySlidingWindow(key);
+    return memorySlidingWindow(key, limit);
   }
 }
 
 /** In-memory fallback — simple counter with window reset. */
-function memorySlidingWindow(key: string): boolean {
+function memorySlidingWindow(key: string, limit: number): boolean {
   const now = Date.now();
   const entry = memoryStore.get(key);
 
@@ -97,11 +108,11 @@ function memorySlidingWindow(key: string): boolean {
 
   entry.count++;
 
-  if (entry.count > RATE_LIMIT_RPM) {
+  if (entry.count > limit) {
     logger.app("WARN", "Rate limit exceeded (memory)", undefined, {
       key,
       count: entry.count,
-      limit: RATE_LIMIT_RPM,
+      limit,
     });
     return false;
   }

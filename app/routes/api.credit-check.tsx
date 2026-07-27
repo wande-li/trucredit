@@ -4,6 +4,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { z } from "zod";
 import { checkCreditEligibility } from "~/services/checkout.server";
+import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { verifyApiKey } from "~/lib/api-auth.server";
 import { checkRateLimit, getRateLimitKey } from "~/services/rate-limit.server";
@@ -28,17 +29,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const ta = Date.now();
   logger.app("INFO", "action:api.credit-check START");
   if (request.method !== "POST") {
-    return json({ error: "Method Not Allowed" }, { status: 405 });
+    return json({ eligible: false, reason: "Method Not Allowed" }, { status: 405 });
   }
 
   if (!verifyApiKey(request)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
+    return json({ eligible: false, reason: "Unauthorized" }, { status: 401 });
   }
 
   // Rate limit by IP
   const allowed = await checkRateLimit(getRateLimitKey(request, "credit-check"));
   if (!allowed) {
-    return json({ error: "Too Many Requests" }, { status: 429 });
+    return json({ eligible: false, reason: "Too Many Requests" }, { status: 429 });
   }
 
   // Parse + validate body with Zod
@@ -48,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("WARN", "credit-check: JSON parse failed", msg);
-    return json({ error: "Invalid JSON body" }, { status: 400 });
+    return json({ eligible: false, reason: "Invalid JSON body" }, { status: 400 });
   }
 
   const parsed = CreditCheckSchema.safeParse(body);
@@ -60,6 +61,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const { shopDomain, customerEmail, cartTotal, currency } = parsed.data;
+
+  // P0-3: Validate shopDomain exists in DB to prevent information probing
+  const shop = await prisma.shop.findUnique({
+    where: { shopDomain },
+    select: { id: true },
+  });
+  if (!shop) {
+    logger.app("WARN", "credit-check: unknown shopDomain", undefined, { shopDomain });
+    return json({ eligible: false, reason: "Shop not found" }, { status: 404 });
+  }
 
   try {
     const result = await checkCreditEligibility({

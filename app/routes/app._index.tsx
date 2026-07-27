@@ -26,7 +26,7 @@ import {
 } from "@shopify/polaris-icons";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
-import { getShopBilling } from "~/services/billing.server";
+import { getShopBilling, checkPlanAccess } from "~/services/billing.server";
 import { getARAgingReport } from "~/services/invoice.server";
 import { logger } from "~/services/logger.server";
 import redis, { keys } from "~/lib/redis.server";
@@ -42,6 +42,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   logger.app("INFO", "loader:app._index START");
   try {
     const { shopId } = await resolveShop(request);
+
+    // P0-4: Dashboard Plan gate — prevent FREE users from accessing data
+    const { isPaid } = await checkPlanAccess(shopId);
+    const showUpgradePrompt = !isPaid;
 
     // P2: Redis cache — avoid 9 DB queries on every dashboard load (TTL 30s)
     const cacheKey = keys.dashboardCache(shopId);
@@ -124,6 +128,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       plan: billing.plan,
       planName: billing.planName,
       subscriptionStatus: billing.subscriptionStatus,
+      showUpgradePrompt,
       generatedAt: new Date().toISOString(),
       stats: {
         totalCustomers: billing.customerCount,

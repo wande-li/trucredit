@@ -22,6 +22,7 @@ import { useCallback, useState } from "react";
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { pauseTask, stopTask } from "~/services/collection.server";
+import { requirePermission } from "~/services/rbac.server";
 import { enqueueEmail } from "~/queues/email.queue";
 import { PAGINATION } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
@@ -139,7 +140,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const ta = Date.now();
   logger.app("INFO", "action:app.tasks START");
   try {
-    const { shopId } = await resolveShop(request);
+    const { shopId, role } = await resolveShop(request);
+    requirePermission(role, "edit");
 
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) {

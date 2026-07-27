@@ -14,8 +14,8 @@ declare global {
 
 function createRedis(): Redis {
   const redis = new Redis(REDIS_URL, {
-    maxRetriesPerRequest: null, // Required for BullMQ
-    enableReadyCheck: false,
+    maxRetriesPerRequest: null, // Required for BullMQ (handles own retry)
+    enableReadyCheck: false,    // BullMQ workers perform their own readiness check
     lazyConnect: false,
   });
 
@@ -39,11 +39,11 @@ export const keys = {
   session: (shop: string) => `${REDIS_PREFIX}session:${shop}`,
   rateLimit: (shop: string) => `${REDIS_PREFIX}ratelimit:${shop}`,
   shopifyRateLimit: (shop: string) => `${REDIS_PREFIX}shopify:ratelimit:${shop}`,
-  taskLock: (taskId: string) => `${REDIS_PREFIX}lock:task:${taskId}`,
+  taskLock: (taskId: string) => `${REDIS_PREFIX}lock:task:${taskId}`,          // Reserved: per-task mutex
   creditCache: (customerId: string) => `${REDIS_PREFIX}credit:${customerId}`,
   dashboardCache: (shopId: string) => `${REDIS_PREFIX}dashboard:${shopId}`,
   dashboardLock: (shopId: string) => `${REDIS_PREFIX}dashboard:lock:${shopId}`,
-  syncLock: (shop: string) => `${REDIS_PREFIX}sync:lock:${shop}`,
+  syncLock: (shop: string) => `${REDIS_PREFIX}sync:lock:${shop}`,              // Reserved: company sync mutex
   sweepLock: (shopId: string) => `${REDIS_PREFIX}sweep:lock:${shopId}`,
   emailRateLimit: (shopId: string, emailType: string) => `${REDIS_PREFIX}email:rate:${emailType}:${shopId}`,
 } as const;

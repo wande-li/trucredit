@@ -351,12 +351,14 @@ export async function createDefaultSequence(shopId: string): Promise<void> {
  */
 export async function advanceTask(params: {
   taskId: string;
+  shopId: string;
   toStatus?: TaskStatus;
   reason?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  logger.app("INFO", "collection.advanceTask START", null, { taskId: params.taskId, toStatus: params.toStatus });
-  const task = await prisma.collectionTask.findUnique({
-    where: { id: params.taskId },
+  logger.app("INFO", "collection.advanceTask START", null, { taskId: params.taskId, shopId: params.shopId, toStatus: params.toStatus });
+  // P0-11: Verify task belongs to this shop via invoice relation to prevent cross-tenant access
+  const task = await prisma.collectionTask.findFirst({
+    where: { id: params.taskId, invoice: { shopId: params.shopId } },
     include: { sequence: { include: { steps: { orderBy: { order: "asc" } } } } },
   });
 

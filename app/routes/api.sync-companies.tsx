@@ -49,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { isPaid } = await checkPlanAccess(shop.id);
   if (!isPaid) {
     logger.app("WARN", "action:api.sync-companies plan_gate blocked", null, { shopDomain, shopId: shop.id });
-    return json({ error: "Company sync requires a paid plan. Please upgrade." }, { status: 402 });
+    return json({ success: false, error: "Company sync requires a paid plan. Please upgrade." }, { status: 402 });
   }
 
   try {

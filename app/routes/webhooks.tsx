@@ -7,6 +7,7 @@ import { syncCreditMetafield, clearCreditMetafield } from "~/services/metafield.
 import { logger } from "~/services/logger.server";
 import { toGid } from "~/lib/shopify-id";
 import prisma from "~/db.server";
+import redis, { REDIS_PREFIX } from "~/lib/redis.server";
 
 // Shopify webhook payloads are dynamic — safe to use index access
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -101,6 +102,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           data: { uninstalledAt: new Date() },
         });
       }
+
+      // P0-13: Clean Redis cache keys for uninstalled shop (best-effort, non-blocking)
+      try {
+        const shop = await prisma.shop.findUnique({
+          where: { shopDomain: shopDomain.trim() },
+          select: { id: true },
+        });
+        if (shop && redis) {
+          const pipe = redis.pipeline();
+          // Delete dashboard cache + lock
+          pipe.del(`${REDIS_PREFIX}dashboard:${shop.id}`);
+          pipe.del(`${REDIS_PREFIX}dashboard:lock:${shop.id}`);
+          // Scan and delete credit cache keys for this shop's customers
+          const customers = await prisma.customer.findMany({
+            where: { shopId: shop.id },
+            select: { id: true },
+          });
+          customers.forEach((c) => pipe.del(`${REDIS_PREFIX}credit:${c.id}`));
+          await pipe.exec();
+          logger.app("INFO", "action:webhooks APP_UNINSTALLED redis_cleanup OK", null, {
+            shopDomain,
+            shopId: shop.id,
+            keysDeleted: 2 + customers.length,
+          });
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("WARN", "action:webhooks APP_UNINSTALLED redis_cleanup failed (non-blocking)", msg, { shopDomain });
+      }
+
       return new Response(null, { status: 200 });
     });
   }

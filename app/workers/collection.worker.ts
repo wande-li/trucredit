@@ -115,6 +115,11 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
           logger.app("WARN", "Invoice worker: invoice not found", undefined, logCtx);
           return { skipped: true, reason: "Invoice not found" };
         }
+        // P1-14: Verify invoice has a valid shop — defense-in-depth against poisoned queue jobs
+        if (!invoice.shop?.id) {
+          logger.app("WARN", "Invoice worker: invoice missing shop", undefined, logCtx);
+          return { skipped: true, reason: "Invoice missing shop" };
+        }
         if (!sequence) {
           logger.app("WARN", "Invoice worker: sequence not found", undefined, logCtx);
           return { skipped: true, reason: "Sequence not found" };
@@ -297,9 +302,23 @@ export function createReplyWorker(): Worker<ReplyJob> {
     async (job) => {
       const { taskId, fromEmail, subject, body, emailMessageId } = job.data;
 
+      // P0-12: Look up shopId from task for tenant isolation before passing to processReply
+      let replyShopId: string | undefined;
+      try {
+        const taskInfo = await prisma.collectionTask.findUnique({
+          where: { id: taskId },
+          select: { invoice: { select: { shopId: true } } },
+        });
+        replyShopId = taskInfo?.invoice?.shopId ?? undefined;
+      } catch (_e: unknown) {
+        // Non-blocking: proceed without shopId if lookup fails
+        logger.app("WARN", "Reply worker: failed to look up shopId for task", undefined, { taskId });
+      }
+
       try {
         const result = await processReply({
           taskId,
+          shopId: replyShopId,
           fromEmail,
           subject,
           body,

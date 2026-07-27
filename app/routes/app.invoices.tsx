@@ -74,6 +74,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shopId, role } = await resolveShop(request);
     requirePermission(role, "edit");
+
+    // P1-6: Defense-in-depth Plan gate for actions
+    const { isPaid: _actionPaid } = await checkPlanAccess(shopId);
+    if (!_actionPaid) {
+      logger.app("WARN", "action:app.invoices plan_gate blocked", null, { shopId });
+      return json({ ok: false, error: "This action requires a paid plan. Please upgrade." }, { status: 402 });
+    }
+
     const formData = await request.formData();
     const intent = formData.get("intent")?.toString();
 

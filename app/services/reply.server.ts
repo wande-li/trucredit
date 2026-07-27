@@ -32,6 +32,7 @@ export interface ReplyProcessResult {
  */
 export async function processReply(params: {
   taskId: string;
+  shopId?: string;
   fromEmail: string;
   subject: string;
   body: string;
@@ -43,12 +44,16 @@ export async function processReply(params: {
     customerName: string;
   };
 }): Promise<ReplyProcessResult> {
-  const { taskId, fromEmail, subject, body, emailMessageId, invoiceContext } = params;
-  logger.app("INFO", "reply.processReply START", null, { taskId, fromEmail, subject: subject.slice(0, 80) });
+  const { taskId, shopId, fromEmail, subject, body, emailMessageId, invoiceContext } = params;
+  logger.app("INFO", "reply.processReply START", null, { taskId, shopId, fromEmail, subject: subject.slice(0, 80) });
 
   // Step 1: Verify task exists and is active
-  const task = await prisma.collectionTask.findUnique({
-    where: { id: taskId },
+  // P0-12: If shopId provided, filter through invoice.shopId to prevent cross-tenant access
+  const taskWhere = shopId
+    ? { id: taskId, invoice: { shopId } } as const
+    : { id: taskId };
+  const task = await prisma.collectionTask.findFirst({
+    where: taskWhere,
     include: {
       invoice: {
         select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, customerId: true },

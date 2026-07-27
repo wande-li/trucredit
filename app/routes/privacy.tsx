@@ -207,7 +207,7 @@ export default function PrivacyPolicy() {
         <P>If you have any questions about this Privacy Policy or our data practices, please contact us:</P>
         <Ul>
           <Li><Strong>Email</Strong>:{" "}<A href={`mailto:${process.env.SUPPORT_EMAIL || "basekit.studio@gmail.com"}`}>basekit.studio@gmail.com</A></Li>
-          <Li><Strong>Website</Strong>:{" "}<A href="https://trucredit-app-production.up.railway.app/privacy">https://trucredit-app-production.up.railway.app/privacy</A></Li>
+          <Li><Strong>Website</Strong>:{" "}<A href={process.env.APP_URL ? `${process.env.APP_URL}/privacy` : "https://trucredit-app-production.up.railway.app/privacy"}>https://trucredit-app-production.up.railway.app/privacy</A></Li>
           <Li><Strong>Response time</Strong>: We aim to respond to all inquiries within 24 hours.</Li>
         </Ul>
       </Section>

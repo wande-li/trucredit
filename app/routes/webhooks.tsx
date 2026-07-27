@@ -1,4 +1,5 @@
 import { type ActionFunctionArgs } from "@remix-run/node";
+import type { AdminApiContext } from "@shopify/shopify-app-remix/server";
 import { authenticate } from "~/shopify.server";
 import { handleSubscriptionUpdate } from "~/services/billing.server";
 import { upsertCustomerFromShopify, checkCustomerQuota } from "~/services/customer.server";
@@ -9,10 +10,8 @@ import { toGid } from "~/lib/shopify-id";
 import prisma from "~/db.server";
 import redis, { REDIS_PREFIX } from "~/lib/redis.server";
 
-// Shopify webhook payloads are dynamic — safe to use index access
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// Shopify webhook payloads — dynamic fields by topic
 interface ShopifyPayload {
-  [key: string]: any;
   id?: number | string;
   shop_domain?: string;
   myshopify_domain?: string;
@@ -28,15 +27,18 @@ interface ShopifyPayload {
   app_subscription?: ShopifyPayload;
   contacts?: Array<{ id: string; customer?: { id: string; email?: string; firstName?: string; lastName?: string; phone?: string } }>;
   default_address?: { company?: string };
+  // Dynamic fields used by specific webhook topics
+  order_id?: number | string;
+  source_name?: string;
+  refund_line_items?: Array<{ quantity?: number; subtotal?: number | string }>;
+  transactions?: Array<{ amount?: string | number; kind?: string }>;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   let topic = "";
   let p: ShopifyPayload = {};
   let shopDomain = "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Shopify SDK AdminApiContext type varies by version
-  let shopifyAdmin: any;
+  let shopifyAdmin: AdminApiContext | undefined;
 
   // P0-2: Top-level try-catch — all handlers MUST return 200 to prevent Shopify retry cascading
   try {

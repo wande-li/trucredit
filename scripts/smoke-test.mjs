@@ -128,11 +128,6 @@ async function main() {
     if (r.status >= 500) throw new Error(`status ${r.status}`);
   });
 
-  await test("POST /api/create-charge → <500", async () => {
-    const r = await req("/api/create-charge", { method: "POST", body: {} });
-    if (r.status >= 500) throw new Error(`status ${r.status}`);
-  });
-
   await test("GET /api/invoices/export/csv → <500", async () => {
     const r = await req("/api/invoices/export/csv");
     if (r.status >= 500) throw new Error(`status ${r.status}`);

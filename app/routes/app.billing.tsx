@@ -1,13 +1,12 @@
 // TruCredit — Pricing Page
-// Upgrade flow: Button onClick → fetcher POST /api/create-charge → get confirmationUrl → window.open(url, '_top')
-// This avoids all iframe/App Bridge redirect issues. The charge is created server-side,
-// the URL is returned as JSON, and the client breaks out of the iframe via _top window target.
+// Managed Pricing: Click upgrade → window.top.location.href = Shopify pricing URL
+// Shopify hosts the payment flow; callback returns to /app/billing/callback?shop=...&charge_id=...
+// Reference: Wandex (ai-commerce-pilot) production pattern
 
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 
-import { useEffect, useRef } from "react";
-import { useLoaderData, useRouteError, useFetcher } from "@remix-run/react";
+import { useLoaderData, useRouteError } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -24,6 +23,7 @@ import {
 import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition, getShopBilling } from "~/services/billing.server";
+import { pricingPageUrl } from "~/lib/constants";
 import { RouteError } from "~/services/error-boundary.shared";
 import PageSkeleton from "~/components/PageSkeleton";
 import { logger } from "~/services/logger.server";
@@ -36,7 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const t0 = Date.now();
   logger.app("INFO", "loader:app.billing START");
   try {
-    const { shopId, plan: currentPlan, subscriptionStatus } = await resolveShop(request);
+    const { shopId, shopDomain, plan: currentPlan, subscriptionStatus } = await resolveShop(request);
 
     const [shop, billing] = await Promise.all([
       prisma.shop.findUnique({
@@ -57,6 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
     return json(
       {
+        shopDomain,
         currentPlan,
         planName,
         subscriptionStatus,
@@ -106,12 +107,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// No action — billing flow uses /api/create-charge + client-side window.open(url, '_top')
+// No action — Managed Pricing redirects to Shopify-hosted pricing page via window.top.location.href
 
 // ─── Component ──────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, usage } =
+  const { shopDomain, currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, usage } =
     useLoaderData<typeof loader>();
 
   const isActive = subscriptionStatus === "ACTIVE";
@@ -229,6 +230,7 @@ export default function BillingPage() {
               plan={plan}
               currentPlan={currentPlan}
               isActive={isActive}
+              shopDomain={shopDomain}
             />
           ))}
         </div>
@@ -285,17 +287,20 @@ export default function BillingPage() {
 }
 
 // ─── Plan Card Component ─────────────────────────────────────
-// Uses useFetcher to POST to /api/create-charge (server creates charge, returns confirmationUrl).
-// Then window.open(url, '_top') breaks out of Shopify Admin iframe to the charge approval page.
+// Managed Pricing: redirects to Shopify-hosted pricing page via window.top.location.href.
+// Shopify handles the payment flow and redirects back to /app/billing/callback after confirmation.
+// No Billing API (appSubscriptionCreate) calls — Managed Pricing apps are forbidden from using it.
 
 function PlanCard({
   plan,
   currentPlan,
   isActive,
+  shopDomain,
 }: {
   plan: PlanDefinition;
   currentPlan: string;
   isActive: boolean;
+  shopDomain: string;
 }) {
   const isCurrent = plan.key === currentPlan;
   const isFree = plan.key === "FREE";
@@ -303,27 +308,6 @@ function PlanCard({
     !isFree &&
     !isCurrent &&
     plan.billingPlanName != null;
-
-  // Annual savings calc kept for future re-enable
-  // const annualSavings =
-  //   plan.price && plan.annualPrice
-  //     ? Math.round((1 - plan.annualPrice / (plan.price * 12)) * 100)
-  //     : annualDiscountPercent;
-
-  const fetcher = useFetcher<{ confirmationUrl?: string; error?: string }>();
-  const isSubmitting = fetcher.state === "submitting";
-  const errorMsg = fetcher.data?.error;
-  const lastFiredRef = useRef<string | null>(null);
-
-  // Redirect to Shopify charge approval page when confirmationUrl is received.
-  // window.top.location.href is NOT subject to popup blocking (it's a navigation,
-  // not window.open). Shopify iframe sandbox allows top-navigation.
-  useEffect(() => {
-    const url = fetcher.data?.confirmationUrl;
-    if (!url || url === lastFiredRef.current) return;
-    lastFiredRef.current = url;
-    window.top!.location.href = url;
-  }, [fetcher.data?.confirmationUrl]);
 
   return (
     <Card>
@@ -401,13 +385,6 @@ function PlanCard({
           </List>
         </BlockStack>
 
-        {/* Error message */}
-        {errorMsg && (
-          <Banner tone="critical">
-            <Text as="p" variant="bodyMd">{errorMsg}</Text>
-          </Banner>
-        )}
-
         {/* CTA */}
         {canUpgrade && (
           <BlockStack gap="200">
@@ -415,18 +392,12 @@ function PlanCard({
               variant="primary"
               size="large"
               fullWidth
-              loading={isSubmitting}
-              disabled={isSubmitting}
               onClick={() => {
-                fetcher.submit(
-                  { planKey: plan.key, interval: "monthly" },
-                  { method: "POST", action: "/api/create-charge" },
-                );
+                window.top!.location.href = pricingPageUrl(shopDomain);
               }}
             >
               {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
             </Button>
-            {/* Annual billing hidden — will re-enable post-launch */}
           </BlockStack>
         )}
 

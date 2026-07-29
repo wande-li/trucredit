@@ -99,7 +99,7 @@
 | Webhook Hub | Central webhook handler for 14 Shopify events | `webhooks.tsx` |
 | GDPR Compliance | customers/data_request, customers/redact, shop/redact handlers | `webhooks.tsx` |
 | App Uninstall | Cleanup: delete shop data, invalidate Redis cache, unsubscribe webhooks | `webhooks.tsx` |
-| Managed Pricing | Shopify Billing API integration with plan-based pricing | `billing.callback.tsx`, `api.create-charge.tsx`, `services/billing.server.ts` |
+| Managed Pricing | Shopify Managed Pricing with direct redirect to Shopify-hosted payment page | `app.billing.callback.tsx`, `app.billing.tsx`, `services/billing.server.ts` |
 | Privacy & Terms | GDPR-compliant privacy policy + terms of service pages | `privacy.tsx`, `terms.tsx` |
 
 ## 10. Platform Infrastructure
@@ -120,7 +120,7 @@
 | `/api/credit-check` | POST | Public | Checkout credit validation |
 | `/api/storefront-collect` | POST | Public | Storefront credit event capture |
 | `/api/email-inbound` | POST | SNS | AWS SES inbound email handler |
-| `/api/create-charge` | POST | Admin | Shopify billing charge creation |
+| `/app/billing/callback` | GET | Public | Shopify Managed Pricing callback (charge verification + plan sync) |
 | `/api/invoices/export.csv` | GET | Admin | CSV invoice export |
 | `/api/invoices/:id.pdf` | GET | Admin | Invoice PDF generation |
 | `/api/customers/export.csv` | GET | Admin | CSV customer export |

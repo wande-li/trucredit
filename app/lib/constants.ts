@@ -93,11 +93,11 @@ export const PLANS = {
     ],
   },
   ENTERPRISE: {
-    name: "Enterprise",
+    name: "Business",
     price: 149,
     annualPrice: 1490,
     period: "month",
-    billingPlanName: "TruCredit Enterprise",
+    billingPlanName: "TruCredit Business",
     displayFeatures: [
       "Up to 500 customers",
       "Up to 2,000 invoices",

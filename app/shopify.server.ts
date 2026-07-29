@@ -33,11 +33,11 @@ if (SHOPIFY_API_VERSION !== expectedApiVersion) {
 // Monthly plans
 export const PLAN_STARTER_MONTHLY = "TruCredit Starter";
 export const PLAN_PRO_MONTHLY = "TruCredit Pro";
-export const PLAN_ENTERPRISE_MONTHLY = "TruCredit Enterprise";
+export const PLAN_ENTERPRISE_MONTHLY = "TruCredit Business";
 // Annual plans (17% discount vs monthly)
 export const PLAN_STARTER_ANNUAL = "TruCredit Starter Annual";
 export const PLAN_PRO_ANNUAL = "TruCredit Pro Annual";
-export const PLAN_ENTERPRISE_ANNUAL = "TruCredit Enterprise Annual";
+export const PLAN_ENTERPRISE_ANNUAL = "TruCredit Business Annual";
 
 // Union type for type-safe billing.request() calls
 export type BillingPlanName =

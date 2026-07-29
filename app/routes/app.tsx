@@ -33,7 +33,7 @@ const PLAN_DISPLAY: Record<string, string> = {
   FREE: "Free",
   STARTER: "Starter",
   PRO: "Pro",
-  ENTERPRISE: "Enterprise",
+  ENTERPRISE: "Business",
 };
 
 export const links = () => [

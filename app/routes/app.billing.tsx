@@ -111,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ─── Component ──────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, annualDiscountPercent, usage } =
+  const { currentPlan, planName, subscriptionStatus, currentPeriodEnd, isTrialActive, plans, usage } =
     useLoaderData<typeof loader>();
 
   const isActive = subscriptionStatus === "ACTIVE";
@@ -229,7 +229,6 @@ export default function BillingPage() {
               plan={plan}
               currentPlan={currentPlan}
               isActive={isActive}
-              annualDiscountPercent={annualDiscountPercent}
             />
           ))}
         </div>
@@ -293,12 +292,10 @@ function PlanCard({
   plan,
   currentPlan,
   isActive,
-  annualDiscountPercent,
 }: {
   plan: PlanDefinition;
   currentPlan: string;
   isActive: boolean;
-  annualDiscountPercent: number;
 }) {
   const isCurrent = plan.key === currentPlan;
   const isFree = plan.key === "FREE";
@@ -307,10 +304,11 @@ function PlanCard({
     !isCurrent &&
     plan.billingPlanName != null;
 
-  const annualSavings =
-    plan.price && plan.annualPrice
-      ? Math.round((1 - plan.annualPrice / (plan.price * 12)) * 100)
-      : annualDiscountPercent;
+  // Annual savings calc kept for future re-enable
+  // const annualSavings =
+  //   plan.price && plan.annualPrice
+  //     ? Math.round((1 - plan.annualPrice / (plan.price * 12)) * 100)
+  //     : annualDiscountPercent;
 
   const fetcher = useFetcher<{ confirmationUrl?: string; error?: string }>();
   const isSubmitting = fetcher.state === "submitting";
@@ -366,11 +364,7 @@ function PlanCard({
                   /month
                 </Text>
               </InlineStack>
-              {plan.annualPrice && plan.monthlyEquivalent ? (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  ${plan.annualPrice}/yr — ${plan.monthlyEquivalent.toFixed(2)}/mo (save {String(annualSavings)}%)
-                </Text>
-              ) : null}
+              {/* Annual pricing hidden — will re-enable post-launch */}
             </>
           )}
         </BlockStack>
@@ -432,22 +426,7 @@ function PlanCard({
             >
               {isCurrent ? "Current Plan" : `Start ${plan.name} Trial`}
             </Button>
-            {plan.billingPlanNameAnnual && (
-              <Button
-                variant="plain"
-                size="medium"
-                fullWidth
-                disabled={isSubmitting}
-                onClick={() => {
-                  fetcher.submit(
-                    { planKey: plan.key, interval: "annual" },
-                    { method: "POST", action: "/api/create-charge" },
-                  );
-                }}
-              >
-                Save {String(Math.round(annualSavings))}% with annual billing
-              </Button>
-            )}
+            {/* Annual billing hidden — will re-enable post-launch */}
           </BlockStack>
         )}
 

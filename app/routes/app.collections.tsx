@@ -90,7 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           logger.app("WARN", "action:app.collections create plan_gate", null, { durationMs: Date.now() - ta });
           return json(
             {
-              error: "Automated collection sequences require a Starter, Pro, or Enterprise plan. Please upgrade.",
+              error: "Automated collection sequences require a Starter, Pro, or Business plan. Please upgrade.",
               needsUpgrade: true,
             },
             { status: 402 },

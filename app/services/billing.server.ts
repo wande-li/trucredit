@@ -113,7 +113,7 @@ export const PLANS: PlanDefinition[] = [
   },
   {
     key: "ENTERPRISE",
-    name: "Enterprise",
+    name: "Business",
     price: 149,
     annualPrice: 1490,
     monthlyEquivalent: 124.17,
@@ -155,6 +155,8 @@ export function billingPlanToEnum(planName: string | null): Plan {
     case PLAN_ENTERPRISE_MONTHLY:
     case PLAN_ENTERPRISE_ANNUAL:
       return "ENTERPRISE";
+    case "TruCredit Free":
+      return "FREE";
     default:
       return "FREE";
   }

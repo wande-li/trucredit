@@ -126,8 +126,6 @@ const shopify = shopifyApp({
     "write_orders",
     "read_draft_orders",
     "write_draft_orders",
-    "read_metafields",
-    "write_metafields",
     "read_payment_terms",
     "write_payment_terms",
   ],

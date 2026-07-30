@@ -29,13 +29,14 @@ api_version = "2025-10"
     "companies/create",
     "companies/update",
     "app_subscriptions/update",
-    "draft_orders/complete",
+    "draft_orders/create",
+    "draft_orders/update",
     "draft_orders/delete"
   ]
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [access_scopes]
-scopes = "read_companies,read_customers,write_customers,read_orders,write_orders,read_draft_orders,write_draft_orders,read_metafields,write_metafields,read_payment_terms,write_payment_terms"
+scopes = "read_companies,read_customers,write_customers,read_orders,write_orders,read_draft_orders,write_draft_orders,read_payment_terms,write_payment_terms"
 use_legacy_install_flow = false
 optional_scopes = [ ]
 

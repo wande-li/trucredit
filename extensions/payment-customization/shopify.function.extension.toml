@@ -4,6 +4,7 @@
 name = "trucredit-payment"
 type = "payment_customization"
 api_version = "2025-10"
+uid = "24080550-0aec-1e71-d065-451676614e9ebfaf4de2"
 
 [build]
 command = "shopify app function build"

@@ -40,7 +40,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let shopDomain = "";
   let shopifyAdmin: AdminApiContext | undefined;
 
-  // P0-2: Top-level try-catch — all handlers MUST return 200 to prevent Shopify retry cascading
+  // HMAC auth — Shopify Mandatory Webhook requires 401 on invalid HMAC
   try {
     const auth = await authenticate.webhook(request);
     topic = String(auth.topic ?? "");
@@ -51,8 +51,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     logger.app("INFO", "action:webhooks START", null, { shopDomain, topic });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("ERROR", "action:webhooks auth_failed", msg);
-    return new Response(null, { status: 200 }); // 200 to prevent Shopify retry
+    logger.app("ERROR", "action:webhooks HMAC_invalid", msg);
+    return new Response(null, { status: 401 }); // Shopify Mandatory Webhook requirement
   }
 
   // P0-2: Wrap each handler in try-catch → log + return 200

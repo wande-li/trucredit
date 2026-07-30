@@ -12,164 +12,12 @@ import {
   setRequestContext,
   logger,
 } from "~/services/logger.server";
+import { bootstrap } from "~/bootstrap.server";
 
-// Dev cold-start: auto-seed session + shop if DB is empty.
-// Without this, authenticate.admin() has no session to validate and the
-// app shows a blank UnauthedFallback instead of the OAuth login flow.
-if (process.env.NODE_ENV === "development") {
-  const devShop = process.env.DEV_SHOP || "trucredit-dev.myshopify.com";
-  import("~/db.server").then(({ default: prisma }) => {
-    logger.app("INFO", "Auto-seeding dev data (if needed)", undefined, {
-      component: "Startup",
-    });
-    Promise.all([
-      prisma.session.upsert({
-        where: { id: "dev-session" },
-        create: {
-          id: "dev-session",
-          shop: devShop,
-          state: "dev",
-          isOnline: false,
-          accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
-          scope: "read_orders,write_orders,read_customers,write_customers",
-          expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          accountOwner: true,
-        },
-        update: { accountOwner: true },
-      }),
-      prisma.shop.upsert({
-        where: { shopDomain: devShop },
-        create: {
-          shopDomain: devShop,
-          accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token",
-          plan: "FREE",
-        },
-        update: { accessToken: process.env.SEED_ACCESS_TOKEN || "dev-token" },
-      }),
-    ])
-      .then(() => {
-        logger.app("INFO", "Dev data ready", undefined, { component: "Startup" });
-      })
-      .catch((e: unknown) => {
-        logger.app("ERROR", "Auto-seed failed", e, { component: "Startup" });
-      });
-  });
-}
+// ── Bootstrap: dev seed, cron, workers, graceful shutdown ──
+bootstrap();
 
 export const streamTimeout = 5000;
-
-// Fire-and-forget: start background services without blocking SSR
-setTimeout(() => {
-  import("~/queues/collection.queue").then(async ({ enqueueSweep, enqueueFreezeCheck }) => {
-    try {
-      const cron = (await import("node-cron")).default;
-      // Daily collection sweep at 9 AM
-      cron.schedule("0 9 * * *", async () => {
-        await enqueueSweep();
-      });
-      // Credit freeze check — every 30 minutes (evaluate rules against all active customers)
-      cron.schedule("*/30 * * * *", async () => {
-        await enqueueFreezeCheck();
-      });
-    } catch {
-      // node-cron optional — background jobs will be handled by manual trigger
-    }
-
-    import("~/workers/collection.worker")
-      .then((m) => m.startCollectionWorkers())
-      .then((collectionWorkers) => {
-        registerWorkerGroup("collection", collectionWorkers);
-      })
-      .catch((e: unknown) => {
-        logger.app("ERROR", "Collection worker failed to start", e, { component: "Startup" });
-      });
-    import("~/workers/email.worker")
-      .then((m) => m.createEmailWorker())
-      .then((emailWorker) => {
-        registerWorker("email", emailWorker);
-      })
-      .catch((e: unknown) => {
-        logger.app("ERROR", "Email worker failed to start", e, { component: "Startup" });
-      });
-  }).catch((e: unknown) => {
-    logger.app("ERROR", "Collection queue import failed", e, { component: "Startup" });
-  });
-}, 1000);
-
-// ── Graceful Shutdown ──
-type BullMQWorker = { close: (force?: boolean) => Promise<void> };
-const workerRegistry = new Map<string, BullMQWorker | Record<string, BullMQWorker | null> | null>();
-
-function registerWorker(name: string, worker: BullMQWorker) {
-  workerRegistry.set(name, worker);
-}
-
-function registerWorkerGroup(
-  name: string,
-  group: Record<string, BullMQWorker> | null,
-) {
-  workerRegistry.set(name, group);
-}
-
-async function gracefulShutdown(signal: string) {
-  logger.app("INFO", `Received ${signal}, shutting down workers...`, undefined, {
-    component: "Shutdown",
-    workerCount: String(workerRegistry.size),
-  });
-
-  const shutdowns: Promise<void>[] = [];
-
-  for (const [name, entry] of workerRegistry) {
-    if (!entry) continue;
-    if (typeof (entry as BullMQWorker).close === "function") {
-      shutdowns.push(
-        (entry as BullMQWorker).close().catch((e) => {
-          logger.app("ERROR", `Failed to close worker: ${name}`, e, {
-            component: "Shutdown",
-          });
-        }),
-      );
-    } else {
-      // Worker group object
-      for (const [subName, subWorker] of Object.entries(
-        entry as Record<string, BullMQWorker | null>,
-      )) {
-        if (subWorker && typeof subWorker.close === "function") {
-          shutdowns.push(
-            subWorker.close().catch((e) => {
-              logger.app("ERROR", `Failed to close worker: ${name}/${subName}`, e, {
-                component: "Shutdown",
-              });
-            }),
-          );
-        }
-      }
-    }
-  }
-
-  if (shutdowns.length === 0) {
-    logger.app("INFO", "No workers to shut down", undefined, { component: "Shutdown" });
-    process.exit(0);
-  }
-
-  try {
-    await Promise.race([
-      Promise.all(shutdowns),
-      new Promise<void>((resolve) => setTimeout(resolve, 15_000)),
-    ]);
-    logger.app("INFO", "All workers closed", undefined, { component: "Shutdown" });
-  } catch {
-    // Timeout — force exit
-    logger.app("WARN", "Worker shutdown timed out, forcing exit", undefined, {
-      component: "Shutdown",
-    });
-  }
-
-  process.exit(0);
-}
-
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html>
@@ -199,12 +47,28 @@ export default async function handleRequest(
   const pathname = url.pathname;
   const shouldLog = !pathname.startsWith("/build/") && !pathname.startsWith("/assets/");
 
-  // P2-4: Health check endpoint — bypass Remix rendering for uptime monitoring
+  // Health check endpoint — Railway health probe with DB + Redis checks
   if (pathname === "/health") {
+    const [dbOk, redisOk] = await Promise.all([
+      import("~/db.server")
+        .then(({ default: p }) =>
+          p.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
+        )
+        .catch(() => false),
+      import("~/lib/redis.server")
+        .then(({ default: r }) => r.status === "ready")
+        .catch(() => false),
+    ]);
+    const healthy = dbOk && redisOk;
     return new Response(
-      JSON.stringify({ status: "ok", uptime: process.uptime() }),
+      JSON.stringify({
+        status: healthy ? "ok" : "degraded",
+        db: dbOk,
+        redis: redisOk,
+        uptime: process.uptime(),
+      }),
       {
-        status: 200,
+        status: healthy ? 200 : 503,
         headers: { "Content-Type": "application/json" },
       },
     );

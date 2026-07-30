@@ -14,6 +14,7 @@ import type {
 } from "~/types";
 import { createCollectionDraftOrder } from "~/services/draft-order.server";
 import { logger } from "~/services/logger.server";
+import { generatePaymentToken, buildPaymentUrl } from "~/services/token.server";
 
 // Reusable select row types to avoid implicit any
 type InvListRow = {
@@ -367,6 +368,20 @@ export async function createInvoice(params: {
     return { inv, customer };
   });
 
+  // Generate tokenized payment link for collection emails
+  const paymentToken = generatePaymentToken({
+    shopId: params.shopId,
+    customerId: params.customerId,
+    invoiceId: invoice.inv.id,
+  });
+  const paymentUrl = buildPaymentUrl(paymentToken);
+
+  // Persist payment URL on the invoice record
+  await prisma.invoice.update({
+    where: { id: invoice.inv.id },
+    data: { paymentUrl },
+  });
+
   // Fire-and-forget: create Shopify draft order to generate real payment link for collection emails
   const customerEmail = invoice.customer.email;
   const customerShopifyId = invoice.customer.shopifyCustomerId;
@@ -387,7 +402,8 @@ export async function createInvoice(params: {
   }
 
   logger.app("INFO", "invoice.createInvoice OK", null, { shopId: params.shopId, invoiceId: invoice.inv.id });
-  return { ...invoice.inv, amount: invoice.inv.amount.toString() };
+  logger.metrics("invoice.created", 1, { shopId: params.shopId });
+  return { ...invoice.inv, amount: invoice.inv.amount.toString(), paymentUrl };
 }
 
 /**
@@ -719,4 +735,54 @@ export async function recordPartialPayment(params: {
   });
   logger.app("INFO", "invoice.recordPartialPayment OK", null, { shopId, invoiceId, paymentAmount });
   return result;
+}
+
+/**
+ * Get invoice for buyer-facing payment page (no admin auth required).
+ * Validates token ownership: shopId + customerId + invoiceId must all match.
+ */
+export async function getInvoiceForPayment(params: {
+  invoiceId: string;
+  shopId: string;
+  customerId: string;
+}): Promise<{
+  invoice: InvoiceRecord;
+  customer: { id: string; name: string; company: string | null; email: string };
+  shop: { shopDomain: string };
+} | null> {
+  const { invoiceId, shopId, customerId } = params;
+  logger.app("INFO", "invoice.getInvoiceForPayment START", null, { shopId, customerId, invoiceId });
+
+  const result = await prisma.invoice.findFirst({
+    where: {
+      id: invoiceId,
+      shopId,
+      customerId,
+      status: { notIn: ["VOID", "DRAFT"] },
+    },
+    include: {
+      customer: { select: { id: true, name: true, company: true, email: true } },
+      shop: { select: { shopDomain: true } },
+    },
+  });
+
+  if (!result) {
+    logger.app("WARN", "invoice.getInvoiceForPayment — not found or ownership mismatch", undefined, {
+      shopId,
+      customerId,
+      invoiceId,
+    });
+    return null;
+  }
+
+  const { customer, shop, ...invoiceFields } = result;
+  logger.app("INFO", "invoice.getInvoiceForPayment OK", null, { shopId, invoiceId });
+  return {
+    invoice: {
+      ...invoiceFields,
+      amount: invoiceFields.amount.toString(),
+    } as InvoiceRecord,
+    customer,
+    shop,
+  };
 }

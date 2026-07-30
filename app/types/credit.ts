@@ -86,3 +86,30 @@ export interface QuotaCheck {
   limit: number;
   plan: Plan;
 }
+
+// ── Cold-start scoring types (B2B self-registration) ──
+
+/** Raw profile data submitted during B2B self-registration */
+export interface ColdStartProfile {
+  yearsInBusiness: number;
+  companySize: string;
+  annualRevenue: number;
+  requestedCredit: number;
+}
+
+/** Per-component breakdown of cold-start score (0–weight each) */
+export interface ColdStartComponents {
+  businessAge: number;
+  companySize: number;
+  debtServiceRatio: number;
+  requestAmount: number;
+}
+
+/** Full cold-start credit decision — score + auto/manual verdict + recommended limit */
+export interface ColdStartResult {
+  score: number;
+  components: ColdStartComponents;
+  recommendedLimit: number;
+  autoApproved: boolean;
+  reason: string;
+}

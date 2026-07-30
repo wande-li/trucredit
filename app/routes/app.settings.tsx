@@ -3,7 +3,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remi
 import { json, redirect } from "@remix-run/node";
 
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Page,
   Card,
@@ -20,6 +20,7 @@ import {
   Badge,
   Modal,
 } from "@shopify/polaris";
+import { ClipboardIcon } from "@shopify/polaris-icons";
 import { resolveShop } from "~/services/shop-resolver.server";
 import { requirePermission, getAvailableActions } from "~/services/rbac.server";
 import prisma from "~/db.server";
@@ -80,6 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
     return json({
       settings: shop,
+      shopDomain,
       role,
       roleLabel: ROLE_LABELS[role],
       permissions: getAvailableActions(role),
@@ -117,7 +119,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // P2-6: Validate emailReplyTo format
-    const emailReplyTo = (formData.get("emailReplyTo") as string)?.trim() || null;
+    const emailReplyTo = String(formData.get("emailReplyTo") ?? "").trim() || null;
     if (emailReplyTo) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(emailReplyTo)) {
@@ -135,8 +137,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await prisma.shop.update({
       where: { shopDomain },
       data: {
-        currency: (formData.get("currency") as string) || "USD",
-        emailFromName: (formData.get("emailFromName") as string) || null,
+        currency: String(formData.get("currency") ?? "") || "USD",
+        emailFromName: String(formData.get("emailFromName") ?? "") || null,
         emailReplyTo,
       },
     });
@@ -158,11 +160,32 @@ function roleBadgeTone(role: Role): "success" | "attention" | "info" {
 }
 
 export default function SettingsPage() {
-  const { settings, role, roleLabel, permissions, teamMembers } = useLoaderData<typeof loader>();
+  const { settings, shopDomain, role, roleLabel, permissions, teamMembers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
   const teamFetcher = useFetcher<{ success?: boolean; error?: string; member?: { id: string; email: string; role: string } }>();
   const isSubmitting = fetcher.state === "submitting";
   const [dismissedError, setDismissedError] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const registrationLink = `https://${shopDomain}/apps/trucredit/register`;
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(registrationLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select text manually
+      const el = document.createElement("textarea");
+      el.value = registrationLink;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [registrationLink]);
 
   // Form field state — needed because Polaris TextField/Select requires onChange for controlled value
   const [emailFromName, setEmailFromName] = useState(settings.emailFromName ?? "");
@@ -266,6 +289,58 @@ export default function SettingsPage() {
                 </Button>
               </FormLayout>
             </fetcher.Form>
+          </BlockStack>
+        </Card>
+
+        {/* ═══ Buyer Registration Link ═══ */}
+        <Card>
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Buyer Registration Link
+            </Text>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Share this link with your wholesale buyers so they can apply for Net Terms.
+              It opens on your own store domain for maximum trust.
+            </Text>
+            <Box
+              background="bg-surface-secondary"
+              padding="300"
+              borderRadius="200"
+            >
+              <InlineStack gap="200" blockAlign="center" wrap={false}>
+                <Box
+                  background="bg-surface"
+                  padding="200"
+                  borderRadius="200"
+                  width="100%"
+                >
+                  <Text as="p" variant="bodySm" fontWeight="medium" breakWord>
+                    {registrationLink}
+                  </Text>
+                </Box>
+                <Button
+                  onClick={handleCopy}
+                  icon={ClipboardIcon}
+                  variant={copied ? "primary" : "secondary"}
+                >
+                  {copied ? "Copied!" : "Copy"}
+                </Button>
+              </InlineStack>
+            </Box>
+            <BlockStack gap="100">
+              <Text as="p" variant="bodySm" tone="subdued">
+                <strong>Where to place this link:</strong>
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                • Add to your wholesale / B2B information page
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                • Include in your Net Terms invitation email to buyers
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                • Link from your B2B registration form or checkout page
+              </Text>
+            </BlockStack>
           </BlockStack>
         </Card>
 

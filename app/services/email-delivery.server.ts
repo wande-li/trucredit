@@ -274,6 +274,74 @@ export async function sendTestEmail(toEmail: string, shopId?: string): Promise<S
   }
 }
 
+// ═══════════════════ Simple Notifications ═══════════════════
+// Used for non-collection transactional emails (registration, approval, etc.)
+
+export async function sendSimpleEmail(params: {
+  toEmail: string;
+  subject: string;
+  htmlBody: string;
+  shopId: string;
+}): Promise<SendEmailResult> {
+  const ses = getSESClient();
+  const fromEmail = process.env.FROM_EMAIL || process.env.SES_FROM_EMAIL || null;
+  if (!fromEmail) {
+    logger.app("WARN", "emailDelivery.sendSimpleEmail — FROM_EMAIL not configured, dry-run only", undefined, { to: params.toEmail });
+    return { sent: false, error: "FROM_EMAIL not configured" };
+  }
+
+  // Fetch shop email settings for display name
+  let displayName = "TruCredit";
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { id: params.shopId },
+      select: { emailFromName: true, emailReplyTo: true },
+    });
+    if (shop?.emailFromName) displayName = shop.emailFromName;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "emailDelivery.sendSimpleEmail — shop lookup failed", msg);
+  }
+
+  const source = `"${displayName}" <${fromEmail}>`;
+  const textBody = params.htmlBody.replace(/<[^>]*>/g, "");
+
+  if (ses) {
+    try {
+      const command = new SendEmailCommand({
+        Source: source,
+        Destination: { ToAddresses: [params.toEmail] },
+        Message: {
+          Subject: { Data: params.subject, Charset: "UTF-8" },
+          Body: {
+            Text: { Data: textBody, Charset: "UTF-8" },
+            Html: { Data: params.htmlBody.replace(/\n/g, "<br>"), Charset: "UTF-8" },
+          },
+        },
+      });
+
+      const response = await ses.send(command);
+      logger.app("INFO", "emailDelivery.sendSimpleEmail OK", undefined, {
+        to: params.toEmail,
+        subject: params.subject,
+        messageId: response.MessageId,
+      });
+      return { sent: true, messageId: response.MessageId, subject: params.subject };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("ERROR", "emailDelivery.sendSimpleEmail ERROR", msg, { to: params.toEmail, subject: params.subject });
+      return { sent: false, error: `SES error: ${msg}`, subject: params.subject };
+    }
+  }
+
+  // No SES — log only (dev mode)
+  logger.app("INFO", "emailDelivery.sendSimpleEmail — dry-run (no SES config)", undefined, {
+    to: params.toEmail,
+    subject: params.subject,
+  });
+  return { sent: false, error: "SES not configured — dry run only", subject: params.subject };
+}
+
 // ═══════════════════ Helpers ═══════════════════
 
 function stageToTemplateType(stage?: string): TemplateType {

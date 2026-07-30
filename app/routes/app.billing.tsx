@@ -3,7 +3,7 @@
 // Shopify hosts the payment flow; callback returns to /app/billing/callback?shop=...&charge_id=...
 // Reference: Wandex (ai-commerce-pilot) production pattern
 
-import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, LinksFunction, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 
 import { useLoaderData, useRouteError } from "@remix-run/react";
@@ -24,9 +24,11 @@ import { resolveShop } from "~/services/shop-resolver.server";
 import prisma from "~/db.server";
 import { PLANS as PLANS_V2, type PlanDefinition, getShopBilling } from "~/services/billing.server";
 import { pricingPageUrl } from "~/lib/constants";
-import { RouteError } from "~/services/error-boundary.shared";
+import { RouteError, errorLinks } from "~/services/error-boundary.shared";
 import PageSkeleton from "~/components/PageSkeleton";
 import { logger } from "~/services/logger.server";
+
+export const links: LinksFunction = () => errorLinks();
 
 export const meta: MetaFunction = () => [{ title: "TruCredit — Billing & Plan" }];
 

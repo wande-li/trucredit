@@ -35,7 +35,10 @@ export default function RouteErrorBoundary() {
     );
   }
 
-  const message = error instanceof Error ? error.message : String(error);
+  // Log for debugging, don't leak to UI
+  if (error instanceof Error) {
+    console.error("[RouteErrorBoundary]", error.message);
+  }
 
   return (
     <Page title="Something went wrong — Please Refresh">
@@ -46,9 +49,9 @@ export default function RouteErrorBoundary() {
           </Text>
         </Banner>
         <Card padding="500">
-          <BlockStack gap="200">
-            <Text as="p" variant="bodySm" tone="subdued">
-              {message}
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Return to the <Link url="/app">Dashboard</Link> and try again.
             </Text>
           </BlockStack>
         </Card>

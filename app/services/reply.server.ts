@@ -3,7 +3,7 @@ import prisma from "~/db.server";
 import { logger } from "~/services/logger.server";
 import { parseCustomerReply } from "~/services/ai.server";
 import { PAGINATION } from "~/lib/constants";
-import type { ReplyIntent } from "@prisma/client";
+import type { Prisma, ReplyIntent } from "@prisma/client";
 
 // ═══════════════════ Types ═══════════════════
 
@@ -225,6 +225,7 @@ export async function processReply(params: {
         },
       });
       logger.app("INFO", "reply.processReply Task auto-resolved by AI", { taskId, intent: parsed.intent });
+      logger.metrics("reply.ai_auto_processed", 1, { intent: parsed.intent });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.app("WARN", "reply.processReply Failed to record auto-resolve", { taskId, error: msg });
@@ -259,7 +260,7 @@ export async function listReplies(shopId: string, params?: {
   const page = params?.page ?? 1;
   const pageSize = Math.min(params?.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE, PAGINATION.MAX_PAGE_SIZE);
 
-  const where: Record<string, unknown> = {
+  const where: Prisma.CollectionEventWhereInput = {
     task: { invoice: { shopId } },
     type: { in: ["REPLY_RECEIVED", "INTENT_DETECTED"] },
   };
@@ -270,11 +271,23 @@ export async function listReplies(shopId: string, params?: {
 
   const [items, total] = await Promise.all([
     prisma.collectionEvent.findMany({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma where composite
-      where: where as any,
-      include: {
+      where,
+      select: {
+        id: true,
+        type: true,
+        emailSubject: true,
+        emailBody: true,
+        replyContent: true,
+        replyIntent: true,
+        replyConfidence: true,
+        aiGenerated: true,
+        actionTaken: true,
+        createdAt: true,
         task: {
-          include: {
+          select: {
+            id: true,
+            status: true,
+            currentStep: true,
             invoice: {
               select: { invoiceNumber: true, amount: true, currency: true, dueDate: true, customerId: true, customer: { select: { name: true } } },
             },
@@ -285,8 +298,7 @@ export async function listReplies(shopId: string, params?: {
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma where composite
-    prisma.collectionEvent.count({ where: where as any }),
+    prisma.collectionEvent.count({ where }),
   ]);
 
   logger.app("INFO", "reply.listReplies OK", null, { total });

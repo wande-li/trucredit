@@ -16,6 +16,27 @@ import {
 } from "~/queues/collection.queue";
 import { enqueueEmail } from "~/queues/email.queue";
 import { REDIS_URL } from "~/lib/redis.server";
+import { generatePaymentToken, buildPaymentUrl } from "~/services/token.server";
+
+/**
+ * Get or generate a payment link for an invoice.
+ * Uses the stored paymentUrl if available (set at invoice creation),
+ * otherwise generates on-the-fly for legacy invoices without a stored URL.
+ */
+function getOrGeneratePaymentLink(invoice: {
+  id: string;
+  customerId: string;
+  shopId: string;
+  paymentUrl: string | null;
+}): string {
+  if (invoice.paymentUrl) return invoice.paymentUrl;
+  const token = generatePaymentToken({
+    shopId: invoice.shopId,
+    customerId: invoice.customerId,
+    invoiceId: invoice.id,
+  });
+  return buildPaymentUrl(token);
+}
 
 /** Map days overdue to collection stage string */
 function daysToCollectionStage(daysOverdue: number): string {
@@ -180,7 +201,12 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
             (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
           );
           const shopId = invoice.shop?.id ?? "";
-          const paymentLink = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
+          const paymentLink = getOrGeneratePaymentLink({
+            id: invoice.id,
+            customerId: invoice.customerId,
+            shopId: invoice.shop?.id ?? "",
+            paymentUrl: (invoice as Record<string, unknown>).paymentUrl as string | null,
+          });
           await enqueueEmail({
             shopId,
             toEmail: invoice.customer.email,
@@ -239,7 +265,12 @@ export function createInvoiceWorker(): Worker<InvoiceJob> {
             (Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24),
           );
           const shopId = invoice.shop?.id ?? "";
-          const paymentLink2 = (invoice as Record<string, unknown>).paymentUrl as string || undefined;
+          const paymentLink2 = getOrGeneratePaymentLink({
+            id: invoice.id,
+            customerId: invoice.customerId,
+            shopId: invoice.shop?.id ?? "",
+            paymentUrl: (invoice as Record<string, unknown>).paymentUrl as string | null,
+          });
           await enqueueEmail({
             shopId,
             toEmail: invoice.customer.email,

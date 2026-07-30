@@ -622,6 +622,9 @@ export async function runCollectionSweep(): Promise<SweepResult> {
     tasksAdvanced: result.tasksAdvanced,
     errors: result.errors,
   });
+  if (result.emailsSent > 0) {
+    logger.metrics("collection.email_sent", result.emailsSent);
+  }
   return result;
 }
 
@@ -655,11 +658,15 @@ async function sweepShop(
       shopId,
       status: { in: ["PENDING", "OVERDUE"] },
     },
-    include: {
-      customer: true,
+    select: {
+      id: true,
+      customerId: true,
+      dueDate: true,
+      status: true,
+      customer: { select: { name: true, isFrozen: true } },
       collectionTasks: {
         where: { status: { in: ["PENDING", "ACTIVE", "PAUSED"] } },
-        include: { sequence: true },
+        select: { id: true, status: true, currentStep: true, sequence: { select: { id: true } } },
       },
     },
     orderBy: { dueDate: "asc" },

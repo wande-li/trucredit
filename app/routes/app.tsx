@@ -106,6 +106,7 @@ const NAV_STANDALONE = [
   { label: "Dashboard", href: "/app", match: "/app" },
   { label: "Customers", href: "/app/customers", match: "/app/customers" },
   { label: "Invoices", href: "/app/invoices", match: "/app/invoices" },
+  { label: "Applications", href: "/app/credit-applications", match: "/app/credit-applications" },
 ] as const;
 
 const NAV_GROUPS: NavGroup[] = [

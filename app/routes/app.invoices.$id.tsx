@@ -28,6 +28,7 @@ import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
 import { sendCollectionEmail } from "~/services/email-delivery.server";
+import { generatePaymentToken, buildPaymentUrl } from "~/services/token.server";
 import { INVOICE_TRANSITIONS } from "~/types/invoice";
 import type { InvoiceStatus } from "@prisma/client";
 import { checkPlanAccess } from "~/services/billing.server";
@@ -324,7 +325,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             currency: currentInvoice.currency,
             dueDate: new Date(currentInvoice.dueDate).toLocaleDateString("en-US"),
             daysOverdue,
-            paymentLink: "",
+            paymentLink: buildPaymentUrl(
+              generatePaymentToken({
+                shopId,
+                customerId: currentInvoice.customerId,
+                invoiceId: currentInvoice.id,
+              }),
+            ),
           },
         });
         if (!result.sent) {

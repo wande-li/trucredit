@@ -159,62 +159,66 @@ export async function recalculateCreditScore(params: {
   triggeredBy: string;
 }): Promise<CustomerRecord | null> {
   logger.app("INFO", "customer.recalculateCreditScore START", null, { customerId: params.customerId, shopId: params.shopId, triggeredBy: params.triggeredBy });
-  const customer = await prisma.customer.findFirst({
-    where: { id: params.customerId, shopId: params.shopId },
-  });
 
-  if (!customer) {
-    logger.app("WARN", "customer.recalculateCreditScore — customer not found", null, { customerId: params.customerId });
-    return null;
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findFirst({
+      where: { id: params.customerId, shopId: params.shopId },
+    });
 
-  const assessment = assessCredit({
-    onTimePaymentRate: customer.onTimePaymentRate,
-    creditUsed: Number(customer.creditUsed),
-    creditLimit: Number(customer.creditLimit),
-    totalOrders: customer.totalOrders,
-    totalRevenue: Number(customer.totalRevenue),
-  });
+    if (!customer) {
+      logger.app("WARN", "customer.recalculateCreditScore — customer not found", null, { customerId: params.customerId });
+      return null;
+    }
 
-  const newStatus = determineCustomerStatus(
-    customer.status,
-    assessment.riskLevel,
-    customer.onTimePaymentRate,
-  );
+    const assessment = assessCredit({
+      onTimePaymentRate: customer.onTimePaymentRate,
+      creditUsed: Number(customer.creditUsed),
+      creditLimit: Number(customer.creditLimit),
+      totalOrders: customer.totalOrders,
+      totalRevenue: Number(customer.totalRevenue),
+    });
 
-  const updated = await prisma.customer.update({
-    where: { id: params.customerId, shopId: params.shopId },
-    data: {
-      creditScore: assessment.score,
-      creditGrade: assessment.grade,
-      riskLevel: assessment.riskLevel,
-      creditAvailable: calcAvailableCredit(
-        Number(customer.creditLimit),
-        Number(customer.creditUsed),
-      ),
-      status: newStatus,
-      isFrozen: newStatus === "FROZEN",
-      creditEvents: {
-        create: {
-          type: "SCORE_UPDATE",
-          previousValue: {
-            score: customer.creditScore,
-            grade: customer.creditGrade,
-            riskLevel: customer.riskLevel,
-          },
-          newValue: {
-            score: assessment.score,
-            grade: assessment.grade,
-            riskLevel: assessment.riskLevel,
-          },
+    const newStatus = determineCustomerStatus(
+      customer.status,
+      assessment.riskLevel,
+      customer.onTimePaymentRate,
+    );
+
+    return tx.customer.update({
+      where: { id: params.customerId, shopId: params.shopId },
+      data: {
+        creditScore: assessment.score,
+        creditGrade: assessment.grade,
+        riskLevel: assessment.riskLevel,
+        creditAvailable: calcAvailableCredit(
+          Number(customer.creditLimit),
+          Number(customer.creditUsed),
+        ),
+        status: newStatus,
+        isFrozen: newStatus === "FROZEN",
+        creditEvents: {
+          create: {
+            type: "SCORE_UPDATE",
+            previousValue: {
+              score: customer.creditScore,
+              grade: customer.creditGrade,
+              riskLevel: customer.riskLevel,
+            },
+            newValue: {
+              score: assessment.score,
+              grade: assessment.grade,
+              riskLevel: assessment.riskLevel,
+            },
           reason: "Automated score recalculation",
           triggeredBy: params.triggeredBy,
         },
       },
-    },
+    });
   });
 
-  logger.app("INFO", "customer.recalculateCreditScore OK", null, { customerId: params.customerId, score: assessment.score, grade: assessment.grade });
+  if (!updated) return null;
+
+  logger.app("INFO", "customer.recalculateCreditScore OK", null, { customerId: params.customerId, score: updated.creditScore, grade: updated.creditGrade });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),
@@ -235,25 +239,27 @@ export async function setCreditLimit(params: {
   triggeredBy: string;
 }): Promise<CustomerRecord> {
   logger.app("INFO", "customer.setCreditLimit START", null, { customerId: params.customerId, shopId: params.shopId, newLimit: params.newLimit });
-  const customer = await prisma.customer.findFirstOrThrow({
-    where: { id: params.customerId, shopId: params.shopId },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findFirstOrThrow({
+      where: { id: params.customerId, shopId: params.shopId },
+    });
 
-  const updated = await prisma.customer.update({
-    where: { id: params.customerId, shopId: params.shopId },
-    data: {
-      creditLimit: params.newLimit,
-      creditAvailable: calcAvailableCredit(params.newLimit, Number(customer.creditUsed)),
-      creditEvents: {
-        create: {
-          type: "LIMIT_CHANGE",
-          previousValue: { creditLimit: Number(customer.creditLimit) },
-          newValue: { creditLimit: params.newLimit },
-          reason: params.reason,
-          triggeredBy: params.triggeredBy,
+    return tx.customer.update({
+      where: { id: params.customerId, shopId: params.shopId },
+      data: {
+        creditLimit: params.newLimit,
+        creditAvailable: calcAvailableCredit(params.newLimit, Number(customer.creditUsed)),
+        creditEvents: {
+          create: {
+            type: "LIMIT_CHANGE",
+            previousValue: { creditLimit: Number(customer.creditLimit) },
+            newValue: { creditLimit: params.newLimit },
+            reason: params.reason,
+            triggeredBy: params.triggeredBy,
+          },
         },
       },
-    },
+    });
   });
 
   logger.app("INFO", "customer.setCreditLimit OK", null, { customerId: params.customerId, shopId: params.shopId, newLimit: params.newLimit });

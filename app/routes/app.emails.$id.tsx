@@ -74,14 +74,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     const formData = await request.formData();
-    const intent = formData.get("intent") as string;
+    const intent = String(formData.get("intent") ?? "");
 
     // Update template
     if (intent === "update") {
-      const name = formData.get("name") as string;
-      const subject = formData.get("subject") as string;
-      const body = formData.get("body") as string;
-      const toneLevelStr = formData.get("toneLevel") as string;
+      const name = String(formData.get("name") ?? "");
+      const subject = String(formData.get("subject") ?? "");
+      const body = String(formData.get("body") ?? "");
+      const toneLevelStr = String(formData.get("toneLevel") ?? "");
       const toneLevel = toneLevelStr ? parseInt(toneLevelStr, 10) : undefined;
 
       if (!name?.trim() || !subject?.trim() || !body?.trim()) {
@@ -116,14 +116,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     // AI Preview — generate email from AI
     if (intent === "aiPreview") {
-      const customerName = formData.get("customerName") as string;
-      const companyName = formData.get("companyName") as string;
-      const invoiceNumber = formData.get("invoiceNumber") as string;
-      const amount = formData.get("amount") as string;
-      const currency = formData.get("currency") as string;
-      const dueDate = formData.get("dueDate") as string;
-      const daysOverdue = parseInt(formData.get("daysOverdue") as string, 10);
-      const stage = formData.get("stage") as string;
+      const customerName = String(formData.get("customerName") ?? "");
+      const companyName = String(formData.get("companyName") ?? "");
+      const invoiceNumber = String(formData.get("invoiceNumber") ?? "");
+      const amount = String(formData.get("amount") ?? "");
+      const currency = String(formData.get("currency") ?? "");
+      const dueDate = String(formData.get("dueDate") ?? "");
+      const daysOverdueRaw = parseInt(String(formData.get("daysOverdue") ?? "0"), 10);
+      const daysOverdue = isNaN(daysOverdueRaw) ? 0 : Math.max(0, daysOverdueRaw);
+      const stage = String(formData.get("stage") ?? "");
 
       if (!customerName || !invoiceNumber || !amount) {
         return json({ success: false, error: "Customer name, invoice number, and amount are required" });
@@ -148,7 +149,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     // P3: Send test email
     if (intent === "sendTest") {
-      const testEmail = formData.get("testEmail") as string;
+      const testEmail = String(formData.get("testEmail") ?? "");
       if (!testEmail?.trim()) {
         return json({ success: false, error: "Email address required" });
       }

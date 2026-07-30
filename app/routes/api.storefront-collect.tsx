@@ -33,125 +33,131 @@ const CollectSchema = z.object({
 export const action = async ({ request }: ActionFunctionArgs) => {
   const ta = Date.now();
   logger.app("INFO", "action:api.storefront-collect START");
-  if (request.method !== "POST") {
-    return json({ success: false, error: "Method Not Allowed" }, { status: 405 });
-  }
-
-  if (!verifyApiKey(request)) {
-    return json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Rate limit by IP
-  const allowed = await checkRateLimit(getRateLimitKey(request, "storefront-collect"));
-  if (!allowed) {
-    return json({ success: false, error: "Too Many Requests" }, { status: 429 });
-  }
-
-  // Read raw body for signature verification + JSON parsing
-  const rawBody = await request.text();
-
-  // P1-5: HMAC-SHA256 request signature verification (replay protection)
-  const signingSecret = process.env.TRUCREDIT_API_SECRET;
-  if (signingSecret) {
-    const signature = request.headers.get("x-signature");
-    const timestamp = request.headers.get("x-timestamp");
-    if (!signature || !timestamp) {
-      return json({ success: false, error: "Missing signature headers" }, { status: 401 });
-    }
-    // Replay window: ±5 minutes
-    const ts = parseInt(timestamp, 10);
-    if (Number.isNaN(ts) || Math.abs(Date.now() - ts * 1000) > 5 * 60 * 1000) {
-      return json({ success: false, error: "Request expired or invalid timestamp" }, { status: 401 });
-    }
-    const expected = crypto.createHmac("sha256", signingSecret).update(`${timestamp}.${rawBody}`).digest("hex");
-    if (!timingSafeEqualHex(signature, expected)) {
-      return json({ success: false, error: "Invalid signature" }, { status: 401 });
-    }
-  }
-
-  // Parse + validate body with Zod
-  let body: unknown;
   try {
-    body = JSON.parse(rawBody);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "storefront-collect: JSON parse failed", msg);
-    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
-  }
+    if (request.method !== "POST") {
+      return json({ success: false, error: "Method Not Allowed" }, { status: 405 });
+    }
 
-  const parsed = CollectSchema.safeParse(body);
-  if (!parsed.success) {
-    return json(
-      { success: false, error: parsed.error.issues[0]?.message ?? "Invalid parameters" },
-      { status: 400 },
-    );
-  }
+    if (!verifyApiKey(request)) {
+      return json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
 
-  const { shopDomain, customerEmail, orderId, orderName: rawOrderName, totalPrice } = parsed.data;
-  const orderName = rawOrderName ?? `#${orderId}`;
+    // Rate limit by IP
+    const allowed = await checkRateLimit(getRateLimitKey(request, "storefront-collect"));
+    if (!allowed) {
+      return json({ success: false, error: "Too Many Requests" }, { status: 429 });
+    }
 
-  // Find customer
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: { id: true },
-  });
+    // Read raw body for signature verification + JSON parsing
+    const rawBody = await request.text();
 
-  if (!shop) {
-    return json({ success: false, error: "Shop not found" }, { status: 404 });
-  }
+    // P1-5: HMAC-SHA256 request signature verification (replay protection)
+    const signingSecret = process.env.TRUCREDIT_API_SECRET;
+    if (signingSecret) {
+      const signature = request.headers.get("x-signature");
+      const timestamp = request.headers.get("x-timestamp");
+      if (!signature || !timestamp) {
+        return json({ success: false, error: "Missing signature headers" }, { status: 401 });
+      }
+      // Replay window: ±5 minutes
+      const ts = parseInt(timestamp, 10);
+      if (Number.isNaN(ts) || Math.abs(Date.now() - ts * 1000) > 5 * 60 * 1000) {
+        return json({ success: false, error: "Request expired or invalid timestamp" }, { status: 401 });
+      }
+      const expected = crypto.createHmac("sha256", signingSecret).update(`${timestamp}.${rawBody}`).digest("hex");
+      if (!timingSafeEqualHex(signature, expected)) {
+        return json({ success: false, error: "Invalid signature" }, { status: 401 });
+      }
+    }
 
-  const customer = await prisma.customer.findFirst({
-    where: {
-      shopId: shop.id,
-      email: customerEmail.toLowerCase().trim(),
-    },
-    select: { id: true },
-  });
-
-  if (!customer) {
-    return json({ success: false, error: "Customer not found" }, { status: 404 });
-  }
-
-  // Reserve credit with distributed lock to prevent TOCTOU race
-  // P1-15: Lock on customer to serialize check+reserve for concurrent orders
-  const lockKey = redisKeys.creditCache(customer.id) + ":lock";
-  let result: { success: boolean; error?: string };
-  const acquired = await redis.set(lockKey, "1", "EX", 10, "NX");
-  try {
+    // Parse + validate body with Zod
+    let body: unknown;
     try {
-      result = await reserveCredit({
-        customerId: customer.id,
-        amount: totalPrice,
-        orderName,
-      });
+      body = JSON.parse(rawBody);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.app("ERROR", "storefront-collect: reserveCredit failed", msg, {
+      logger.app("WARN", "storefront-collect: JSON parse failed", msg);
+      return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const parsed = CollectSchema.safeParse(body);
+    if (!parsed.success) {
+      return json(
+        { success: false, error: parsed.error.issues[0]?.message ?? "Invalid parameters" },
+        { status: 400 },
+      );
+    }
+
+    const { shopDomain, customerEmail, orderId, orderName: rawOrderName, totalPrice } = parsed.data;
+    const orderName = rawOrderName ?? `#${orderId}`;
+
+    // Find customer
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) {
+      return json({ success: false, error: "Shop not found" }, { status: 404 });
+    }
+
+    const customer = await prisma.customer.findFirst({
+      where: {
+        shopId: shop.id,
+        email: customerEmail.toLowerCase().trim(),
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      return json({ success: false, error: "Customer not found" }, { status: 404 });
+    }
+
+    // Reserve credit with distributed lock to prevent TOCTOU race
+    // P1-15: Lock on customer to serialize check+reserve for concurrent orders
+    const lockKey = redisKeys.creditCache(customer.id) + ":lock";
+    let result: { success: boolean; error?: string };
+    const acquired = await redis.set(lockKey, "1", "EX", 10, "NX");
+    try {
+      try {
+        result = await reserveCredit({
+          customerId: customer.id,
+          amount: totalPrice,
+          orderName,
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.app("ERROR", "storefront-collect: reserveCredit failed", msg, {
+          customerId: customer.id,
+          orderName,
+          totalPrice,
+        });
+        return json({ success: false, error: "Credit reservation failed. Please try again." }, { status: 500 });
+      }
+
+      if (!result.success) {
+        return json({ success: false, error: result.error }, { status: 402 });
+      }
+
+      logger.app("INFO", "action:api.storefront-collect OK", null, {
+        durationMs: Date.now() - ta,
+        shopId: shop.id,
         customerId: customer.id,
+        orderId,
         orderName,
         totalPrice,
       });
-      return json({ success: false, error: "Credit reservation failed. Please try again." }, { status: 500 });
-    }
 
-    if (!result.success) {
-      return json({ success: false, error: result.error }, { status: 402 });
+      return json({ success: true, orderId });
+    } finally {
+      if (acquired) {
+        redis.del(lockKey).catch(() => { /* best-effort: key will expire via TTL */ });
+      }
     }
-
-    logger.app("INFO", "action:api.storefront-collect OK", null, {
-      durationMs: Date.now() - ta,
-      shopId: shop.id,
-      customerId: customer.id,
-      orderId,
-      orderName,
-      totalPrice,
-    });
-
-    return json({ success: true, orderId });
-  } finally {
-    if (acquired) {
-      redis.del(lockKey).catch(() => { /* best-effort: key will expire via TTL */ });
-    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("ERROR", "action:api.storefront-collect unhandled_error", msg);
+    return json({ success: false, error: "Internal server error. Please try again." }, { status: 500 });
   }
 };
 

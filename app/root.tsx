@@ -9,10 +9,11 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import { RouteError } from "./services/error-boundary.shared";
+import { RouteError, errorLinks } from "./services/error-boundary.shared";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
+  ...errorLinks(),
   { rel: "preconnect", href: "https://cdn.shopify.com/" },
   {
     rel: "stylesheet",

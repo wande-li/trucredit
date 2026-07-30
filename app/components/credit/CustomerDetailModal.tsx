@@ -14,6 +14,7 @@ import {
   Banner,
   DataTable,
 } from "@shopify/polaris";
+import type { CustomerStatus, RiskLevel, CreditGrade } from "@prisma/client";
 import { CustomerStatusBadge } from "./CustomerStatusBadge";
 import ActionToast from "~/components/ActionToast";
 
@@ -282,12 +283,11 @@ export function CustomerDetailModal({
                   </Text>
                   {/* Prisma enum types from JSON serialized loader data */}
                   <CustomerStatusBadge
-                    status={customer.status as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
-                    riskLevel={customer.riskLevel as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
-                    creditGrade={customer.creditGrade as any /* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                    status={customer.status as CustomerStatus}
+                    riskLevel={customer.riskLevel as RiskLevel}
+                    creditGrade={customer.creditGrade as CreditGrade}
                     isFrozen={customer.isFrozen}
                   />
-                  {/* eslint-enable @typescript-eslint/no-explicit-any */}
                 </InlineStack>
 
                 <Divider />

@@ -94,131 +94,137 @@ async function verifySnsSignature(body: Record<string, string>): Promise<boolean
 export const action = async ({ request }: ActionFunctionArgs) => {
   const ta = Date.now();
   logger.app("INFO", "action:api.email-inbound START");
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
-
-  // P1-4: Rate limit to prevent abuse (SNS validates in AWS, but defense-in-depth)
-  const rateAllowed = await checkRateLimit(getRateLimitKey(request, "email-inbound"));
-  if (!rateAllowed) {
-    return new Response("Too Many Requests", { status: 429 });
-  }
-
-  let rawBody: string;
-  let body = "";
   try {
-    rawBody = await request.text();
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "action:api.email-inbound body_read_failed", msg);
-    return new Response("Bad Request", { status: 400 });
-  }
-
-  // Parse SNS outer envelope
-  let snsEnvelope: Record<string, string> | null = null;
-  try {
-    snsEnvelope = JSON.parse(rawBody) as Record<string, string>;
-  } catch {
-    // Not JSON — treat as raw email (direct SES delivery, expected control flow)
-    logger.app("INFO", "action:api.email-inbound raw_body — treating as raw email");
-    body = rawBody;
-  }
-
-  // Verify SNS signature before processing
-  if (snsEnvelope) {
-    const sigValid = await verifySnsSignature(snsEnvelope);
-    if (!sigValid) {
-      logger.app("WARN", "SNS signature verification failed — rejecting message");
-      return new Response("Forbidden", { status: 403 });
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
     }
 
-    // Subscription confirmation (initial setup)
-    if (snsEnvelope.Type === "SubscriptionConfirmation" && snsEnvelope.SubscribeURL) {
-      logger.app("INFO", "SNS subscription confirmation received", undefined, {
-        topicArn: snsEnvelope.TopicArn,
-      });
-      try {
-        const subCtrl = new AbortController();
-        const subTimer = setTimeout(() => subCtrl.abort(), 10_000);
-        await fetch(snsEnvelope.SubscribeURL, { signal: subCtrl.signal });
-        clearTimeout(subTimer);
-        logger.app("INFO", "SNS subscription confirmed");
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", "SNS subscription confirmation failed", undefined, { error: msg });
-      }
-      return new Response("OK", { status: 200 });
+    // P1-4: Rate limit to prevent abuse (SNS validates in AWS, but defense-in-depth)
+    const rateAllowed = await checkRateLimit(getRateLimitKey(request, "email-inbound"));
+    if (!rateAllowed) {
+      return new Response("Too Many Requests", { status: 429 });
     }
 
-    // Extract SES message from SNS Notification
-    if (snsEnvelope.Type === "Notification" && snsEnvelope.Message) {
-      body = snsEnvelope.Message;
-    } else {
+    let rawBody: string;
+    let body = "";
+    try {
+      rawBody = await request.text();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "action:api.email-inbound body_read_failed", msg);
+      return new Response("Bad Request", { status: 400 });
+    }
+
+    // Parse SNS outer envelope
+    let snsEnvelope: Record<string, string> | null = null;
+    try {
+      snsEnvelope = JSON.parse(rawBody) as Record<string, string>;
+    } catch {
+      // Not JSON — treat as raw email (direct SES delivery, expected control flow)
+      logger.app("INFO", "action:api.email-inbound raw_body — treating as raw email");
       body = rawBody;
     }
-  }
 
-  // Step 3: Parse the email content
-  try {
-    // SES delivers as raw MIME or as JSON with content field
-    const ses = JSON.parse(body) as {
-      content?: string;
-      mail?: {
-        messageId?: string;
-        source?: string;
-        destination?: string[];
-        timestamp?: string;
-        commonHeaders?: {
-          from?: string[];
-          to?: string[];
-          subject?: string;
-        };
-      };
-      receipt?: { action?: { type?: string } };
-    };
+    // Verify SNS signature before processing
+    if (snsEnvelope) {
+      const sigValid = await verifySnsSignature(snsEnvelope);
+      if (!sigValid) {
+        logger.app("WARN", "SNS signature verification failed — rejecting message");
+        return new Response("Forbidden", { status: 403 });
+      }
 
-    let emailBody = "";
-    let from = ses.mail?.commonHeaders?.from?.[0] ?? ses.mail?.source ?? "";
-    const to = ses.mail?.commonHeaders?.to ?? ses.mail?.destination ?? [];
-    const subject = ses.mail?.commonHeaders?.subject ?? "(no subject)";
-    const messageId = ses.mail?.messageId ?? "";
-    const date = ses.mail?.timestamp ?? "";
+      // Subscription confirmation (initial setup)
+      if (snsEnvelope.Type === "SubscriptionConfirmation" && snsEnvelope.SubscribeURL) {
+        logger.app("INFO", "SNS subscription confirmation received", undefined, {
+          topicArn: snsEnvelope.TopicArn,
+        });
+        try {
+          const subCtrl = new AbortController();
+          const subTimer = setTimeout(() => subCtrl.abort(), 10_000);
+          await fetch(snsEnvelope.SubscribeURL, { signal: subCtrl.signal });
+          clearTimeout(subTimer);
+          logger.app("INFO", "SNS subscription confirmed");
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "SNS subscription confirmation failed", undefined, { error: msg });
+        }
+        return new Response("OK", { status: 200 });
+      }
 
-    // If content is base64 MIME, parse it
-    if (ses.content) {
-      try {
-        const raw = Buffer.from(ses.content, "base64").toString("utf-8");
-        const parsedMail = await simpleParser(raw);
-        emailBody = parsedMail.text ?? (parsedMail.html && typeof parsedMail.html === "string" ? parsedMail.html.replace(/<[^>]*>/g, "") : "") ?? "";
-        from = parsedMail.from?.value?.[0]?.address ?? from;
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.app("WARN", "action:api.email-inbound mime_parse_failed", msg);
-        emailBody = "(could not parse email content)";
+      // Extract SES message from SNS Notification
+      if (snsEnvelope.Type === "Notification" && snsEnvelope.Message) {
+        body = snsEnvelope.Message;
+      } else {
+        body = rawBody;
       }
     }
 
-    // Process the inbound email
-    const result = await processInboundEmail({
-      messageId,
-      from,
-      to,
-      subject,
-      body: emailBody || "(no body)",
-      date,
-    });
+    // Step 3: Parse the email content
+    try {
+      // SES delivers as raw MIME or as JSON with content field
+      const ses = JSON.parse(body) as {
+        content?: string;
+        mail?: {
+          messageId?: string;
+          source?: string;
+          destination?: string[];
+          timestamp?: string;
+          commonHeaders?: {
+            from?: string[];
+            to?: string[];
+            subject?: string;
+          };
+        };
+        receipt?: { action?: { type?: string } };
+      };
 
-    logger.app("INFO", "action:api.email-inbound OK", null, {
-      durationMs: Date.now() - ta,
-      messageId,
-      matched: result.matched,
-      taskId: result.taskId,
-    });
+      let emailBody = "";
+      let from = ses.mail?.commonHeaders?.from?.[0] ?? ses.mail?.source ?? "";
+      const to = ses.mail?.commonHeaders?.to ?? ses.mail?.destination ?? [];
+      const subject = ses.mail?.commonHeaders?.subject ?? "(no subject)";
+      const messageId = ses.mail?.messageId ?? "";
+      const date = ses.mail?.timestamp ?? "";
 
-    return new Response("OK", { status: 200 });
+      // If content is base64 MIME, parse it
+      if (ses.content) {
+        try {
+          const raw = Buffer.from(ses.content, "base64").toString("utf-8");
+          const parsedMail = await simpleParser(raw);
+          emailBody = parsedMail.text ?? (parsedMail.html && typeof parsedMail.html === "string" ? parsedMail.html.replace(/<[^>]*>/g, "") : "") ?? "";
+          from = parsedMail.from?.value?.[0]?.address ?? from;
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "action:api.email-inbound mime_parse_failed", msg);
+          emailBody = "(could not parse email content)";
+        }
+      }
+
+      // Process the inbound email
+      const result = await processInboundEmail({
+        messageId,
+        from,
+        to,
+        subject,
+        body: emailBody || "(no body)",
+        date,
+      });
+
+      logger.app("INFO", "action:api.email-inbound OK", null, {
+        durationMs: Date.now() - ta,
+        messageId,
+        matched: result.matched,
+        taskId: result.taskId,
+      });
+
+      return new Response("OK", { status: 200 });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.app("WARN", "action:api.email-inbound parse_failed", msg);
+      return new Response("OK", { status: 200 }); // Always 200 to prevent SNS retries
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.app("WARN", "action:api.email-inbound parse_failed", msg);
+    logger.app("ERROR", "action:api.email-inbound unhandled_error", msg);
     return new Response("OK", { status: 200 }); // Always 200 to prevent SNS retries
   }
 };

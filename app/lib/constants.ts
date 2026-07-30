@@ -200,6 +200,48 @@ export const CREDIT_BASE_LIMITS: Record<string, number> = {
   F: 500,
 } as const;
 
+// Cold-start scoring weights — profile-based assessment for new buyers (no transaction history)
+export const COLD_START_WEIGHTS = {
+  BUSINESS_AGE: 30,          // years in business
+  COMPANY_SIZE: 20,          // solo/2-10/11-50/51+
+  DEBT_SERVICE_RATIO: 30,    // annualRevenue / requestedCredit
+  REQUEST_AMOUNT: 20,        // requested credit amount reasonableness
+} as const;
+
+// Cold-start company size tiers → score
+export const COLD_START_SIZE_SCORE: Record<string, number> = {
+  "solo": 5,
+  "2-10": 10,
+  "11-50": 15,
+  "51+": 20,
+} as const;
+
+// Cold-start auto-approval thresholds
+export const COLD_START_THRESHOLDS = {
+  AUTO_APPROVE: 70,           // ≥70 → auto-approve
+  MANUAL_REVIEW: 0,           // <70 → manual review
+  MAX_AUTO_LIMIT_DEFAULT: 1000, // merchant-configurable default
+  TRANSITION_ORDER_COUNT: 3,  // switch to behavioral after 3 paid invoices
+  REAPPLY_COOLDOWN_DAYS: 30,  // same email+company can't reapply within 30 days
+} as const;
+
+// Company size options for registration form
+export const COMPANY_SIZE_OPTIONS = [
+  { value: "solo", label: "Solo (1 person)" },
+  { value: "2-10", label: "2–10 employees" },
+  { value: "11-50", label: "11–50 employees" },
+  { value: "51+", label: "51+ employees" },
+] as const;
+
+// Business age options for registration form
+export const BUSINESS_AGE_OPTIONS = [
+  { value: 1, label: "Less than 1 year" },
+  { value: 3, label: "1–3 years" },
+  { value: 5, label: "3–5 years" },
+  { value: 10, label: "5–10 years" },
+  { value: 20, label: "10+ years" },
+] as const;
+
 // Collection engine
 export const COLLECTION = {
   DEFAULT_NET_TERMS: 30,

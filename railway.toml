@@ -1,0 +1,23 @@
+[build]
+builder = "nixpacks"
+watch = ["app/**", "prisma/**", "package.json", "package-lock.json"]
+
+[deploy]
+startCommand = "node scripts/start.mjs"
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1
+
+[service]
+port = 8080
+
+[variables]
+# Environment variables that should be set in Railway dashboard:
+# DATABASE_URL — PostgreSQL connection
+# REDIS_URL — Redis connection
+# SHOPIFY_API_KEY — Shopify app API key
+# SHOPIFY_API_SECRET — Shopify app API secret
+# SHOPIFY_APP_URL — App URL (auto-set by Railway)
+# SCOPES — Shopify OAuth scopes
+# DEEPSEEK_API_KEY — DeepSeek AI API key
+# ENCRYPTION_KEY — AES-256-GCM encryption key

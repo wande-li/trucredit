@@ -147,8 +147,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const orderMax = formData.get("orderMax")?.toString();
     if (orderMin || orderMax) {
       conditions.totalOrders = {};
-      if (orderMin) conditions.totalOrders.min = parseInt(orderMin, 10);
-      if (orderMax) conditions.totalOrders.max = parseInt(orderMax, 10);
+      if (orderMin) {
+        const n = parseInt(orderMin, 10);
+        if (isNaN(n)) return json({ error: "Please enter a valid minimum orders value." }, { status: 400 });
+        conditions.totalOrders.min = n;
+      }
+      if (orderMax) {
+        const n = parseInt(orderMax, 10);
+        if (isNaN(n)) return json({ error: "Please enter a valid maximum orders value." }, { status: 400 });
+        conditions.totalOrders.max = n;
+      }
     }
 
     const revMin = formData.get("revenueMin")?.toString();
@@ -157,11 +165,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       conditions.totalRevenue = {};
       if (revMin) {
         const n = parseFloat(revMin);
-        conditions.totalRevenue.min = isNaN(n) ? 0 : n;
+        if (isNaN(n)) return json({ error: "Please enter a valid minimum revenue value." }, { status: 400 });
+        conditions.totalRevenue.min = n;
       }
       if (revMax) {
         const n = parseFloat(revMax);
-        conditions.totalRevenue.max = isNaN(n) ? 0 : n;
+        if (isNaN(n)) return json({ error: "Please enter a valid maximum revenue value." }, { status: 400 });
+        conditions.totalRevenue.max = n;
       }
     }
 
@@ -169,8 +179,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const payMax = formData.get("payMax")?.toString();
     if (payMin || payMax) {
       conditions.onTimePaymentRate = {};
-      if (payMin) conditions.onTimePaymentRate.min = parseInt(payMin, 10) / 100;
-      if (payMax) conditions.onTimePaymentRate.max = parseInt(payMax, 10) / 100;
+      if (payMin) {
+        const n = parseInt(payMin, 10);
+        if (isNaN(n)) return json({ error: "Please enter a valid on-time payment rate minimum." }, { status: 400 });
+        conditions.onTimePaymentRate.min = n / 100;
+      }
+      if (payMax) {
+        const n = parseInt(payMax, 10);
+        if (isNaN(n)) return json({ error: "Please enter a valid on-time payment rate maximum." }, { status: 400 });
+        conditions.onTimePaymentRate.max = n / 100;
+      }
     }
 
     // Build action value from form fields

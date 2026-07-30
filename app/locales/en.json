@@ -1,0 +1,46 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "error": "An error occurred"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalCustomers": "Total Customers",
+    "activeCustomers": "Active Customers",
+    "overdueInvoices": "Overdue Invoices",
+    "totalInvoices": "Total Invoices",
+    "arAging": "AR Aging",
+    "planUsage": "Plan Usage",
+    "quickActions": "QUICK ACTIONS",
+    "recentCustomers": "Recent Customers"
+  },
+  "customers": {
+    "title": "Customers",
+    "empty": "No customers found"
+  },
+  "invoices": {
+    "title": "Invoices",
+    "create": "Create Invoice",
+    "empty": "No invoices found"
+  },
+  "collections": {
+    "title": "Collections",
+    "activeTasks": "Active Tasks"
+  },
+  "creditApplications": {
+    "title": "Credit Applications",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "portal": {
+    "title": "Payment Portal",
+    "payNow": "Pay Now",
+    "contactMerchant": "Contact Merchant",
+    "poweredBy": "Powered by TruCredit"
+  }
+}

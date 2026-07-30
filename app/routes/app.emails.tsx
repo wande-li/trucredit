@@ -84,14 +84,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const formData = await request.formData();
-    const intent = formData.get("intent") as string;
+    const intent = String(formData.get("intent") ?? "");
 
     if (intent === "create") {
-      const name = formData.get("name") as string;
-      const rawType = (formData.get("type") as string) || "CUSTOM";
-      const subject = formData.get("subject") as string;
-      const body = formData.get("body") as string;
-      const toneLevel = parseInt(formData.get("toneLevel") as string, 10);
+      const name = String(formData.get("name") ?? "");
+      const rawType = String(formData.get("type") ?? "") || "CUSTOM";
+      const subject = String(formData.get("subject") ?? "");
+      const body = String(formData.get("body") ?? "");
+      const toneLevel = parseInt(String(formData.get("toneLevel") ?? "0"), 10);
 
       // Validate template type against Prisma enum
       const VALID_TYPES: TemplateType[] = [
@@ -122,7 +122,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (intent === "delete") {
-      const templateId = formData.get("templateId") as string;
+      const templateId = String(formData.get("templateId") ?? "");
       const result = await deleteTemplate(templateId, shopId);
       logger.app("INFO", "action:app.emails delete OK", null, {
         durationMs: Date.now() - ta,

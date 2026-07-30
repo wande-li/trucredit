@@ -111,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Eliminate duplicate shop read: getShopBilling already fetches shop + _count
     const billing = await getShopBilling(shopId);
 
-    // Parallelize all remaining reads (7 queries) + eliminate separate shop.findUnique
+    // Parallelize all remaining reads (11 queries) + eliminate separate shop.findUnique
     const [
       overdueInvoices,
       activeCustomers,
@@ -121,6 +121,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalRules,
       recentCustomers,
       overdueTotal,
+      paidInvoices,
+      totalInvoices,
+      aiEventCount,
+      totalEvents,
+      avgPaymentDaysData,
     ] = await Promise.all([
       prisma.invoice.count({ where: { shopId, status: "OVERDUE" } }),
       prisma.customer.count({ where: { shopId, status: "ACTIVE" } }),
@@ -142,6 +147,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.invoice.aggregate({
         where: { shopId, status: "OVERDUE" },
         _sum: { amount: true },
+      }),
+      // P2: Analytics queries
+      prisma.invoice.count({ where: { shopId, status: "PAID" } }),
+      prisma.invoice.count({ where: { shopId } }),
+      prisma.collectionEvent.count({
+        where: { task: { invoice: { shopId } }, aiGenerated: true },
+      }),
+      prisma.collectionEvent.count({
+        where: { task: { invoice: { shopId } } },
+      }),
+      prisma.customer.aggregate({
+        where: { shopId, avgPaymentDays: { not: null } },
+        _avg: { avgPaymentDays: true },
       }),
     ]);
 
@@ -184,6 +202,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         })),
       },
       collectionStats: { activeTasks },
+      analytics: {
+        collectionRate: totalInvoices > 0 ? Math.round((paidInvoices / totalInvoices) * 100) : 0,
+        autoReplyRate: totalEvents > 0 ? Math.round((aiEventCount / totalEvents) * 100) : 0,
+        avgPaymentDays: avgPaymentDaysData._avg.avgPaymentDays
+          ? Math.round(avgPaymentDaysData._avg.avgPaymentDays)
+          : null,
+      },
       recentCustomers,
     };
 
@@ -383,7 +408,7 @@ function CustomerCard({ customer }: { customer: { id: string; name: string; comp
 
 // ── Dashboard ──
 export default function Dashboard() {
-  const { stats, quota, planName, subscriptionStatus, currentPeriodEnd, planFeatures, showUpgradePrompt, aging, collectionStats, recentCustomers, generatedAt } =
+  const { stats, quota, planName, subscriptionStatus, currentPeriodEnd, planFeatures, showUpgradePrompt, aging, collectionStats, analytics, recentCustomers, generatedAt } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate, state: revalidateState } = useRevalidator();
@@ -660,6 +685,39 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
+            </BlockStack>
+          </Card>
+
+          {/* ═══ Analytics Overview ═══ */}
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack gap="200" blockAlign="center">
+                <ChartLineIcon style={{ width: 20, height: 20, color: "var(--p-color-text-brand)" }} />
+                <Text as="h2" variant="headingMd">Analytics Overview</Text>
+              </InlineStack>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+                <div style={{ padding: "var(--p-space-400)", background: "var(--p-color-bg-fill-secondary)", borderRadius: "var(--p-border-radius-200)" }}>
+                  <BlockStack gap="100">
+                    <Text as="span" variant="bodySm" tone="subdued">Collection Rate</Text>
+                    <Text as="span" variant="headingXl" fontWeight="bold">{analytics.collectionRate}%</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">Paid vs. total invoices</Text>
+                  </BlockStack>
+                </div>
+                <div style={{ padding: "var(--p-space-400)", background: "var(--p-color-bg-fill-secondary)", borderRadius: "var(--p-border-radius-200)" }}>
+                  <BlockStack gap="100">
+                    <Text as="span" variant="bodySm" tone="subdued">AI Auto-Processing Rate</Text>
+                    <Text as="span" variant="headingXl" fontWeight="bold">{analytics.autoReplyRate}%</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">Replies handled by AI</Text>
+                  </BlockStack>
+                </div>
+                <div style={{ padding: "var(--p-space-400)", background: "var(--p-color-bg-fill-secondary)", borderRadius: "var(--p-border-radius-200)" }}>
+                  <BlockStack gap="100">
+                    <Text as="span" variant="bodySm" tone="subdued">Avg Days to Pay</Text>
+                    <Text as="span" variant="headingXl" fontWeight="bold">{analytics.avgPaymentDays ?? "—"} days</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">Average payment turnaround</Text>
+                  </BlockStack>
+                </div>
+              </div>
             </BlockStack>
           </Card>
         </BlockStack>

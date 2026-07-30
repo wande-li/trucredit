@@ -56,6 +56,7 @@ enum CreditEventType {
   FROZEN
   UNFROZEN
   SCORE_UPDATE
+  SOURCE_SWITCH
 }
 
 enum InvoiceStatus {
@@ -123,6 +124,12 @@ enum TemplateType {
   CUSTOM
 }
 
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ═══════════════════ Session (Shopify OAuth - REQUIRED) ═══════════════════
 
 model Session {
@@ -188,12 +195,13 @@ model Shop {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  customers      Customer[]
-  invoices       Invoice[]
-  sequences      CollectionSequence[]
-  creditRules    CreditRule[]
-  emailTemplates EmailTemplate[]
-  teamMembers    TeamMember[]
+  customers         Customer[]
+  invoices          Invoice[]
+  sequences         CollectionSequence[]
+  creditRules       CreditRule[]
+  emailTemplates    EmailTemplate[]
+  teamMembers       TeamMember[]
+  creditApplications CreditApplication[]
 
   @@index([plan])
   @@index([uninstalledAt])
@@ -228,12 +236,18 @@ model Customer {
   company           String?
   phone             String?
 
+  // B2B cold-start profile (self-registration)
+  yearsInBusiness Int?
+  companySize     String?
+  annualRevenue   Decimal?
+
   // Credit data
   creditLimit     Decimal      @default(0)
   creditUsed      Decimal      @default(0)
   creditAvailable Decimal      @default(0)
   creditScore     Int?
   creditGrade     CreditGrade?
+  creditSource    String       @default("BEHAVIORAL")
   riskLevel       RiskLevel    @default(MEDIUM)
 
   // Payment behavior
@@ -253,9 +267,11 @@ model Customer {
   frozenAt     DateTime?
 
   // Relations
-  invoices        Invoice[]
-  creditEvents    CreditEvent[]
-  collectionTasks CollectionTask[]
+  invoices           Invoice[]
+  creditEvents       CreditEvent[]
+  collectionTasks    CollectionTask[]
+  creditApplications CreditApplication[]
+  portalTokens       PortalToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -302,6 +318,57 @@ model CreditEvent {
   updatedAt DateTime @updatedAt
 
   @@index([customerId])
+}
+
+model CreditApplication {
+  id              String            @id @default(cuid())
+  shopId          String
+  shop            Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Company info (from buyer form)
+  companyName     String
+  contactEmail    String
+  yearsInBusiness Int
+  companySize     String
+  annualRevenue   Decimal
+  requestedCredit Decimal
+
+  // AI cold-start assessment result
+  coldStartScore      Int?
+  coldStartComponents Json?
+  autoApproved        Boolean?
+
+  // Decision
+  status           ApplicationStatus @default(PENDING)
+  reviewerId       String?
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  approvedLimit    Decimal?
+
+  // If APPROVED → creates Customer record
+  customerId String?
+  customer   Customer?         @relation(fields: [customerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, status])
+  @@index([shopId, contactEmail])
+}
+
+model PortalToken {
+  id         String    @id @default(cuid())
+  shopId     String
+  customerId String
+  tokenHash  String    @unique
+  scope      String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, customerId])
+  @@index([expiresAt])
 }
 
 // ═══════════════════ Invoice & AR ═══════════════════
@@ -396,7 +463,7 @@ model CollectionStep {
   aiPromptHint String?
 
   // Conditions
-  skipIfPaid     Boolean @default(true)
+  skipIfPaid Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -462,6 +529,8 @@ model CollectionEvent {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([taskId])
 }
 
 // ═══════════════════ Email Templates ═══════════════════

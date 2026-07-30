@@ -104,7 +104,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app("ERROR", "action:app.invoices ERROR", msg, { durationMs: Date.now() - ta });
-    return json({ error: msg, ok: false });
+    return json({ error: "We encountered an issue. Please refresh the page and try again.", ok: false });
   }
 };
 

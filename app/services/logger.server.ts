@@ -104,6 +104,16 @@ export const logger = {
     });
   },
 
+  metrics(name: string, value: number, tags?: Record<string, string>) {
+    addLog({
+      timestamp: new Date().toISOString(),
+      level: "INFO",
+      service: "Metrics",
+      message: name,
+      context: { value, ...tags },
+    });
+  },
+
   getRecent(count = 50): LogEntry[] {
     return logBuffer.slice(-count);
   },

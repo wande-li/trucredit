@@ -45,3 +45,10 @@ redirect_urls = [
   "https://trucredit-app-production.up.railway.app/auth/callback",
   "http://127.0.0.1:3460/auth/callback"
 ]
+
+# App Proxy — buyer registration & portal on store's own domain
+# [store].myshopify.com/apps/trucredit/* → forwarded to our app
+[app_proxy]
+url = "https://trucredit-app-production.up.railway.app"
+subpath = "trucredit"
+prefix = "apps"

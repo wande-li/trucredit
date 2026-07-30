@@ -164,6 +164,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Invoice number is required." }, { status: 400 });
     }
     const netTermsDays = parseInt(netTermsDaysStr ?? String(COLLECTION.DEFAULT_NET_TERMS), 10);
+    if (isNaN(netTermsDays) || netTermsDays < 0) {
+      return json({ error: "Please enter a valid number of net terms days." }, { status: 400 });
+    }
 
     const invoice = await createInvoice({
       shopId,

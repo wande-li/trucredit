@@ -9,8 +9,11 @@ import type {
 import type {
   CreditScoreComponents,
   CreditRecommendation,
+  ColdStartProfile,
+  ColdStartComponents,
+  ColdStartResult,
 } from "~/types/credit";
-import { CREDIT_SCORE, SCORING_WEIGHTS, CREDIT_BASE_LIMITS } from "~/lib/constants";
+import { CREDIT_SCORE, SCORING_WEIGHTS, CREDIT_BASE_LIMITS, COLD_START_WEIGHTS, COLD_START_SIZE_SCORE, COLD_START_THRESHOLDS } from "~/lib/constants";
 import { logger } from "~/services/logger.server";
 
 /**
@@ -238,4 +241,71 @@ export function validateCreditAdjustment(params: {
   }
 
   return { valid: true };
+}
+
+/**
+ * Calculate cold-start credit score (0-100) from company profile.
+ * Used when buyer has no transaction history (creditSource = COLD_START).
+ *
+ * Scoring dimensions:
+ * - Business Age (30 pts): log10(years+1) / log10(21) * 30
+ * - Company Size (20 pts): solo=5, 2-10=10, 11-50=15, 51+=20
+ * - Debt Service Ratio (30 pts): annualRevenue / requestedCredit tiers
+ * - Request Amount (20 pts): smaller requests score higher
+ */
+export function calculateColdStartScore(profile: ColdStartProfile): { score: number; components: ColdStartComponents } {
+  const W = COLD_START_WEIGHTS;
+
+  // Business Age: log scale, 10+ years = full score
+  const businessAge = Math.round(
+    Math.min(1, Math.log10(Math.min(profile.yearsInBusiness, 20) + 1) / Math.log10(21)) * W.BUSINESS_AGE,
+  );
+
+  // Company Size: tiered scoring
+  const companySize = COLD_START_SIZE_SCORE[profile.companySize] ?? 5;
+
+  // Debt Service Ratio: annualRevenue / requestedCredit
+  // Higher ratio = lower risk, capped at 10:1 for full score
+  const ratio = profile.requestedCredit > 0 ? profile.annualRevenue / profile.requestedCredit : 0;
+  const dsrScore = Math.min(1, ratio / 10) * W.DEBT_SERVICE_RATIO;
+  const debtServiceRatio = Math.round(Math.max(0, dsrScore));
+
+  // Request Amount: conservatism bonus for smaller requests
+  let requestScore = 20; // ≤ $1000
+  if (profile.requestedCredit > 10000) requestScore = 5;
+  else if (profile.requestedCredit > 5000) requestScore = 10;
+  else if (profile.requestedCredit > 1000) requestScore = 15;
+  const requestAmount = Math.round(requestScore * W.REQUEST_AMOUNT / 20);
+
+  const score = Math.min(100, Math.max(0, businessAge + companySize + debtServiceRatio + requestAmount));
+
+  logger.app("INFO", "credit.calculateColdStartScore OK", null, { score, ...profile });
+
+  return {
+    score,
+    components: { businessAge, companySize, debtServiceRatio, requestAmount },
+  };
+}
+
+/**
+ * Full cold-start credit assessment — score + auto/manual decision + recommended limit
+ */
+export function coldStartCreditAssessment(
+  profile: ColdStartProfile,
+  merchantMaxLimit?: number,
+): ColdStartResult {
+  const { score, components } = calculateColdStartScore(profile);
+  const maxLimit = merchantMaxLimit ?? COLD_START_THRESHOLDS.MAX_AUTO_LIMIT_DEFAULT;
+  const autoApproved = score >= COLD_START_THRESHOLDS.AUTO_APPROVE;
+  const recommendedLimit = autoApproved
+    ? Math.min(profile.requestedCredit, maxLimit)
+    : 0;
+
+  const reason = autoApproved
+    ? `Auto-approved: score ${score} meets threshold ${COLD_START_THRESHOLDS.AUTO_APPROVE}`
+    : `Manual review required: score ${score} below threshold ${COLD_START_THRESHOLDS.AUTO_APPROVE}`;
+
+  logger.app("INFO", "credit.coldStartCreditAssessment OK", null, { score, autoApproved, recommendedLimit });
+
+  return { score, components, recommendedLimit, autoApproved, reason };
 }

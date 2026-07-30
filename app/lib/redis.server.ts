@@ -10,6 +10,7 @@ if (!REDIS_URL) {
   throw new Error("REDIS_URL environment variable is required. Set it in Railway or .env.");
 }
 export { REDIS_URL };
+const url: string = REDIS_URL; // guaranteed non-null by guard above
 
 declare global {
   // eslint-disable-next-line no-var
@@ -17,8 +18,7 @@ declare global {
 }
 
 function createRedis(): Redis {
-  // After the guard above, REDIS_URL is guaranteed non-null; TS can't narrow process.env
-  const redis = new Redis(REDIS_URL as string, {
+  const redis = new Redis(url, {
     maxRetriesPerRequest: null, // Required for BullMQ (handles own retry)
     enableReadyCheck: false,    // BullMQ workers perform their own readiness check
     lazyConnect: false,

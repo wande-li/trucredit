@@ -182,11 +182,20 @@ export async function verifyCreditMetafield(
       customerId: toGid(customer.shopifyCustomerId, "Customer"),
     });
 
-    const rawValue = (result?.data as Record<string, unknown> | null)?.customer as Record<string, unknown> | null;
-    const metafieldVal = (rawValue?.metafield as { value?: string } | null)?.value;
+    const data = result?.data as Record<string, unknown> | undefined;
+    const customer = data?.customer as Record<string, unknown> | undefined;
+    const metafield = customer?.metafield as { value?: string } | undefined;
+    const metafieldVal = metafield?.value;
 
-    if (metafieldVal) {
-      shopifyValue = JSON.parse(metafieldVal) as CreditStatusPayload;
+    if (metafieldVal && typeof metafieldVal === "string") {
+      try {
+        const parsed: unknown = JSON.parse(metafieldVal);
+        if (parsed && typeof parsed === "object" && "creditLimit" in parsed) {
+          shopifyValue = parsed as CreditStatusPayload;
+        }
+      } catch {
+        // JSON parse failed — leave shopifyValue as null
+      }
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

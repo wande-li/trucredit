@@ -126,6 +126,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       aiEventCount,
       totalEvents,
       avgPaymentDaysData,
+      pendingCreditAppsCount,
     ] = await Promise.all([
       prisma.invoice.count({ where: { shopId, status: "OVERDUE" } }),
       prisma.customer.count({ where: { shopId, status: "ACTIVE" } }),
@@ -146,7 +147,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }),
       prisma.invoice.aggregate({
         where: { shopId, status: "OVERDUE" },
-        _sum: { amount: true },
+        _sum: { amount: true, paidAmount: true },
       }),
       // P2: Analytics queries
       prisma.invoice.count({ where: { shopId, status: "PAID" } }),
@@ -161,6 +162,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: { shopId, avgPaymentDays: { not: null } },
         _avg: { avgPaymentDays: true },
       }),
+      // P3: Pending credit applications count (dashboard reminder)
+      prisma.creditApplication.count({ where: { shopId, status: "PENDING" } }),
     ]);
 
     const payload = {
@@ -177,9 +180,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         overdueInvoices,
         activeCustomers,
         frozenCustomers,
-        overdueTotal: overdueTotal._sum.amount?.toString() ?? "0.00",
+        overdueTotal: String(Number(overdueTotal._sum.amount ?? 0) - Number(overdueTotal._sum.paidAmount ?? 0)),
         activeTasks,
         totalRules,
+        pendingCreditApplications: pendingCreditAppsCount,
       },
       quota: {
         customerQuotaPercent: billing.customerQuotaPercent,
@@ -434,10 +438,28 @@ export default function Dashboard() {
           )}
 
           {/* FREE user upgrade prompt (P2-7) */}
-          {showUpgradePrompt && !quota.needsUpgrade && (
+            {showUpgradePrompt && !quota.needsUpgrade && (
             <Banner tone="info" action={{ content: "View Plans", url: "/app/billing" }}>
               <Text as="p" variant="bodyMd">
                 You're on the Free plan. Upgrade to unlock automated collections, AI-powered emails, and more.
+              </Text>
+            </Banner>
+          )}
+
+          {/* GAP 8: Subscription expired/cancelled banner */}
+          {(subscriptionStatus === "EXPIRED" || subscriptionStatus === "CANCELLED" || subscriptionStatus === "FROZEN") && (
+            <Banner tone="critical" action={{ content: "Manage Billing", url: "/app/billing" }}>
+              <Text as="p" variant="bodyMd">
+                Your subscription is {subscriptionStatus.toLowerCase()}. Your data is still accessible in read-only mode. Reactivate your plan to restore full access.
+              </Text>
+            </Banner>
+          )}
+
+          {/* GAP 3: Pending credit applications reminder */}
+          {stats.pendingCreditApplications > 0 && (
+            <Banner tone="warning" action={{ content: "Review Applications", url: "/app/credit-applications" }}>
+              <Text as="p" variant="bodyMd">
+                {stats.pendingCreditApplications} credit application{stats.pendingCreditApplications !== 1 ? "s" : ""} pending review. Approve or reject to avoid delays for your B2B customers.
               </Text>
             </Banner>
           )}

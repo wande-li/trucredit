@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs, LinksFunction } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useLocation, NavLink } from "@remix-run/react";
 import { validatePortalSession, getShopInfo } from "~/services/portal.server";
+import { tryExtractTokenPayload, extendPortalToken } from "~/services/token.server";
 import portalStyles from "~/styles/portal.css?url";
 import PortalErrorBoundary from "~/components/PortalErrorBoundary";
 
@@ -26,7 +28,21 @@ export const loader = async ({ params }: LoaderFunctionArgs) => {
   const token = params.token;
   if (!token) throw new Response("Token required", { status: 400 });
   const session = await validatePortalSession(token);
-  if (!session) throw new Response("Invalid or expired link", { status: 401 });
+  if (!session) {
+    // Token expired or invalid — attempt to extract shop context for renewal page
+    const payload = await tryExtractTokenPayload(token);
+    if (payload && payload.scope === "portal") {
+      const shop = await getShopInfo(payload.shopId);
+      if (shop?.shopDomain) {
+        throw redirect(`/portal/renew?shop=${encodeURIComponent(shop.shopDomain)}`);
+      }
+    }
+    throw new Response("Invalid or expired link", { status: 401 });
+  }
+
+  // P2: Sliding expiration — extend token TTL on each visit
+  extendPortalToken(token).catch(() => {});
+
   const shop = await getShopInfo(session.shopId);
   return { token, shopDomain: shop?.shopDomain ?? "Shopify", shopCurrency: shop?.currency ?? "USD" };
 };

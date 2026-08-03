@@ -84,6 +84,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return json({ error: "Team member not found" }, { status: 404 });
         }
 
+        // GAP 2: Prevent downgrading the last admin
+        if (member.role === "ADMIN" && role !== "ADMIN") {
+          const adminCount = await prisma.teamMember.count({
+            where: { shopId, role: "ADMIN" },
+          });
+          if (adminCount <= 1) {
+            return json({ error: "Cannot downgrade the last admin. Assign another admin first." }, { status: 400 });
+          }
+        }
+
         const updated = await prisma.teamMember.update({
           where: { id: memberId },
           data: { role },
@@ -106,6 +116,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         if (!member) {
           return json({ error: "Team member not found" }, { status: 404 });
+        }
+
+        // GAP 2: Prevent removing the last admin
+        if (member.role === "ADMIN") {
+          const adminCount = await prisma.teamMember.count({
+            where: { shopId, role: "ADMIN" },
+          });
+          if (adminCount <= 1) {
+            return json({ error: "Cannot remove the last admin. Assign another admin first." }, { status: 400 });
+          }
         }
 
         await prisma.teamMember.delete({ where: { id: memberId } });

@@ -83,6 +83,20 @@ export async function sendCollectionEmail(
   if (!fromEmail) throw new Error("FROM_EMAIL is required for sending emails.");
   const useAI = params.useAI ?? false;
 
+  // GAP 4: Check if customer's email has previously hard-bounced
+  if (params.shopId) {
+    const bouncedCustomer = await prisma.customer.findFirst({
+      where: { email: params.toEmail.toLowerCase().trim(), shopId: params.shopId, emailBouncedAt: { not: null } },
+      select: { id: true, emailBouncedAt: true },
+    });
+    if (bouncedCustomer) {
+      logger.app("WARN", "emailDelivery.sendCollectionEmail — skipped, customer email previously bounced", undefined, {
+        to: params.toEmail,
+      });
+      return { sent: false, error: "Customer email bounced previously" };
+    }
+  }
+
   logger.app("INFO", "emailDelivery.sendCollectionEmail START", null, {
     to: params.toEmail,
     invoice: params.vars.invoiceNumber,
@@ -288,6 +302,19 @@ export async function sendSimpleEmail(params: {
   if (!fromEmail) {
     logger.app("WARN", "emailDelivery.sendSimpleEmail — FROM_EMAIL not configured, dry-run only", undefined, { to: params.toEmail });
     return { sent: false, error: "FROM_EMAIL not configured" };
+  }
+
+  // GAP 4: Check if customer's email has previously hard-bounced — skip sending
+  const bouncedCustomer = await prisma.customer.findFirst({
+    where: { email: params.toEmail.toLowerCase().trim(), shopId: params.shopId, emailBouncedAt: { not: null } },
+    select: { id: true, emailBouncedAt: true },
+  });
+  if (bouncedCustomer) {
+    logger.app("WARN", "emailDelivery.sendSimpleEmail — skipped, customer email previously bounced", undefined, {
+      to: params.toEmail,
+      bouncedSince: bouncedCustomer.emailBouncedAt?.toISOString(),
+    });
+    return { sent: false, error: "Customer email bounced previously — not sending" };
   }
 
   // Fetch shop email settings for display name

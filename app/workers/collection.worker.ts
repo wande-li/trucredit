@@ -464,9 +464,9 @@ export function createFreezeCheckWorker(): Worker<FreezeJob> {
             const threshold = Number(conditions.overdueAmountExceeds);
             const totalOverdue = await prisma.invoice.aggregate({
               where: { customerId, shopId, status: "OVERDUE" },
-              _sum: { amount: true },
+              _sum: { amount: true, paidAmount: true },
             });
-            const overdueAmt = Number(totalOverdue._sum.amount ?? 0);
+            const overdueAmt = Number(totalOverdue._sum.amount ?? 0) - Number(totalOverdue._sum.paidAmount ?? 0);
             if (threshold > 0 && overdueAmt > threshold) {
               ruleMatch = true;
               freezeReason = `Overdue amount $${overdueAmt.toFixed(2)} exceeds threshold $${threshold.toFixed(2)}`;

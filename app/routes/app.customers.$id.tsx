@@ -25,6 +25,7 @@ import {
   setCreditLimit,
   freezeCustomer,
   unfreezeCustomer,
+  unblacklistCustomer,
   recalculateCreditScore,
   deleteCustomer,
 } from "~/services/customer.server";
@@ -35,6 +36,8 @@ import { logger } from "~/services/logger.server";
 import { CustomerStatusBadge } from "~/components/credit/CustomerStatusBadge";
 import { CreditLimitModal } from "~/components/credit/CreditLimitModal";
 import { checkPlanAccess } from "~/services/billing.server";
+import { generatePortalToken, buildPortalUrl } from "~/services/token.server";
+import { sendSimpleEmail } from "~/services/email-delivery.server";
 import prisma from "~/db.server";
 import RouteErrorBoundary from "~/components/RouteErrorBoundary";
 import PageSkeleton from "~/components/PageSkeleton";
@@ -196,6 +199,26 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return json({ success: true });
       }
 
+      // GAP 7: Un-blacklist a customer (restore from BLACKLISTED to ACTIVE)
+      case "unblacklist": {
+        await unblacklistCustomer({
+          shopId,
+          customerId: params.id,
+          triggeredBy: "USER",
+        });
+
+        syncCreditMetafield(admin, shopDomain, params.id).catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.app("WARN", "Metafield sync failed after unblacklist", msg);
+        });
+
+        logger.app("INFO", "action:app.customers.$id unblacklist OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
+        return json({ success: true });
+      }
+
       case "recalculate-score": {
         await recalculateCreditScore({
           customerId: params.id,
@@ -229,6 +252,47 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
 
         logger.app("INFO", "action:app.customers.$id delete OK", null, {
+          durationMs: Date.now() - ta,
+          customerId: params.id,
+        });
+        return json({ success: true });
+      }
+
+      // P0: Resend portal link to customer email
+      case "resend-portal-link": {
+        // Fetch customer email (not in formData for security — uses server-side DB)
+        const cust = await prisma.customer.findFirst({
+          where: { id: params.id, shopId },
+          select: { id: true, email: true, name: true },
+        });
+
+        if (!cust || !cust.email) {
+          return json({ error: "Customer email not found. Please add an email address first." }, { status: 400 });
+        }
+
+        const portalToken = await generatePortalToken({ shopId, customerId: params.id! });
+        const portalUrl = buildPortalUrl(portalToken);
+
+        const emailResult = await sendSimpleEmail({
+          shopId,
+          toEmail: cust.email,
+          subject: "Your TruCredit Portal Access",
+          htmlBody: `<p>Hi ${cust.name || "there"},</p>
+<p>Here is your portal access link:</p>
+<p style="font-size:18px;margin:16px 0">
+  <a href="${portalUrl}">Access Your Portal</a>
+</p>
+<p>Or copy this link into your browser:</p>
+<p>${portalUrl}</p>
+<p>You can view your credit balance, invoices, payment history, and account statements here. The link expires in 7 days.</p>`,
+        });
+
+        if (!emailResult.sent) {
+          logger.app("WARN", "action:app.customers.$id resend-portal-link — email failed", emailResult.error);
+          return json({ error: `Email delivery failed: ${emailResult.error}. Direct link: ${portalUrl}` }, { status: 200 });
+        }
+
+        logger.app("INFO", "action:app.customers.$id resend-portal-link OK", undefined, {
           durationMs: Date.now() - ta,
           customerId: params.id,
         });
@@ -270,6 +334,11 @@ export default function CustomerDetailPage() {
       { method: "post" },
     );
   }, [fetcher, customer.isFrozen]);
+
+  const handleUnblacklist = useCallback(() => {
+    if (!confirm("Remove this customer from the blacklist? Their credit will be re-activated.")) return;
+    fetcher.submit({ intent: "unblacklist" }, { method: "post" });
+  }, [fetcher]);
 
   const handleRecalculate = useCallback(() => {
     fetcher.submit({ intent: "recalculate-score" }, { method: "post" });
@@ -402,6 +471,16 @@ export default function CustomerDetailPage() {
                   >
                     {customer.isFrozen ? "Unfreeze" : "Freeze"}
                   </Button>
+                  {customer.status === "BLACKLISTED" && (
+                    <Button
+                      onClick={handleUnblacklist}
+                      tone="success"
+                      disabled={isBusy}
+                      loading={isBusy && fetcher.formData?.get("intent")?.toString().includes("unblacklist")}
+                    >
+                      Remove from Blacklist
+                    </Button>
+                  )}
                   <Button
                     onClick={handleRecalculate}
                     disabled={isBusy}
@@ -420,6 +499,15 @@ export default function CustomerDetailPage() {
                     loading={isBusy && fetcher.formData?.get("intent") === "delete"}
                   >
                     Delete
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      fetcher.submit({ intent: "resend-portal-link" }, { method: "post" });
+                    }}
+                    disabled={isBusy}
+                    loading={isBusy && fetcher.formData?.get("intent") === "resend-portal-link"}
+                  >
+                    Resend Portal Link
                   </Button>
                 </InlineStack>
 

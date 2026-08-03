@@ -19,6 +19,7 @@ import { generatePaymentToken, buildPaymentUrl } from "~/services/token.server";
 // Reusable select row types to avoid implicit any
 type InvListRow = {
   id: string; invoiceNumber: string; amount: { toString(): string };
+  paidAmount?: number | { toString(): string };
   currency: string; issueDate: Date; dueDate: Date;
   status: InvoiceStatus; daysOverdue: number; netTermsDays: number;
   customer: { name: string; company: string | null };
@@ -26,6 +27,7 @@ type InvListRow = {
 
 type BaseRow = {
   id: string; invoiceNumber: string; amount: { toString(): string };
+  paidAmount?: number | { toString(): string };
   currency: string; issueDate: Date; dueDate: Date;
   status: InvoiceStatus; daysOverdue: number; netTermsDays: number;
   customer: { name: string; company: string | null };
@@ -48,7 +50,7 @@ export async function getInvoice(params: {
     return null;
   }
   logger.app("INFO", "invoice.getInvoice OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
-  return { ...invoice, amount: invoice.amount.toString() };
+  return { ...invoice, amount: invoice.amount.toString(), paidAmount: (invoice.paidAmount ?? 0).toString() };
 }
 
 /**
@@ -126,6 +128,7 @@ export async function listInvoices(params: {
       customerName: inv.customer.name,
       customerCompany: inv.customer.company,
       amount: inv.amount.toString(),
+      paidAmount: String(inv.paidAmount ?? 0),
       currency: inv.currency,
       issueDate: inv.issueDate.toISOString(),
       dueDate: inv.dueDate.toISOString(),
@@ -155,6 +158,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
       id: true,
       invoiceNumber: true,
       amount: true,
+      paidAmount: true,
       currency: true,
       issueDate: true,
       dueDate: true,
@@ -186,7 +190,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
     const bucket = bucketData.find((b) => overdue >= b.min && overdue <= b.max);
     if (bucket) {
       bucket.count++;
-      bucket.totalAmount += Number(inv.amount);
+      bucket.totalAmount += Number(inv.amount) - Number(inv.paidAmount ?? 0);
       bucket.invoices.push(inv);
     }
   }
@@ -200,7 +204,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
     if (["OVERDUE"].some((s) => b.invoices.some((inv) => inv.status === s))) {
       totalOverdue += b.invoices
         .filter((inv) => inv.status === "OVERDUE")
-        .reduce((s, inv) => s + Number(inv.amount), 0);
+        .reduce((s, inv) => s + Number(inv.amount) - Number(inv.paidAmount ?? 0), 0);
     }
     for (const inv of b.invoices) customerSet.add(inv.customer.name);
 
@@ -216,6 +220,7 @@ export async function getARAgingReport(shopId: string): Promise<ARAgingReport> {
         customerName: inv.customer.name,
         customerCompany: inv.customer.company,
         amount: inv.amount.toString(),
+        paidAmount: (inv.paidAmount ?? 0).toString(),
         currency: inv.currency,
         issueDate: inv.issueDate.toISOString(),
         dueDate: inv.dueDate.toISOString(),
@@ -403,7 +408,7 @@ export async function createInvoice(params: {
 
   logger.app("INFO", "invoice.createInvoice OK", null, { shopId: params.shopId, invoiceId: invoice.inv.id });
   logger.metrics("invoice.created", 1, { shopId: params.shopId });
-  return { ...invoice.inv, amount: invoice.inv.amount.toString(), paymentUrl };
+  return { ...invoice.inv, amount: invoice.inv.amount.toString(), paidAmount: (invoice.inv.paidAmount ?? 0).toString(), paymentUrl };
 }
 
 /**
@@ -423,8 +428,24 @@ export async function markInvoicePaid(params: {
     });
 
     if (invoice.status === "PAID") {
-      return { ...invoice, amount: invoice.amount.toString() };
+      return { ...invoice, amount: invoice.amount.toString(), paidAmount: (invoice.paidAmount ?? 0).toString() };
     }
+
+    // Calculate outstanding: only release remaining credit, not the full original amount
+    const existingPaid = Number(invoice.paidAmount ?? 0);
+    const outstandingAmount = Number(invoice.amount) - existingPaid;
+
+    // Create payment record before updating invoice
+    await tx.payment.create({
+      data: {
+        shopId: params.shopId,
+        invoiceId: params.invoiceId,
+        customerId: invoice.customerId,
+        amount: outstandingAmount > 0 ? outstandingAmount : Number(invoice.amount),
+        paymentMethod: params.paymentMethod ?? invoice.paymentMethod,
+        paymentDate: paidDate,
+      },
+    });
 
     const updated = await tx.invoice.update({
       where: { id: params.invoiceId },
@@ -433,6 +454,7 @@ export async function markInvoicePaid(params: {
         paidDate,
         daysOverdue: 0,
         paymentMethod: params.paymentMethod,
+        paidAmount: invoice.amount, // fully paid = original amount
       },
     });
 
@@ -466,17 +488,19 @@ export async function markInvoicePaid(params: {
         ? paymentDays.reduce((s: number, d: number) => s + d, 0) / paymentDays.length
         : null;
 
-    const invoiceAmount = Number(invoice.amount);
-    await tx.customer.update({
-      where: { id: invoice.customerId },
-      data: {
-        creditUsed: { decrement: invoiceAmount },
-        creditAvailable: { increment: invoiceAmount },
-        onTimePaymentRate: onTimeRate,
-        avgPaymentDays,
-        lastPaymentDate: paidDate,
-      },
-    });
+    // Only release outstanding credit (if partial payments already reduced it)
+    if (outstandingAmount > 0) {
+      await tx.customer.update({
+        where: { id: invoice.customerId },
+        data: {
+          creditUsed: { decrement: outstandingAmount },
+          creditAvailable: { increment: outstandingAmount },
+          onTimePaymentRate: onTimeRate,
+          avgPaymentDays,
+          lastPaymentDate: paidDate,
+        },
+      });
+    }
 
     // Auto-complete any related collection tasks
     await tx.collectionTask.updateMany({
@@ -492,7 +516,7 @@ export async function markInvoicePaid(params: {
     });
 
     logger.app("INFO", "invoice.markInvoicePaid OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
-    return { ...updated, amount: updated.amount.toString() };
+    return { ...updated, amount: updated.amount.toString(), paidAmount: (updated.paidAmount ?? 0).toString() };
   });
 }
 
@@ -523,6 +547,7 @@ export async function getARAgingByCustomer(params: {
       id: true,
       invoiceNumber: true,
       amount: true,
+      paidAmount: true,
       currency: true,
       issueDate: true,
       dueDate: true,
@@ -550,16 +575,16 @@ export async function getARAgingByCustomer(params: {
     return {
       label: def.label,
       count: filtered.length,
-      totalAmount: filtered.reduce((sum, inv) => sum + Number(inv.amount), 0).toFixed(2),
+      totalAmount: filtered.reduce((sum, inv) => sum + Number(inv.amount) - Number(inv.paidAmount ?? 0), 0).toFixed(2),
     };
   });
 
   const totalOutstanding = (invoices as BaseRow[])
-    .reduce((sum, inv) => sum + Number(inv.amount), 0)
+    .reduce((sum, inv) => sum + Number(inv.amount) - Number(inv.paidAmount ?? 0), 0)
     .toFixed(2);
   const totalOverdue = (invoices as BaseRow[])
     .filter((inv) => inv.status === "OVERDUE")
-    .reduce((sum, inv) => sum + Number(inv.amount), 0)
+    .reduce((sum, inv) => sum + Number(inv.amount) - Number(inv.paidAmount ?? 0), 0)
     .toFixed(2);
 
   const invoiceSummaries: InvoiceSummary[] = (invoices as InvListRow[]).map((inv) => ({
@@ -568,6 +593,7 @@ export async function getARAgingByCustomer(params: {
     customerName: inv.customer.name,
     customerCompany: inv.customer.company,
     amount: inv.amount.toString(),
+    paidAmount: inv.paidAmount ? (typeof inv.paidAmount === "number" ? inv.paidAmount.toString() : inv.paidAmount.toString()) : "0",
     currency: inv.currency,
     issueDate: inv.issueDate.toISOString(),
     dueDate: inv.dueDate.toISOString(),
@@ -617,7 +643,7 @@ export async function updateInvoice(params: {
   });
 
   logger.app("INFO", "invoice.updateInvoice OK", null, { shopId: params.shopId, invoiceId: params.invoiceId });
-  return { ...updated, amount: updated.amount.toString() };
+  return { ...updated, amount: updated.amount.toString(), paidAmount: (updated.paidAmount ?? 0).toString() };
 }
 
 /**
@@ -635,11 +661,23 @@ export async function bulkMarkInvoicePaid(params: {
   await prisma.$transaction(async (tx) => {
     const invoices = await tx.invoice.findMany({
       where: { id: { in: invoiceIds }, shopId, status: { notIn: ["PAID", "VOID"] } },
-      select: { id: true, customerId: true, amount: true },
+      select: { id: true, customerId: true, amount: true, paidAmount: true },
     });
 
     // P0-5: Parallel bulk update — replaces N+1 sequential loop
     await Promise.all(invoices.map(async (inv) => {
+      // Create payment record for each invoice
+      await tx.payment.create({
+        data: {
+          shopId,
+          invoiceId: inv.id,
+          customerId: inv.customerId,
+          amount: inv.amount,
+          paymentMethod: paymentMethod ?? "Manual/Bulk",
+          paymentDate: new Date(),
+        },
+      });
+
       await tx.invoice.update({
         where: { id: inv.id },
         data: {
@@ -647,16 +685,21 @@ export async function bulkMarkInvoicePaid(params: {
           paidDate: new Date(),
           daysOverdue: 0,
           paymentMethod: paymentMethod ?? "Manual/Bulk",
+          paidAmount: inv.amount, // fully paid
         },
       });
 
-      await tx.customer.update({
-        where: { id: inv.customerId },
-        data: {
-          creditUsed: { decrement: Number(inv.amount) },
-          creditAvailable: { increment: Number(inv.amount) },
-        },
-      });
+      // Only release outstanding credit
+      const outstanding = Number(inv.amount) - Number(inv.paidAmount ?? 0);
+      if (outstanding > 0) {
+        await tx.customer.update({
+          where: { id: inv.customerId },
+          data: {
+            creditUsed: { decrement: outstanding },
+            creditAvailable: { increment: outstanding },
+          },
+        });
+      }
 
       await tx.collectionTask.updateMany({
         where: { invoiceId: inv.id, status: "ACTIVE" },
@@ -691,20 +734,35 @@ export async function recordPartialPayment(params: {
       throw new Error(`Cannot record payment against a ${invoice.status.toLowerCase()} invoice`);
     }
 
-    const currentAmount = Number(invoice.amount);
-    if (paymentAmount <= 0 || paymentAmount > currentAmount) {
-      throw new Error("Payment amount must be between 0 and the invoice total");
+    const originalAmount = Number(invoice.amount);
+    const existingPaid = Number(invoice.paidAmount ?? 0);
+    const outstanding = originalAmount - existingPaid;
+
+    if (paymentAmount <= 0 || paymentAmount > outstanding) {
+      throw new Error("Payment amount must be between 0 and the outstanding balance");
     }
 
-    const newAmount = currentAmount - paymentAmount;
-    const isFullyPaid = newAmount <= 0.001; // floating point tolerance
+    const newPaidAmount = existingPaid + paymentAmount;
+    const isFullyPaid = newPaidAmount >= originalAmount - 0.001; // floating point tolerance
+
+    // Create payment record before updating invoice
+    await tx.payment.create({
+      data: {
+        shopId,
+        invoiceId,
+        customerId: invoice.customerId,
+        amount: paymentAmount,
+        paymentMethod: paymentMethod ?? invoice.paymentMethod,
+        paymentDate: new Date(),
+      },
+    });
 
     const updated = await tx.invoice.update({
       where: { id: invoiceId },
       data: {
-        amount: newAmount,
+        paidAmount: newPaidAmount,
         status: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
-        paidDate: isFullyPaid ? new Date() : undefined,
+        paidDate: isFullyPaid ? new Date() : invoice.paidDate ?? new Date(),
         daysOverdue: isFullyPaid ? 0 : undefined,
         paymentMethod: paymentMethod ?? invoice.paymentMethod,
       },
@@ -731,7 +789,7 @@ export async function recordPartialPayment(params: {
       });
     }
 
-    return { ...updated, amount: updated.amount.toString() };
+    return { ...updated, amount: updated.amount.toString(), paidAmount: (updated.paidAmount ?? 0).toString() };
   });
   logger.app("INFO", "invoice.recordPartialPayment OK", null, { shopId, invoiceId, paymentAmount });
   return result;
@@ -781,8 +839,50 @@ export async function getInvoiceForPayment(params: {
     invoice: {
       ...invoiceFields,
       amount: invoiceFields.amount.toString(),
+      paidAmount: (invoiceFields.paidAmount ?? 0).toString(),
     } as InvoiceRecord,
     customer,
     shop,
   };
+}
+
+/**
+ * Get payment history for an invoice (all Payment records)
+ */
+export async function getPaymentHistory(invoiceId: string, shopId: string): Promise<Array<{
+  id: string;
+  amount: string;
+  paymentMethod: string | null;
+  paymentDate: string;
+  reference: string | null;
+  notes: string | null;
+  createdAt: string;
+}>> {
+  logger.app("INFO", "invoice.getPaymentHistory START", null, { shopId, invoiceId });
+  const payments = await prisma.payment.findMany({
+    where: { invoiceId, shopId },
+    orderBy: { paymentDate: "desc" },
+    select: {
+      id: true,
+      amount: true,
+      paymentMethod: true,
+      paymentDate: true,
+      reference: true,
+      notes: true,
+      createdAt: true,
+    },
+  });
+
+  const result = payments.map((p) => ({
+    id: p.id,
+    amount: p.amount.toString(),
+    paymentMethod: p.paymentMethod,
+    paymentDate: p.paymentDate.toISOString(),
+    reference: p.reference,
+    notes: p.notes,
+    createdAt: p.createdAt.toISOString(),
+  }));
+
+  logger.app("INFO", "invoice.getPaymentHistory OK", null, { shopId, invoiceId, count: result.length });
+  return result;
 }

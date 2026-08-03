@@ -221,6 +221,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         logger.app("INFO", "action:app.tasks send OK", null, { durationMs: Date.now() - ta, taskId });
         return json({ success: true });
       }
+      // GAP 5: Restart a STOPPED task
+      case "restart": {
+        const task = await prisma.collectionTask.findUnique({
+          where: { id: taskId, sequence: { shopId } },
+        });
+        if (!task || task.status !== "STOPPED") {
+          return json({ error: "This task cannot be restarted. It may not be in a stopped state." }, { status: 400 });
+        }
+        await prisma.collectionTask.update({
+          where: { id: taskId, sequence: { shopId } },
+          data: { status: "PENDING", nextStepAt: new Date(), updatedAt: new Date() },
+        });
+        logger.app("INFO", "action:app.tasks restart OK", null, { durationMs: Date.now() - ta, taskId });
+        return json({ success: true });
+      }
       default:
         logger.app("WARN", "action:app.tasks unknown_intent", null, { intent });
         return json({ error: "We encountered an issue. Please refresh the page and try again." }, { status: 400 });
@@ -266,6 +281,14 @@ export default function TasksPage() {
   const handleSend = useCallback(
     (taskId: string) => {
       fetcher.submit({ intent: "send", taskId }, { method: "POST" });
+    },
+    [fetcher],
+  );
+
+  const handleRestart = useCallback(
+    (taskId: string) => {
+      if (!confirm("Restart this task? The collection sequence will resume from the beginning.")) return;
+      fetcher.submit({ intent: "restart", taskId }, { method: "POST" });
     },
     [fetcher],
   );
@@ -470,6 +493,13 @@ export default function TasksPage() {
                           </Button>
                           <Button size="slim" onClick={() => handlePause(task.id)}>
                             Pause
+                          </Button>
+                        </InlineStack>
+                      )}
+                      {task.status === "STOPPED" && (
+                        <InlineStack gap="200">
+                          <Button size="slim" tone="success" onClick={() => handleRestart(task.id)}>
+                            Restart
                           </Button>
                         </InlineStack>
                       )}

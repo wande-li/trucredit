@@ -11,7 +11,7 @@ export async function handleOrdersPaid(ctx: WebhookContext): Promise<Response> {
 
   let invoice = await prisma.invoice.findFirst({
     where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
-    select: { id: true, customerId: true, amount: true, status: true },
+    select: { id: true, customerId: true, shopId: true, amount: true, paidAmount: true, status: true, paymentMethod: true },
   });
 
   // Fallback: DRAFT_ORDERS_COMPLETE webhook might not have been processed yet.
@@ -24,7 +24,7 @@ export async function handleOrdersPaid(ctx: WebhookContext): Promise<Response> {
         status: { not: "PAID" },
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, customerId: true, amount: true, status: true },
+      select: { id: true, customerId: true, shopId: true, amount: true, paidAmount: true, status: true, paymentMethod: true },
     });
     if (invoice) {
       await prisma.invoice.update({
@@ -39,27 +39,40 @@ export async function handleOrdersPaid(ctx: WebhookContext): Promise<Response> {
   }
 
   if (invoice && invoice.status !== "PAID") {
-    await prisma.$transaction([
-      prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: "PAID", paidDate: new Date() },
-      }),
-      prisma.customer.update({
-        where: { id: invoice.customerId },
-        data: {
-          creditUsed: { decrement: Number(invoice.amount) },
-          creditAvailable: { increment: Number(invoice.amount) },
-        },
-      }),
-      prisma.collectionTask.updateMany({
-        where: { invoiceId: invoice.id, status: "ACTIVE" },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          completedReason: "paid",
-        },
-      }),
-    ]);
+    const outstanding = Number(invoice.amount) - Number(invoice.paidAmount ?? 0);
+    if (outstanding > 0) {
+      await prisma.$transaction([
+        prisma.payment.create({
+          data: {
+            shopId: invoice.shopId,
+            invoiceId: invoice.id,
+            customerId: invoice.customerId,
+            amount: outstanding,
+            paymentMethod: invoice.paymentMethod ?? "Shopify Order",
+            paymentDate: new Date(),
+          },
+        }),
+        prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { status: "PAID", paidDate: new Date(), paidAmount: invoice.amount },
+        }),
+        prisma.customer.update({
+          where: { id: invoice.customerId },
+          data: {
+            creditUsed: { decrement: outstanding },
+            creditAvailable: { increment: outstanding },
+          },
+        }),
+        prisma.collectionTask.updateMany({
+          where: { invoiceId: invoice.id, status: "ACTIVE" },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            completedReason: "paid",
+          },
+        }),
+      ]);
+    }
 
     if (shopifyAdmin) {
       await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {
@@ -81,7 +94,7 @@ export async function handleOrdersUpdated(ctx: WebhookContext): Promise<Response
   if (financialStatus === "paid") {
     let invoice = await prisma.invoice.findFirst({
       where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
-      select: { id: true, customerId: true, amount: true, status: true },
+      select: { id: true, customerId: true, shopId: true, amount: true, paidAmount: true, status: true, paymentMethod: true },
     });
 
     // Fallback: draft-order-converted invoice
@@ -94,7 +107,7 @@ export async function handleOrdersUpdated(ctx: WebhookContext): Promise<Response
           status: { not: "PAID" },
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true, customerId: true, amount: true, status: true },
+        select: { id: true, customerId: true, shopId: true, amount: true, paidAmount: true, status: true, paymentMethod: true },
       });
       if (invoice) {
         await prisma.invoice.update({
@@ -105,27 +118,40 @@ export async function handleOrdersUpdated(ctx: WebhookContext): Promise<Response
     }
 
     if (invoice && invoice.status !== "PAID") {
-      await prisma.$transaction([
-        prisma.invoice.update({
-          where: { id: invoice.id },
-          data: { status: "PAID", paidDate: new Date() },
-        }),
-        prisma.customer.update({
-          where: { id: invoice.customerId },
-          data: {
-            creditUsed: { decrement: Number(invoice.amount) },
-            creditAvailable: { increment: Number(invoice.amount) },
-          },
-        }),
-        prisma.collectionTask.updateMany({
-          where: { invoiceId: invoice.id, status: "ACTIVE" },
-          data: {
-            status: "COMPLETED",
-            completedAt: new Date(),
-            completedReason: "paid",
-          },
-        }),
-      ]);
+      const outstanding = Number(invoice.amount) - Number(invoice.paidAmount ?? 0);
+      if (outstanding > 0) {
+        await prisma.$transaction([
+          prisma.payment.create({
+            data: {
+              shopId: invoice.shopId,
+              invoiceId: invoice.id,
+              customerId: invoice.customerId,
+              amount: outstanding,
+              paymentMethod: invoice.paymentMethod ?? "Shopify Order",
+              paymentDate: new Date(),
+            },
+          }),
+          prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { status: "PAID", paidDate: new Date(), paidAmount: invoice.amount },
+          }),
+          prisma.customer.update({
+            where: { id: invoice.customerId },
+            data: {
+              creditUsed: { decrement: outstanding },
+              creditAvailable: { increment: outstanding },
+            },
+          }),
+          prisma.collectionTask.updateMany({
+            where: { invoiceId: invoice.id, status: "ACTIVE" },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+              completedReason: "paid",
+            },
+          }),
+        ]);
+      }
 
       if (shopifyAdmin) {
         await syncCreditMetafield(shopifyAdmin, shopDomain, invoice.customerId).catch((e: unknown) => {

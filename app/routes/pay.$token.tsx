@@ -3,9 +3,11 @@
 // Shows invoice detail + "Pay Now" → Shopify native checkout
 
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import { useLoaderData, useRouteError, isRouteErrorResponse } from "@remix-run/react";
-import { validateToken } from "~/services/token.server";
+import { validateToken, tryExtractTokenPayload } from "~/services/token.server";
 import { getInvoiceForPayment } from "~/services/invoice.server";
+import { getShopInfo } from "~/services/portal.server";
 import { logger } from "~/services/logger.server";
 import PortalErrorBoundary from "~/components/PortalErrorBoundary";
 import portalStyles from "~/styles/portal.css?url";
@@ -26,7 +28,17 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
   // 1. Validate token
   const payload = await validateToken(token);
-  if (!payload) throw notFound("Payment link has expired or is invalid");
+  if (!payload) {
+    // Try to extract shop context from expired token → redirect to portal/renew
+    const remnant = await tryExtractTokenPayload(token);
+    if (remnant && remnant.scope === "invoice_pay") {
+      const shop = await getShopInfo(remnant.shopId);
+      if (shop?.shopDomain) {
+        throw redirect(`/portal/renew?shop=${encodeURIComponent(shop.shopDomain)}`);
+      }
+    }
+    throw notFound("Payment link has expired or is invalid");
+  }
 
   if (payload.scope !== "invoice_pay") {
     logger.app("WARN", "pay.$token — wrong token scope", undefined, { scope: payload.scope });

@@ -166,7 +166,7 @@ export async function handleDraftOrdersDelete(ctx: WebhookContext): Promise<Resp
         shopifyDraftOrderId: draftOrderGid,
         status: { notIn: ["PAID", "VOID"] },
       },
-      select: { id: true, customerId: true, amount: true, status: true },
+      select: { id: true, customerId: true, amount: true, paidAmount: true, status: true },
     });
 
     if (invoice) {
@@ -178,8 +178,8 @@ export async function handleDraftOrdersDelete(ctx: WebhookContext): Promise<Resp
         prisma.customer.update({
           where: { id: invoice.customerId },
           data: {
-            creditUsed: { decrement: Number(invoice.amount) },
-            creditAvailable: { increment: Number(invoice.amount) },
+            creditUsed: { decrement: Number(invoice.amount) - Number(invoice.paidAmount ?? 0) },
+            creditAvailable: { increment: Number(invoice.amount) - Number(invoice.paidAmount ?? 0) },
           },
         }),
         prisma.collectionTask.updateMany({

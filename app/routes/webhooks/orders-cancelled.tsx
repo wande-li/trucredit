@@ -10,7 +10,7 @@ export async function handleOrdersCancelled(ctx: WebhookContext): Promise<Respon
 
   let invoice = await prisma.invoice.findFirst({
     where: { shopifyOrderId: orderId, shop: { shopDomain: shopDomain?.trim() || undefined } },
-    select: { id: true, customerId: true, amount: true, status: true },
+    select: { id: true, customerId: true, amount: true, paidAmount: true, status: true },
   });
 
   // Fallback: draft-order-converted invoice
@@ -23,13 +23,14 @@ export async function handleOrdersCancelled(ctx: WebhookContext): Promise<Respon
         status: { not: "PAID" },
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, customerId: true, amount: true, status: true },
+      select: { id: true, customerId: true, amount: true, paidAmount: true, status: true },
     });
   }
 
   if (invoice && invoice.status !== "PAID" && invoice.status !== "VOID") {
     // PARTIALLY_PAID: skip credit release (unknown paid amount, admin adjusts manually)
     const isPartiallyPaid = invoice.status === "PARTIALLY_PAID";
+    const outstanding = Number(invoice.amount) - Number(invoice.paidAmount ?? 0);
 
     const creditOps = isPartiallyPaid
       ? []
@@ -37,8 +38,8 @@ export async function handleOrdersCancelled(ctx: WebhookContext): Promise<Respon
           prisma.customer.update({
             where: { id: invoice.customerId },
             data: {
-              creditUsed: { decrement: Number(invoice.amount) },
-              creditAvailable: { increment: Number(invoice.amount) },
+              creditUsed: { decrement: outstanding },
+              creditAvailable: { increment: outstanding },
             },
           }),
         ];

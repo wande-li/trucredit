@@ -11,6 +11,7 @@ import prisma from '~/db.server';
 import { PLAN_QUOTAS } from '~/lib/constants';
 import type { PlanKey } from '~/lib/constants';
 import { decryptToken } from '~/lib/crypto.server';
+import { billingPlanToEnum } from '~/services/billing.server';
 import PageSkeleton from '~/components/PageSkeleton';
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -54,6 +55,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const apiUrl = `https://${shop}/admin/api/2025-10/recurring_application_charges/${chargeId}.json`;
 
     let chargeValid = false;
+    let chargePrice: number | undefined;
+    let chargeTrialDays: number | undefined;
+
     try {
       // AbortController: prevent hanging if Shopify API is slow (10s timeout)
       const controller = new AbortController();
@@ -69,15 +73,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       if (res.ok) {
         const body = (await res.json()) as {
-          recurring_application_charge?: { status: string; name: string };
+          recurring_application_charge?: {
+            status: string;
+            name: string;
+            price?: string | number;
+            trial_days?: number;
+          };
         };
         const charge = body?.recurring_application_charge;
         if (charge?.status === 'active') {
           chargeValid = true;
+          // Extract optional fields for DB sync (mirrors webhook handler completeness)
+          chargePrice =
+            typeof charge?.price === 'string'
+              ? parseFloat(charge.price)
+              : typeof charge?.price === 'number'
+                ? charge.price
+                : undefined;
+          chargeTrialDays = charge?.trial_days;
           logger.app('INFO', 'loader:billing.callback charge_verified OK', {
             shop,
             chargeId,
             chargeName: charge.name,
+            chargePrice,
+            chargeTrialDays,
           });
         } else {
           logger.app('WARN', 'loader:billing.callback charge_not_active WARN', {
@@ -111,21 +130,44 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect('/app');
     }
 
+    // Map Shopify billing plan name → internal Plan enum.
+    // planParam may be "TruCredit Business" (billing name) not "ENTERPRISE" (enum).
+    // Without this mapping, PLAN_QUOTAS lookup returns undefined + Prisma enum write fails.
+    const planEnum = billingPlanToEnum(planParam);
+
     // Charge verified — update plan in DB as optimistic fast path.
     // The authoritative source is the app_subscriptions/update webhook.
+    // Mirrors Wandex pattern: $transaction + sync chargePrice/trialDays.
     try {
-      const quotas = PLAN_QUOTAS[planParam as PlanKey] ?? PLAN_QUOTAS.FREE;
-      await prisma.shop.update({
-        where: { shopDomain: shop },
-        data: {
-          plan: planParam as 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE',
-          subscriptionStatus: 'ACTIVE',
-          customerQuota: quotas.customers,
-          invoiceQuota: quotas.invoices,
-          shopifyChargeId: chargeId,
-        },
+      const quotas = PLAN_QUOTAS[planEnum as PlanKey] ?? PLAN_QUOTAS.FREE;
+      const updateData: Record<string, unknown> = {
+        plan: planEnum as 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE',
+        subscriptionStatus: 'ACTIVE',
+        customerQuota: quotas.customers,
+        invoiceQuota: quotas.invoices,
+        shopifyChargeId: chargeId,
+      };
+      if (chargePrice !== undefined && !Number.isNaN(chargePrice)) {
+        updateData.priceAmount = chargePrice;
+      }
+      if (chargeTrialDays !== undefined) {
+        updateData.trialDays = chargeTrialDays;
+      }
+
+      await prisma.$transaction([
+        prisma.shop.update({
+          where: { shopDomain: shop },
+          data: updateData,
+        }),
+      ]);
+      logger.app('INFO', 'loader:billing.callback plan_updated OK', {
+        shop,
+        planParam,
+        planEnum,
+        chargeId,
+        priceAmount: chargePrice,
+        trialDays: chargeTrialDays,
       });
-      logger.app('INFO', 'loader:billing.callback plan_updated OK', { shop, plan: planParam, chargeId });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('P2025')) {

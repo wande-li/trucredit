@@ -13,7 +13,8 @@ export interface InvoiceRecord {
   shopifyOrderName: string | null;
   shopifyDraftOrderId: string | null;
   invoiceNumber: string;
-  amount: string; // Decimal → string
+  amount: string; // Decimal → string (original invoice amount, never modified)
+  paidAmount: string; // Decimal → string (cumulative payments)
   currency: string;
   issueDate: Date;
   dueDate: Date;
@@ -28,6 +29,19 @@ export interface InvoiceRecord {
   updatedAt: Date;
 }
 
+// Payment record for an invoice
+export interface PaymentRecord {
+  id: string;
+  invoiceId: string;
+  customerId: string;
+  amount: string;
+  paymentMethod: string | null;
+  paymentDate: string;
+  reference: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
 // Invoice summary for list views
 export interface InvoiceSummary {
   id: string;
@@ -35,6 +49,7 @@ export interface InvoiceSummary {
   customerName: string;
   customerCompany: string | null;
   amount: string;
+  paidAmount: string;
   currency: string;
   issueDate: string;
   dueDate: string;

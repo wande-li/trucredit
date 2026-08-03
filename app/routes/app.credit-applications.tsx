@@ -40,7 +40,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
     const perPage = 20;
 
-    const [applications, totalCount] = await Promise.all([
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [applications, totalCount, stalePendingCount, totalPendingCount] = await Promise.all([
       prisma.creditApplication.findMany({
         where: { shopId, status: statusFilter },
         orderBy: { createdAt: "desc" },
@@ -54,6 +56,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         },
       }),
       prisma.creditApplication.count({ where: { shopId, status: statusFilter } }),
+      // GAP 3: Count stale PENDING applications (older than 7 days)
+      prisma.creditApplication.count({
+        where: { shopId, status: "PENDING", createdAt: { lt: sevenDaysAgo } },
+      }),
+      // GAP 3: Total PENDING count (for the "Pending" tab badge)
+      prisma.creditApplication.count({ where: { shopId, status: "PENDING" } }),
     ]);
 
     logger.app("INFO", "loader:app.credit-applications OK", null, {
@@ -62,9 +70,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalCount,
       page,
       statusFilter,
+      stalePendingCount,
+      totalPendingCount,
     });
 
-    return json({ applications, statusFilter, totalCount, page, perPage });
+    return json({ applications, statusFilter, totalCount, page, perPage, stalePendingCount, totalPendingCount });
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -164,7 +174,7 @@ function statusBadge(status: string): { tone: "attention" | "success" | "critica
 }
 
 export default function CreditApplicationsPage() {
-  const { applications, statusFilter, totalCount, page, perPage } = useLoaderData<typeof loader>();
+  const { applications, statusFilter, totalCount, page, perPage, stalePendingCount } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; action?: string; error?: string; portalUrl?: string; ok?: number; fail?: number }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -254,6 +264,17 @@ export default function CreditApplicationsPage() {
         <Box paddingBlockEnd="400">
           <Banner tone="critical" onDismiss={() => fetcher.load("/app/credit-applications")}>
             <Text as="p">{fetcher.data.error}</Text>
+          </Banner>
+        </Box>
+      )}
+
+      {/* GAP 3: Stale pending applications warning */}
+      {stalePendingCount > 0 && (
+        <Box paddingBlockEnd="400">
+          <Banner tone="warning">
+            <Text as="p" variant="bodyMd">
+              {stalePendingCount} application{stalePendingCount !== 1 ? "s" : ""} pending for over 7 days. Promptly reviewing applications ensures your B2B customers aren't left waiting.
+            </Text>
           </Banner>
         </Box>
       )}

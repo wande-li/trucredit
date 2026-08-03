@@ -209,8 +209,9 @@ export async function recalculateCreditScore(params: {
               grade: assessment.grade,
               riskLevel: assessment.riskLevel,
             },
-          reason: "Automated score recalculation",
-          triggeredBy: params.triggeredBy,
+            reason: "Automated score recalculation",
+            triggeredBy: params.triggeredBy,
+          },
         },
       },
     });
@@ -340,6 +341,44 @@ export async function unfreezeCustomer(params: {
   });
 
   logger.app("INFO", "customer.unfreezeCustomer OK", null, { customerId: params.customerId, shopId: params.shopId });
+  return {
+    ...updated,
+    creditLimit: updated.creditLimit.toString(),
+    creditUsed: updated.creditUsed.toString(),
+    creditAvailable: updated.creditAvailable.toString(),
+    totalRevenue: updated.totalRevenue.toString(),
+  };
+}
+
+/**
+ * Un-blacklist a customer, restoring them to ACTIVE status
+ */
+export async function unblacklistCustomer(params: {
+  shopId: string;
+  customerId: string;
+  triggeredBy: string;
+}): Promise<CustomerRecord> {
+  logger.app("INFO", "customer.unblacklistCustomer START", null, { customerId: params.customerId, shopId: params.shopId });
+  const updated = await prisma.customer.update({
+    where: { id: params.customerId, shopId: params.shopId },
+    data: {
+      status: "ACTIVE",
+      isFrozen: false,
+      frozenReason: null,
+      frozenAt: null,
+      creditEvents: {
+        create: {
+          type: "UNBLACKLIST",
+          previousValue: { status: "BLACKLISTED", isFrozen: true },
+          newValue: { status: "ACTIVE", isFrozen: false },
+          reason: "Manual unblacklist",
+          triggeredBy: params.triggeredBy,
+        },
+      },
+    },
+  });
+
+  logger.app("INFO", "customer.unblacklistCustomer OK", null, { customerId: params.customerId, shopId: params.shopId });
   return {
     ...updated,
     creditLimit: updated.creditLimit.toString(),

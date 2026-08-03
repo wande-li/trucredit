@@ -55,6 +55,8 @@ enum CreditEventType {
   GRADE_CHANGE
   FROZEN
   UNFROZEN
+  BLACKLIST
+  UNBLACKLIST
   SCORE_UPDATE
   SOURCE_SWITCH
 }
@@ -197,6 +199,7 @@ model Shop {
 
   customers         Customer[]
   invoices          Invoice[]
+  payments          Payment[]
   sequences         CollectionSequence[]
   creditRules       CreditRule[]
   emailTemplates    EmailTemplate[]
@@ -265,6 +268,7 @@ model Customer {
   isFrozen     Boolean        @default(false)
   frozenReason String?
   frozenAt     DateTime?
+  emailBouncedAt DateTime? // GAP 4: SES hard bounce tracking
 
   // Relations
   invoices           Invoice[]
@@ -272,6 +276,7 @@ model Customer {
   collectionTasks    CollectionTask[]
   creditApplications CreditApplication[]
   portalTokens       PortalToken[]
+  payments           Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -406,9 +411,11 @@ model Invoice {
   // Payment
   paymentUrl    String?
   paymentMethod String?
+  paidAmount    Decimal   @default(0) @db.Decimal(10, 2) // Cumulative sum of Payment records
 
   // Relations
   collectionTasks CollectionTask[]
+  payments        Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -531,6 +538,32 @@ model CollectionEvent {
   updatedAt DateTime @updatedAt
 
   @@index([taskId])
+}
+
+// ═══════════════════ Payment ═══════════════════
+
+model Payment {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  amount        Decimal  @db.Decimal(10, 2) // This payment's amount
+  paymentMethod String?  // "Bank Transfer" | "Credit Card" | "Check" | "Wire" | "Other"
+  paymentDate   DateTime // Date when payment was received
+  reference     String?  // Check number, transaction ID, etc.
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, invoiceId])
+  @@index([shopId, customerId])
+  @@index([invoiceId])
+  @@map("payments")
 }
 
 // ═══════════════════ Email Templates ═══════════════════

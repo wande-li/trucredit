@@ -209,6 +209,43 @@ export async function generatePortalToken(params: {
 }
 
 /**
+ * Try to extract token payload without expiry/revocation checks.
+ * Used to provide shop context for renewal pages when the token has expired.
+ */
+export async function tryExtractTokenPayload(
+  token: string,
+): Promise<Pick<TokenPayload, "shopId" | "customerId" | "scope"> | null> {
+  if (!token) return null;
+  try {
+    const raw = decryptToken(token);
+    const payload = JSON.parse(raw) as TokenPayload;
+    if (!payload.shopId || !payload.customerId || !payload.scope) return null;
+    return { shopId: payload.shopId, customerId: payload.customerId, scope: payload.scope };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extend portal token expiry by TOKEN_TTL_SECONDS from now (sliding expiration).
+ * Fails silently — only logged, never throws, so page load is never blocked.
+ */
+export async function extendPortalToken(token: string): Promise<void> {
+  try {
+    const result = await prisma.portalToken.updateMany({
+      where: { tokenHash: hashToken(token), revokedAt: null },
+      data: { expiresAt: new Date(Date.now() + TOKEN_TTL_SECONDS * 1000) },
+    });
+    if (result.count > 0) {
+      logger.app("INFO", "token.extendPortalToken — extended", undefined, { count: result.count });
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.app("WARN", "token.extendPortalToken — failed", msg);
+  }
+}
+
+/**
  * Build the full portal URL from a token.
  */
 export function buildPortalUrl(token: string): string {

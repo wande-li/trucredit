@@ -229,7 +229,7 @@ export async function getPortalDashboard(
       customerId,
       status: { in: ["PENDING", "OVERDUE", "PARTIALLY_PAID", "DISPUTED"] },
     },
-    _sum: { amount: true },
+    _sum: { amount: true, paidAmount: true },
     _count: true,
   });
 
@@ -239,12 +239,12 @@ export async function getPortalDashboard(
   let unpaidCount = 0;
 
   for (const group of allUnpaid) {
-    const amt = Number(group._sum.amount ?? 0);
+    const amt = Number(group._sum.amount ?? 0) - Number(group._sum.paidAmount ?? 0);
     totalOutstanding += amt;
-    unpaidCount += group._count;
+    unpaidCount += Number(group._count ?? 0);
     if (group.status === "OVERDUE") {
       totalOverdue += amt;
-      overdueCount += group._count;
+      overdueCount += Number(group._count ?? 0);
     }
   }
 

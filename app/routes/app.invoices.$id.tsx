@@ -23,7 +23,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { resolveShop } from "~/services/shop-resolver.server";
-import { getInvoice, markInvoicePaid, recordPartialPayment, updateInvoice } from "~/services/invoice.server";
+import { getInvoice, markInvoicePaid, recordPartialPayment, updateInvoice, getPaymentHistory } from "~/services/invoice.server";
 import { syncCreditMetafield } from "~/services/metafield.server";
 import { logger } from "~/services/logger.server";
 import { requirePermission } from "~/services/rbac.server";
@@ -90,6 +90,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       invoiceId: params.id,
       status: invoice.status,
     });
+    const payments = invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID"
+      ? await getPaymentHistory(params.id!, shopId)
+      : [];
+
     return json({
       invoice: {
         ...invoice,
@@ -101,6 +105,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       },
       customer,
       collectionTasks,
+      payments,
       allowedTransitions: INVOICE_TRANSITIONS[invoice.status] as InvoiceStatus[],
     });
   } catch (e: unknown) {
@@ -379,7 +384,7 @@ const statusLabel: Record<string, string> = {
 };
 
 export default function InvoiceDetail() {
-  const { invoice, customer, collectionTasks, allowedTransitions } = useLoaderData<typeof loader>();
+  const { invoice, customer, collectionTasks, payments, allowedTransitions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [busyIntent, setBusyIntent] = useState<string | null>(null);
@@ -929,6 +934,25 @@ export default function InvoiceDetail() {
                         </Button>
                       )}
                     </InlineStack>
+                  </BlockStack>
+                </Card>
+              )}
+
+              {/* Payment History */}
+              {payments.length > 0 && (
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">Payment History</Text>
+                    <DataTable
+                      columnContentTypes={["text", "numeric", "text", "text"]}
+                      headings={["Date", "Amount", "Method", "Reference"]}
+                      rows={payments.map((p) => [
+                        new Date(p.paymentDate).toLocaleDateString(DEFAULT_LOCALE),
+                        `${invoice.currency} ${Number(p.amount).toFixed(2)}`,
+                        p.paymentMethod ?? "—",
+                        p.reference ?? "—",
+                      ])}
+                    />
                   </BlockStack>
                 </Card>
               )}

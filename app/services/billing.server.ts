@@ -146,7 +146,7 @@ export const PLANS: PlanDefinition[] = [
 export function billingPlanToEnum(planName: string | null): Plan {
   if (!planName) return "FREE";
   switch (planName) {
-    // Shopify billing plan names (monthly / annual)
+    // Shopify billing plan names (monthly / annual) — from charge.name
     case PLAN_STARTER_MONTHLY:
     case PLAN_STARTER_ANNUAL:
       return "STARTER";
@@ -157,6 +157,15 @@ export function billingPlanToEnum(planName: string | null): Plan {
     case PLAN_ENTERPRISE_ANNUAL:
       return "ENTERPRISE";
     case "TruCredit Free":
+      return "FREE";
+    // Shopify plan_handle values — from callback URL ?plan_handle=xxx
+    case "trucredit-business":
+      return "ENTERPRISE";
+    case "trucredit-pro":
+      return "PRO";
+    case "trucredit-starter":
+      return "STARTER";
+    case "trucredit-free":
       return "FREE";
     // Raw enum values (idempotent — callback plan param may already be enum)
     case "FREE":

@@ -19,27 +19,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get('shop');
   const chargeId = url.searchParams.get('charge_id');
-  const planParam = url.searchParams.get('plan');
+  // Shopify Managed Pricing may send plan_handle (new) or plan (legacy)
+  const planHandle = url.searchParams.get('plan_handle') || url.searchParams.get('plan');
 
   logger.app('INFO', 'loader:billing.callback START', null, {
     shop,
     chargeId,
-    plan: planParam,
+    plan_handle: planHandle,
   });
 
-  if (!shop || !chargeId || !planParam || planParam === 'FREE') {
+  // Wandex pattern: only require shop + charge_id. Plan is determined from
+  // verified charge.name (REST API), not from URL params. This handles both
+  // legacy ?plan=xxx and new ?plan_handle=xxx query parameter formats.
+  const adminBaseUrl = shop ? `https://admin.shopify.com/store/${shop}/apps/trucredit` : '/app';
+
+  if (!shop || !chargeId) {
     logger.app('WARN', 'loader:billing.callback ERROR: missing params', {
       hasShop: !!shop,
       hasChargeId: !!chargeId,
-      hasPlan: !!planParam,
-      plan: planParam,
     });
-    return redirect('/app');
+    return redirect(adminBaseUrl);
   }
 
   // Verify the charge via Shopify REST API before trusting the params.
   // This prevents free-plan-abuse: anyone crafting a URL with arbitrary
-  // shop + plan params cannot upgrade without a real active charge.
+  // shop + charge_id params cannot upgrade without a real active charge.
   try {
     const shopRecord = await prisma.shop.findUnique({
       where: { shopDomain: shop },
@@ -48,13 +52,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (!shopRecord) {
       logger.app('WARN', 'loader:billing.callback ERROR: shop not in DB', { shop });
-      return redirect('/app');
+      return redirect(adminBaseUrl);
     }
 
     const token = decryptToken(shopRecord.accessToken);
     const apiUrl = `https://${shop}/admin/api/2025-10/recurring_application_charges/${chargeId}.json`;
 
-    let chargeValid = false;
+    let chargeName: string | undefined;
     let chargePrice: number | undefined;
     let chargeTrialDays: number | undefined;
 
@@ -82,8 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         };
         const charge = body?.recurring_application_charge;
         if (charge?.status === 'active') {
-          chargeValid = true;
-          // Extract optional fields for DB sync (mirrors webhook handler completeness)
+          chargeName = charge.name;
           chargePrice =
             typeof charge?.price === 'string'
               ? parseFloat(charge.price)
@@ -94,7 +97,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           logger.app('INFO', 'loader:billing.callback charge_verified OK', {
             shop,
             chargeId,
-            chargeName: charge.name,
+            chargeName,
             chargePrice,
             chargeTrialDays,
           });
@@ -121,19 +124,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    if (!chargeValid) {
+    if (!chargeName) {
       logger.app('WARN', 'loader:billing.callback charge_verification_failed WARN', {
         shop,
         chargeId,
-        plan: planParam,
+        plan_handle: planHandle,
       });
-      return redirect('/app');
+      // Charge not verified — redirect to dashboard; webhook will sync later
+      return redirect(adminBaseUrl);
     }
 
-    // Map Shopify billing plan name → internal Plan enum.
-    // planParam may be "TruCredit Business" (billing name) not "ENTERPRISE" (enum).
-    // Without this mapping, PLAN_QUOTAS lookup returns undefined + Prisma enum write fails.
-    const planEnum = billingPlanToEnum(planParam);
+    // Wandex pattern: use charge.name from REST API (not URL param) to determine plan.
+    // charge.name is authoritative (e.g. "TruCredit Business"), immune to URL format changes.
+    const planEnum = billingPlanToEnum(chargeName);
 
     // Charge verified — update plan in DB as optimistic fast path.
     // The authoritative source is the app_subscriptions/update webhook.
@@ -162,7 +165,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ]);
       logger.app('INFO', 'loader:billing.callback plan_updated OK', {
         shop,
-        planParam,
+        chargeName,
         planEnum,
         chargeId,
         priceAmount: chargePrice,
@@ -175,26 +178,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } else {
         logger.app('ERROR', 'loader:billing.callback plan_update_failed ERROR', { shop, error: msg });
       }
+      // Even if DB update fails, redirect to dashboard — webhook will sync
     }
 
-    const adminUrl = `https://admin.shopify.com/store/${shop}/apps/trucredit`;
     const durationMs = Date.now() - t0;
-    logger.app('INFO', 'loader:billing.callback redirect OK', null, { shop, plan: planParam, chargeId, durationMs });
-    return redirect(adminUrl);
+    logger.app('INFO', 'loader:billing.callback redirect OK', null, { shop, chargeName, chargeId, durationMs });
+    return redirect(adminBaseUrl);
   } catch (e: unknown) {
     if (e instanceof Response) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     logger.app('ERROR', 'loader:billing.callback outer_catch ERROR', msg, {
       shop,
       chargeId,
-      plan: planParam,
       durationMs: Date.now() - t0,
     });
-    // User paid but DB lookup failed — still redirect to dashboard; webhook will sync later
-    if (shop) {
-      return redirect(`https://admin.shopify.com/store/${shop}/apps/trucredit`);
-    }
-    return redirect('/app');
+    // User paid but something failed — still redirect to dashboard; webhook will sync later
+    return redirect(adminBaseUrl);
   }
 };
 

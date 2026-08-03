@@ -167,6 +167,15 @@ export function billingPlanToEnum(planName: string | null): Plan {
       return "STARTER";
     case "trucredit-free":
       return "FREE";
+    // Short charge names from Shopify REST API — charge.name omits "TruCredit " prefix
+    case "Business":
+      return "ENTERPRISE";
+    case "Pro":
+      return "PRO";
+    case "Starter":
+      return "STARTER";
+    case "Free":
+      return "FREE";
     // Raw enum values (idempotent — callback plan param may already be enum)
     case "FREE":
     case "STARTER":

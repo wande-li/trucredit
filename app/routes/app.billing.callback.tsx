@@ -31,7 +31,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Wandex pattern: only require shop + charge_id. Plan is determined from
   // verified charge.name (REST API), not from URL params. This handles both
   // legacy ?plan=xxx and new ?plan_handle=xxx query parameter formats.
-  const adminBaseUrl = shop ? `https://admin.shopify.com/store/${shop}/apps/trucredit` : '/app';
+  const storeHandle = shop.replace(".myshopify.com", "");
+  const adminBaseUrl = `https://admin.shopify.com/store/${storeHandle}/apps/trucredit`;
 
   if (!shop || !chargeId) {
     logger.app('WARN', 'loader:billing.callback ERROR: missing params', {

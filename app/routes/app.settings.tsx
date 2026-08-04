@@ -60,6 +60,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const { isPaid } = await checkPlanAccess(shopId);
     if (!isPaid) return redirect("/app/billing");
 
+    const appUrl = new URL(request.url).origin;
+
     const [shop, teamMembers] = await Promise.all([
       prisma.shop.findUnique({
         where: { shopDomain },
@@ -82,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({
       settings: shop,
       shopDomain,
+      appUrl,
       role,
       roleLabel: ROLE_LABELS[role],
       permissions: getAvailableActions(role),
@@ -160,32 +163,33 @@ function roleBadgeTone(role: Role): "success" | "attention" | "info" {
 }
 
 export default function SettingsPage() {
-  const { settings, shopDomain, role, roleLabel, permissions, teamMembers } = useLoaderData<typeof loader>();
+  const { settings, shopDomain, appUrl, role, roleLabel, permissions, teamMembers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
   const teamFetcher = useFetcher<{ success?: boolean; error?: string; member?: { id: string; email: string; role: string } }>();
   const isSubmitting = fetcher.state === "submitting";
   const [dismissedError, setDismissedError] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"store" | "direct" | null>(null);
 
-  const registrationLink = `https://${shopDomain}/apps/trucredit/register`;
+  const storeRegistrationLink = `https://${shopDomain}/apps/trucredit/register`;
+  const directRegistrationLink = `${appUrl}/register?shop=${shopDomain}`;
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(async (type: "store" | "direct") => {
+    const link = type === "store" ? storeRegistrationLink : directRegistrationLink;
     try {
-      await navigator.clipboard.writeText(registrationLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(link);
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
     } catch {
-      // Fallback: select text manually
       const el = document.createElement("textarea");
-      el.value = registrationLink;
+      el.value = link;
       document.body.appendChild(el);
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
     }
-  }, [registrationLink]);
+  }, [storeRegistrationLink, directRegistrationLink]);
 
   // Form field state — needed because Polaris TextField/Select requires onChange for controlled value
   const [emailFromName, setEmailFromName] = useState(settings.emailFromName ?? "");
@@ -300,33 +304,79 @@ export default function SettingsPage() {
             </Text>
             <Text as="p" variant="bodyMd" tone="subdued">
               Share this link with your wholesale buyers so they can apply for Net Terms.
-              It opens on your own store domain for maximum trust.
+              Two links are provided — use the one that works for your store.
             </Text>
-            <Box
-              background="bg-surface-secondary"
-              padding="300"
-              borderRadius="200"
-            >
-              <InlineStack gap="200" blockAlign="center" wrap={false}>
-                <Box
-                  background="bg-surface"
-                  padding="200"
-                  borderRadius="200"
-                  width="100%"
-                >
-                  <Text as="p" variant="bodySm" fontWeight="medium" breakWord>
-                    {registrationLink}
-                  </Text>
-                </Box>
-                <Button
-                  onClick={handleCopy}
-                  icon={ClipboardIcon}
-                  variant={copied ? "primary" : "secondary"}
-                >
-                  {copied ? "Copied!" : "Copy"}
-                </Button>
-              </InlineStack>
-            </Box>
+
+            {/* Primary: Store domain link (App Proxy) */}
+            <BlockStack gap="200">
+              <Text as="p" variant="bodySm" fontWeight="bold">
+                Store Domain Link (recommended for production)
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Opens on your store domain. Requires App Proxy to be activated.
+              </Text>
+              <Box
+                background="bg-surface-secondary"
+                padding="300"
+                borderRadius="200"
+              >
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Box
+                    background="bg-surface"
+                    padding="200"
+                    borderRadius="200"
+                    width="100%"
+                  >
+                    <Text as="p" variant="bodySm" fontWeight="medium" breakWord>
+                      {storeRegistrationLink}
+                    </Text>
+                  </Box>
+                  <Button
+                    onClick={() => handleCopy("store")}
+                    icon={ClipboardIcon}
+                    variant={copied === "store" ? "primary" : "secondary"}
+                  >
+                    {copied === "store" ? "Copied!" : "Copy"}
+                  </Button>
+                </InlineStack>
+              </Box>
+            </BlockStack>
+
+            {/* Fallback: Direct app link */}
+            <BlockStack gap="200">
+              <Text as="p" variant="bodySm" fontWeight="bold">
+                Direct Link (always works)
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Opens on our app domain. Use this if the store domain link shows your store homepage instead.
+              </Text>
+              <Box
+                background="bg-surface-secondary"
+                padding="300"
+                borderRadius="200"
+              >
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Box
+                    background="bg-surface"
+                    padding="200"
+                    borderRadius="200"
+                    width="100%"
+                  >
+                    <Text as="p" variant="bodySm" fontWeight="medium" breakWord>
+                      {directRegistrationLink}
+                    </Text>
+                  </Box>
+                  <Button
+                    onClick={() => handleCopy("direct")}
+                    icon={ClipboardIcon}
+                    variant={copied === "direct" ? "primary" : "secondary"}
+                  >
+                    {copied === "direct" ? "Copied!" : "Copy"}
+                  </Button>
+                </InlineStack>
+              </Box>
+            </BlockStack>
+
             <BlockStack gap="100">
               <Text as="p" variant="bodySm" tone="subdued">
                 <strong>Where to place this link:</strong>
